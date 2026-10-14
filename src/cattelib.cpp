@@ -1,3 +1,7 @@
+/* Encoding implementations for the public contract in cattelib.h.
+ * Operation-code comments below identify function-local failure stages;
+ * numeric codes are interpreted together with the returned status.
+ */
 #include "catalyst.hpp"
 #include "cattelib.h"
 
@@ -235,9 +239,13 @@ void catteCp1252Length(CATALYST_CP1252 cp1252, CATALYST_NUINT* length, CATALYST_
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
 }
 
-// TODO: Document opcode 1 for overlong encoding
-// TODO: Document opcode 2 for invalid surrogate codepoint
-// TODO: Document opcode 3 for invalid codepoint
+/**
+ * ERROR result: context = 0, detail = 0.
+ * operation 1 = overlong encoding.
+ * operation 2 = invalid surrogate codepoint.
+ * operation 3 = invalid codepoint.
+ * See cattelib.h for buffer, output, and argument-result contracts.
+ */
 void catteUtf8Encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, CATALYST_NUINT* produced, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8w == 0) {
@@ -323,12 +331,16 @@ void catteUtf8Encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, C
     return;
 }
 
-// TODO: Document opcode 1 for unexpected end of input
-// TODO: Document opcode 2 for invalid continuation byte
-// TODO: Document opcode 3 for overlong encoding
-// TODO: Document opcode 4 for invalid surrogate codepoint
-// TODO: Document opcode 5 for invalid codepoint
-// TODO: Document opcode 6 for invalid leading code unit
+/**
+ * ERROR result: context = 0, detail = 0.
+ * operation 1 = unexpected end of input.
+ * operation 2 = invalid continuation byte.
+ * operation 3 = overlong encoding.
+ * operation 4 = invalid surrogate codepoint.
+ * operation 5 = invalid codepoint.
+ * operation 6 = invalid leading code unit.
+ * See cattelib.h for buffer, output, and argument-result contracts.
+ */
 void catteUtf8Decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8 == 0) {
@@ -481,7 +493,11 @@ void catteUtf8Decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALYST
     return;
 }
 
-// TODO: Document opcode 1 for invalid UTF-8 sequence
+/**
+ * ERROR result: context = 0, detail = 0.
+ * operation 1 = invalid UTF-8 sequence.
+ * See cattelib.h for buffer, output, and argument-result contracts.
+ */
 void catteUtf8Length(CATALYST_UTF8 utf8, CATALYST_NUINT* length, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8 == 0) {
@@ -520,8 +536,12 @@ void catteUtf8Length(CATALYST_UTF8 utf8, CATALYST_NUINT* length, CATALYST_RESULT
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
 }
 
-// TODO: Document opcode 1 for invalid codepoint above U+10FFFF
-// TODO: Document opcode 2 for invalid surrogate codepoint
+/**
+ * ERROR result: context = 0, detail = 0.
+ * operation 1 = invalid codepoint above U+10FFFF.
+ * operation 2 = invalid surrogate codepoint.
+ * See cattelib.h for buffer, output, and argument-result contracts.
+ */
 void catteUtf16leEncode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT* produced, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16lew == 0) {
@@ -581,8 +601,12 @@ void catteUtf16leEncode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW ut
     return;
 }
 
-// TODO: Document opcode 1 for low surrogate without preceding high surrogate
-// TODO: Document opcode 2 for invalid low surrogate
+/**
+ * ERROR result: context = 0, detail = 0.
+ * operation 1 = low surrogate without preceding high surrogate.
+ * operation 2 = invalid low surrogate.
+ * See cattelib.h for buffer, output, and argument-result contracts.
+ */
 void catteUtf16leDecode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16le == 0) {
@@ -657,7 +681,11 @@ void catteUtf16leDecode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoint,
     return;
 }
 
-// TODO: Document opcode 1 for invalid UTF-16LE sequence
+/**
+ * ERROR result: context = 0, detail = 0.
+ * operation 1 = invalid UTF-16LE sequence.
+ * See cattelib.h for buffer, output, and argument-result contracts.
+ */
 void catteUtf16leLength(CATALYST_UTF16LE utf16le, CATALYST_NUINT* length, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16le == 0) {
@@ -811,8 +839,13 @@ void catteAsciiToUtf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW utf16lew, CATAL
     if (result != 0) *result = RESULT(status, 0, 0, 0);
 }
 
-// TODO: Document opcode 1 for failed CP1252 decode
-// TODO: Document opcode 2 for failed ASCII encode
+/**
+ * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
+ * dependency status byte. Its context/operation/detail are not propagated.
+ * operation 1 = failed CP1252 decode.
+ * operation 2 = failed ASCII encode.
+ * See cattelib.h for buffer, output, and argument-result contracts.
+ */
 void catteCp1252ToAscii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW asciiw, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (cp1252 == 0) {
@@ -863,8 +896,13 @@ void catteCp1252ToAscii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW asciiw, CATALYST
     if (result != 0) *result = RESULT(status, 0, 0, 0);
 }
 
-// TODO: Document opcode 1 for failed CP1252 decode
-// TODO: Document opcode 2 for failed UTF-8 encode
+/**
+ * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
+ * dependency status byte. Its context/operation/detail are not propagated.
+ * operation 1 = failed CP1252 decode.
+ * operation 2 = failed UTF-8 encode.
+ * See cattelib.h for buffer, output, and argument-result contracts.
+ */
 void catteCp1252ToUtf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (cp1252 == 0) {
@@ -932,8 +970,13 @@ void catteCp1252ToUtf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST_NU
     if (result != 0) *result = RESULT(status, 0, 0, 0);
 }
 
-// TODO: Document opcode 1 for failed CP1252 decode
-// TODO: Document opcode 2 for failed UTF-16LE encode
+/**
+ * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
+ * dependency status byte. Its context/operation/detail are not propagated.
+ * operation 1 = failed CP1252 decode.
+ * operation 2 = failed UTF-16LE encode.
+ * See cattelib.h for buffer, output, and argument-result contracts.
+ */
 void catteCp1252ToUtf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (cp1252 == 0) {
@@ -1002,8 +1045,13 @@ void catteCp1252ToUtf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew, CA
     if (result != 0) *result = RESULT(status, 0, 0, 0);
 }
 
-// TODO: Document opcode 1 for failed UTF-8 decode
-// TODO: Document opcode 2 for failed ASCII encode
+/**
+ * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
+ * dependency status byte. Its context/operation/detail are not propagated.
+ * operation 1 = failed UTF-8 decode.
+ * operation 2 = failed ASCII encode.
+ * See cattelib.h for buffer, output, and argument-result contracts.
+ */
 void catteUtf8ToAscii(CATALYST_UTF8 utf8, CATALYST_ASCIIW asciiw, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8 == 0) {
@@ -1066,8 +1114,13 @@ void catteUtf8ToAscii(CATALYST_UTF8 utf8, CATALYST_ASCIIW asciiw, CATALYST_NUINT
     if (result != 0) *result = RESULT(status, 0, 0, 0);
 }
 
-// TODO: Document opcode 1 for failed UTF-8 decode
-// TODO: Document opcode 2 for failed CP1252 encode
+/**
+ * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
+ * dependency status byte. Its context/operation/detail are not propagated.
+ * operation 1 = failed UTF-8 decode.
+ * operation 2 = failed CP1252 encode.
+ * See cattelib.h for buffer, output, and argument-result contracts.
+ */
 void catteUtf8ToCp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8 == 0) {
@@ -1130,8 +1183,13 @@ void catteUtf8ToCp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST_NU
     if (result != 0) *result = RESULT(status, 0, 0, 0);
 }
 
-// TODO: Document opcode 1 for failed UTF-8 decode
-// TODO: Document opcode 2 for failed UTF-16LE encode
+/**
+ * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
+ * dependency status byte. Its context/operation/detail are not propagated.
+ * operation 1 = failed UTF-8 decode.
+ * operation 2 = failed UTF-16LE encode.
+ * See cattelib.h for buffer, output, and argument-result contracts.
+ */
 void catteUtf8ToUtf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8 == 0) {
@@ -1205,8 +1263,13 @@ void catteUtf8ToUtf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATALYST
     if (result != 0) *result = RESULT(status, 0, 0, 0);
 }
 
-// TODO: Document opcode 1 for failed UTF-16LE decode
-// TODO: Document opcode 2 for failed ASCII encode
+/**
+ * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
+ * dependency status byte. Its context/operation/detail are not propagated.
+ * operation 1 = failed UTF-16LE decode.
+ * operation 2 = failed ASCII encode.
+ * See cattelib.h for buffer, output, and argument-result contracts.
+ */
 void catteUtf16leToAscii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW asciiw, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16le == 0) {
@@ -1269,8 +1332,13 @@ void catteUtf16leToAscii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW asciiw, CATAL
     if (result != 0) *result = RESULT(status, 0, 0, 0);
 }
 
-// TODO: Document opcode 1 for failed UTF-16LE decode
-// TODO: Document opcode 2 for failed CP1252 encode
+/**
+ * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
+ * dependency status byte. Its context/operation/detail are not propagated.
+ * operation 1 = failed UTF-16LE decode.
+ * operation 2 = failed CP1252 encode.
+ * See cattelib.h for buffer, output, and argument-result contracts.
+ */
 void catteUtf16leToCp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16le == 0) {
@@ -1333,8 +1401,13 @@ void catteUtf16leToCp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w, CA
     if (result != 0) *result = RESULT(status, 0, 0, 0);
 }
 
-// TODO: Document opcode 1 for failed UTF-16LE decode
-// TODO: Document opcode 2 for failed UTF-8 encode
+/**
+ * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
+ * dependency status byte. Its context/operation/detail are not propagated.
+ * operation 1 = failed UTF-16LE decode.
+ * operation 2 = failed UTF-8 encode.
+ * See cattelib.h for buffer, output, and argument-result contracts.
+ */
 void catteUtf16leToUtf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16le == 0) {

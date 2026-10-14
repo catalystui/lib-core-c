@@ -1,6 +1,12 @@
 #ifndef CATALYST_HPP
 #define CATALYST_HPP
 #include "catalyst.h"
+/**
+ * C++ aliases and convenience values over the C representations in catalyst.h.
+ * CODEPOINT, UTF16LE_CODE_UNIT, and RESULT add initialization and conversions;
+ * constructors and assignments do not validate ranges or status meanings.
+ * Numeric conversions are available only with the required integer width.
+ */
 namespace catalyst {
 
 /* -------------------------------------------------------------------------------------------------
@@ -116,6 +122,7 @@ struct UTF16LE_CODE_UNIT : public ::CATALYST_UTF16LE_CODE_UNIT {
         lsb = (BYTE) 0;
         msb = (BYTE) 0;
     }
+    /* Arguments are high byte, low byte; stored fields remain low byte, high byte. */
     UTF16LE_CODE_UNIT(BYTE msb, BYTE lsb) {
         this->msb = msb;
         this->lsb = lsb;
@@ -205,6 +212,10 @@ static const CONTEXT_CODE CONTEXT_CODE_NONE = (CONTEXT_CODE) 0x00;
 static const OPERATION_CODE OPERATION_CODE_NONE = (OPERATION_CODE) 0x00;
 static const DETAIL_CODE DETAIL_CODE_NONE = (DETAIL_CODE) 0x00;
 
+/**
+ * Default construction produces SUCCESS with zero context, operation, and detail.
+ * UINT conversion uses numeric 0xSSCCOODD, independent of host byte order.
+ */
 struct RESULT : public ::CATALYST_RESULT {
     RESULT() {
         status = STATUS_CODE_SUCCESS;

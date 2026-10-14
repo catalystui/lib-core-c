@@ -1,3 +1,8 @@
+/* Linux backend: anonymous, private, writable mmap storage. The tracked
+ * allocation extent is page-rounded and passed to munmap. Native errno
+ * details are narrowed to the result's eight-bit detail field.
+ * Public allocation/free contracts are documented in catmmlib.h.
+ */
 #include "cmakecfg.h"
 #if TARGET_PLATFORM_LINUX
 

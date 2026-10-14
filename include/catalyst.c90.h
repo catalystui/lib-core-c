@@ -1,6 +1,12 @@
 #ifndef CATALYST_C90_H
 #define CATALYST_C90_H
 
+/**
+ * C90 numeric fallback using the ranges of char, short, and int.
+ * Byte types are required. Optional widths are reported by SUPPORTS macros.
+ * This fallback does not search long for 32-bit storage and exposes no 64-bit
+ * integer type; it describes the implementation currently selected by CMake.
+ */
 #include <limits.h>
 
 /* -------------------------------------------------------------------------------------------------

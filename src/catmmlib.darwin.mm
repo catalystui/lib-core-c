@@ -1,3 +1,8 @@
+/* Darwin backend: Mach virtual memory allocated in the current task.
+ * The header's total extent is passed to vm_deallocate. Mach failures are
+ * mapped to Catalyst status without exposing the native return code.
+ * Public allocation/free contracts are documented in catmmlib.h.
+ */
 #include "cmakecfg.h"
 #if TARGET_PLATFORM_DARWIN
 

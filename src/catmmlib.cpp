@@ -1,3 +1,7 @@
+/* Shared realloc policy: delegate null/zero cases to the backend, otherwise
+ * allocate, copy the requested prefix, then release the old block.
+ * See catmmlib.h for ownership, output-state, and result contracts.
+ */
 #include "catalyst.hpp"
 #include "catmmlib.h"
 

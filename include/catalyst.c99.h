@@ -1,6 +1,11 @@
 #ifndef CATALYST_C99_H
 #define CATALYST_C99_H
 
+/**
+ * C99-or-later numeric representations use the implementation's exact-width
+ * stdint types. Eight-bit types are required; 16/32/64-bit types are exposed
+ * only when their corresponding signed and unsigned range macros exist.
+ */
 #include <stdint.h>
 
 /* -------------------------------------------------------------------------------------------------

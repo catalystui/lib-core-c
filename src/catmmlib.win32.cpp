@@ -1,3 +1,8 @@
+/* Win32 backend: reserve and commit writable virtual memory. VirtualFree
+ * releases the entire region using MEM_RELEASE and a zero size; the header
+ * tracks the requested total extent rather than the OS-rounded region size.
+ * Native error codes are not exposed. See catmmlib.h for the public contract.
+ */
 #include "cmakecfg.h"
 #if TARGET_PLATFORM_WIN32
 
