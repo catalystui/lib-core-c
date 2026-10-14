@@ -40,15 +40,15 @@ inline void utf8Length(UTF8 utf8, NUINT* length, RESULT* result) {
     ::catteUtf8Length(utf8, length, result);
 }
 
-inline void catteUtf16leEncode(const CODEPOINT codepoint, UTF16LEW utf16lew, NUINT* produced, RESULT* result) {
+inline void utf16leEncode(const CODEPOINT codepoint, UTF16LEW utf16lew, NUINT* produced, RESULT* result) {
     ::catteUtf16leEncode(codepoint, utf16lew, produced, result);
 }
 
-inline void catteUtf16leDecode(UTF16LE utf16le, CODEPOINT* codepoint, NUINT* consumed, RESULT* result) {
+inline void utf16leDecode(UTF16LE utf16le, CODEPOINT* codepoint, NUINT* consumed, RESULT* result) {
     ::catteUtf16leDecode(utf16le, codepoint, consumed, result);
 }
 
-inline void catteUtf16leLength(UTF16LE utf16le, NUINT* length, RESULT* result) {
+inline void utf16leLength(UTF16LE utf16le, NUINT* length, RESULT* result) {
     ::catteUtf16leLength(utf16le, length, result);
 }
 
@@ -97,18 +97,6 @@ inline void utf16leToCp1252(UTF16LE utf16le, CP1252W cp1252w, NUINT capacity, RE
 }
 
 inline void utf16leToUtf8(UTF16LE utf16le, UTF8W utf8w, NUINT capacity, RESULT* result) {
-    ::catteUtf16leToUtf8(utf16le, utf8w, capacity, result);
-}
-
-inline void catteUtf16leToAscii(UTF16LE utf16le, ASCIIW ascii, NUINT capacity, RESULT* result) {
-    ::catteUtf16leToAscii(utf16le, ascii, capacity, result);
-}
-
-inline void catteUtf16leToCp1252(UTF16LE utf16le, CP1252W cp1252w, NUINT capacity, RESULT* result) {
-    ::catteUtf16leToCp1252(utf16le, cp1252w, capacity, result);
-}
-
-inline void catteUtf16leToUtf8(UTF16LE utf16le, UTF8W utf8w, NUINT capacity, RESULT* result) {
     ::catteUtf16leToUtf8(utf16le, utf8w, capacity, result);
 }
 
