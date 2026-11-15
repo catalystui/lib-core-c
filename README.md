@@ -3,7 +3,7 @@
 <h1 align="center">CatalystUI – Core</h1>
 <p align="center"><strong>The universal translator between computers and people.</strong></p>
 <p align="center">
-  <em>The native foundational ABI for CatalystUI.</em>
+  <em>The native foundational C ABI libraries for CatalystUI.</em>
 </p>
 
 <p align="center">
@@ -16,16 +16,16 @@
 
 ## About Core
 
-Core is the foundational library for CatalystUI, implementing the **Foundational Definitions Specification (FDEFSPEC)** through a native C ABI.
+Core is a set of foundational libraries for CatalystUI, providing native C ABI contracts based on the **Foundational Definitions Specification (FDEFSPEC)**.
 
-Core provides consistent, portable data types and shared utilities for representing digital data, reporting operation results, managing memory, and converting between text encodings, without tying applications to a particular programming language or platform.
+These libraries provide consistent, portable data types and shared utilities for representing digital data, reporting operation results, managing memory, and converting between text encodings, without tying applications to a particular programming language or platform.
 
 Core is independent of any particular layer or sensory domain of the CatalystUI model. Its purpose is to provide a common foundation for other CatalystUI libraries.
 
 ## Development Status
 
 > [!NOTE]
-> This implementation is in early development (1.0.0-alpha.2). Core types, memory management, and text encoding are implemented. Memory management currently has backends for Windows, macOS, and Linux. API and ABI stability are not yet guaranteed.
+> Core is in early development (1.0.0-alpha.2). Core types, memory management, and text encoding are implemented. Memory management currently has backends for Windows, macOS, and Linux. API and ABI stability are not yet guaranteed.
 
 The compile workflow checks C90 and C++98 on x86, and C99 and C++11 on x64, using GCC on Linux.
 
