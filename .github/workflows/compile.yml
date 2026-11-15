@@ -60,7 +60,7 @@ jobs:
             -DTARGET_VENDOR=linux -DTARGET_SYSTEM=linux -DTARGET_ARCHITECTURE=${{ matrix.arch }}
 
       - name: Compile libraries
-        run: cmake --build target/ci --parallel --target catmmlib_static catmmlib_shared cattelib_static cattelib_shared
+        run: cmake --build target/ci --parallel --target catmmlib_static catmmlib_shared cattelib_static cattelib_shared catrllib_static catrllib_shared
 
       - name: Compile public C headers
         run: |
@@ -68,6 +68,7 @@ jobs:
           #include "catalyst.h"
           #include "catmmlib.h"
           #include "cattelib.h"
+          #include "catrllib.h"
           '@ | gcc ${{ matrix.flags }} -std=c${{ matrix.c }} -pedantic-errors -Iinclude -Itarget/ci/generated -x c -c -o target/ci/headers-c.o -
 
       - name: Compile public C++ headers
@@ -76,4 +77,5 @@ jobs:
           #include "catalyst.hpp"
           #include "catmmlib.hpp"
           #include "cattelib.hpp"
+          #include "catrllib.hpp"
           '@ | g++ ${{ matrix.flags }} -std=c++${{ matrix.cpp }} -pedantic-errors -Iinclude -Itarget/ci/generated -x c++ -c -o target/ci/headers-cpp.o -
