@@ -64,8 +64,8 @@ void catmm_copy(void* destination, const void* source, CATALYST_NUINT size, CATA
         if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS_NOOP, 0, 0, 0);
         return;
     }
-    BYTE* output = static_cast<BYTE*>(destination);
-    const BYTE* input = static_cast<const BYTE*>(source);
+    BYTE* output = (BYTE*) destination;
+    const BYTE* input = (const BYTE*) source;
     for (NUINT i = 0; i < size; i++) {
         output[i] = input[i];
     }
@@ -85,11 +85,9 @@ void catmm_move(void* destination, const void* source, CATALYST_NUINT size, CATA
         if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS_NOOP, 0, 0, 0);
         return;
     }
-    BYTE* output = static_cast<BYTE*>(destination);
-    const BYTE* input = static_cast<const BYTE*>(source);
-
-    // Direction only matters for overlapping regions of the same byte array.
-    // Either direction is safe for disjoint regions, regardless of pointer order.
+    BYTE* output = (BYTE*) destination;
+    const BYTE* input = (const BYTE*) source;
+    // Copy backward when the destination follows the source.
     if (output > input) {
         for (NUINT i = size; i != 0; i--) {
             output[i - 1] = input[i - 1];
@@ -115,9 +113,8 @@ void catmm_compare(const void* first, const void* second, CATALYST_NUINT size, C
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 3);
         return;
     }
-
-    const BYTE* a = static_cast<const BYTE*>(first);
-    const BYTE* b = static_cast<const BYTE*>(second);
+    const BYTE* a = (const BYTE*) first;
+    const BYTE* b = (const BYTE*) second;
     SBYTE order = 0;
     if (first != second) {
         for (NUINT i = 0; i < size; i++) {
@@ -140,7 +137,7 @@ void catmm_set(void* memory, CATALYST_BYTE value, CATALYST_NUINT size, CATALYST_
         if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS_NOOP, 0, 0, 0);
         return;
     }
-    BYTE* bytes = static_cast<BYTE*>(memory);
+    BYTE* bytes = (BYTE*) memory;
     for (NUINT i = 0; i < size; i++) {
         bytes[i] = value;
     }
