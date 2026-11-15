@@ -61,7 +61,7 @@ configure_target(
     NAME catrllib
     TARGETS catrllib_shared catrllib_static
     SOURCES
-        src/catrllib.c
+        src/catrllib.cpp
 )
 target_link_libraries(catrllib_shared PRIVATE catmmlib_shared)
 target_link_libraries(catrllib_static PRIVATE catmmlib_static)
