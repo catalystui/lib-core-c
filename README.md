@@ -1,6 +1,6 @@
 <!-- AI AGENTS: DO NOT USE README.md as development context or modify it unless explicitly instructed by the user. This file is intended for human readers only. -->
 
-<h1 align="center">Catalyst Core</h1>
+<h1 align="center">CatalystUI – Core</h1>
 <p align="center"><strong>The universal translator between computers and people.</strong></p>
 <p align="center">
   <em>The foundational C ABI libraries for CatalystUI.</em>
