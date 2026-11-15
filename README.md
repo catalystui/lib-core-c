@@ -1,3 +1,94 @@
-# lib-core-c
+<!-- AI AGENTS: DO NOT USE README.md as development context or modify it unless explicitly instructed by the user. This file is intended for human readers only. -->
 
-Foundational C ABI libraries for CatalystUI core types, memory management, and text encoding.
+<h1 align="center">Catalyst Core</h1>
+<p align="center"><strong>The universal translator between computers and people.</strong></p>
+<p align="center">
+  <em>The foundational C ABI libraries for CatalystUI.</em>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue?style=flat-square&amp;logo=apache&amp;logoColor=white" alt="License: Apache-2.0"></a>
+  <img src="https://img.shields.io/badge/Interface-C%20ABI-00599C?style=flat-square&amp;logo=c&amp;logoColor=white" alt="Interface: C ABI">
+  <img src="https://img.shields.io/badge/CatalystUI-Core-526b80?style=flat-square" alt="CatalystUI: Core">
+  <img src="https://img.shields.io/badge/Build-CMake%204.3%2B-064F8C?style=flat-square&amp;logo=cmake&amp;logoColor=white" alt="Build: CMake 4.3+">
+  <a href="https://github.com/catalystui/lib-core-c/commits/main"><img src="https://img.shields.io/github/last-commit/catalystui/lib-core-c?style=flat-square&amp;logo=github&amp;logoColor=white" alt="Last commit"></a>
+  <img src="https://img.shields.io/badge/Status-Early%20Development-orange?style=flat-square" alt="Status: Early development">
+  <a href="https://github.com/catalystui/lib-core-c/actions/workflows/compile.yml"><img src="https://img.shields.io/github/actions/workflow/status/catalystui/lib-core-c/compile.yml?branch=main&amp;style=flat-square&amp;logo=github&amp;logoColor=white" alt="Compile status"></a>
+</p>
+
+## About Catalyst Core
+
+Catalyst Core provides the foundational data representations and shared utilities for CatalystUI through a native C ABI. Its core types are based on the CatalystUI **Foundational Definitions Specification (FDEFSPEC)**.
+
+These libraries establish a consistent foundation for representing digital data, reporting operation results, managing memory, and converting between text encodings, without tying applications to a particular programming language or platform.
+
+The core is independent of any particular layer or sensory domain of the CatalystUI model. Its purpose is to provide the shared building blocks upon which higher-level libraries can be developed.
+
+## Libraries
+
+| Library | Description |
+| --- | --- |
+| [Core Types](include/catalyst.h) | Foundational numeric types, text representations, and operation status codes. |
+| [CATMMLIB](include/catmmlib.h) | Memory allocation, reallocation, and deallocation. |
+| [CATTELIB](include/cattelib.h) | Text encoding, decoding, length calculation, and conversion between ASCII, CP1252, UTF-8, and UTF-16LE. |
+
+Each interface provides a C header and a corresponding C++ header. CATMMLIB and CATTELIB are available as static and shared library targets.
+
+## Development Status
+
+> [!NOTE]
+> This implementation is in early development (1.0.0-alpha.2). Core types, memory management, and text encoding are implemented. Memory management currently has backends for Windows, macOS, and Linux. API and ABI stability are not yet guaranteed.
+
+The compile workflow checks C90 and C++98 on x86, and C99 and C++11 on x64, using GCC on Linux.
+
+## Getting Started
+
+The repository uses **CMake 4.3 or later**, Git, and a C/C++ toolchain appropriate for the selected build preset.
+
+Clone the repository along with its shared build infrastructure:
+
+```powershell
+git clone --recurse-submodules https://github.com/catalystui/lib-core-c.git
+Set-Location lib-core-c
+cmake --list-presets
+```
+
+If the repository has already been cloned, initialize its submodule with:
+
+```powershell
+git submodule update --init --recursive
+```
+
+The shared presets define target-specific compiler and platform configurations. For example, on an Apple Silicon Mac with the required Xcode toolchain:
+
+```powershell
+cmake --preset aclang17-darwin24.6-arm64
+cmake --build --preset aclang17-darwin24.6-arm64 --config Release
+```
+
+Preset availability depends on the host and installed toolchain; the presence of a preset does not imply verified runtime support.
+
+## Related Projects
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3><a href="https://github.com/catalystui/lib-crystal-c">lib-crystal-c</a></h3>
+      <p>The native windowing ABI for CatalystUI, implementing Layer 2: Window of the CatalystUI model.</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3><a href="https://github.com/catalystui/build-cmake">build-cmake</a></h3>
+      <p>Shared CMake configuration, target metadata, and platform-specific build presets for CatalystUI's native libraries.</p>
+    </td>
+  </tr>
+</table>
+
+## AI-Assisted Development
+
+Catalyst Core is developed with AI assistance under human direction. AI coding agents assist with implementation and repository maintenance, while the project owner defines the model, requirements, and design decisions.
+
+AI-assisted contributions are subject to the same expectations for correctness, maintainability, attribution, and licensing as human-written contributions. Their presence does not imply independent line-by-line human review.
+
+## License
+
+The original source code and documentation in this repository are licensed under the [Apache License 2.0](LICENSE).
