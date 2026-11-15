@@ -4,9 +4,13 @@ See [CATMMLIB conventions](../index.md#conventions) for shared requirements and 
 
 ## catmm_alloc
 
+**C**
+
 ```c
 void catmm_alloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result);
 ```
+
+**C++**
 
 ```cpp
 void catalyst::alloc(void** memory, NUINT size, RESULT* result);
@@ -14,19 +18,27 @@ void catalyst::alloc(void** memory, NUINT size, RESULT* result);
 
 Allocates `size` nonzero bytes and writes the address to `*memory`. After validating the output pointer, clears `*memory`; it remains null on failure. An existing pointer is replaced without freeing its allocation.
 
-| Status | Detail |
-| --- | --- |
-| `SUCCESS` | 0; payload allocated. |
-| `ERROR_INVALID_ARGUMENT` | 0 = null memory output; 1 = zero size. |
-| `ERROR_BUFFER_OVERFLOW` | 0 = header plus payload overflow; Linux 1 = page-rounding overflow. |
-| `ERROR_INVALID_STATE` | Linux page-size query failed; errno narrowed to a detail byte. |
-| `ERROR_ALLOCATION_FAILED` | Native allocation failed; Linux narrowed errno, Windows/Darwin 0. |
+**Results**
+
+| Status | Operation | Detail | Meaning |
+| --- | ---: | --- | --- |
+| `SUCCESS` | 0 | 0 | Payload allocated. |
+| `ERROR_INVALID_ARGUMENT` | 0 | 0 | Null `memory` output. |
+| `ERROR_INVALID_ARGUMENT` | 0 | 1 | Zero `size`. |
+| `ERROR_BUFFER_OVERFLOW` | 0 | 0 | Header plus payload overflow. |
+| `ERROR_BUFFER_OVERFLOW` | 0 | 1 | Page-rounding overflow (Linux). |
+| `ERROR_INVALID_STATE` | 0 | `errno` (low byte) | Page-size query failed (Linux). |
+| `ERROR_ALLOCATION_FAILED` | 0 | Linux: `errno` (low byte); Windows/Darwin: 0 | Native allocation failed. |
 
 ## catmm_realloc
+
+**C**
 
 ```c
 void catmm_realloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result);
 ```
+
+**C++**
 
 ```cpp
 void catalyst::realloc(void** memory, NUINT size, RESULT* result);
@@ -36,13 +48,27 @@ Resizes the allocation addressed by `*memory`. Null `*memory` delegates to alloc
 
 On success old pointers are invalid. On replacement allocation or old-block release failure the pointer value remains unchanged; the replacement is released on a best-effort basis. The old allocation's usability is not guaranteed after release failure.
 
-**Results:** `ERROR_INVALID_ARGUMENT` (detail 0) for null memory output; otherwise the result from allocation or release, or `SUCCESS` (detail 0) on successful replacement. The cleanup result is not propagated.
+**Results**
+
+| Status | Operation | Detail | Meaning |
+| --- | ---: | --- | --- |
+| `SUCCESS` | 0 | 0 | Replacement or delegated operation succeeded. |
+| `ERROR_INVALID_ARGUMENT` | 0 | See allocation/release | Null `memory` output, or delegated allocation/release reported an invalid argument. |
+| `ERROR_BUFFER_OVERFLOW` | 0 | See allocation | Replacement allocation exceeds representable extent. |
+| `ERROR_INVALID_STATE` | 0 | `errno` (low byte) | Linux page-size query failed. |
+| `ERROR_ALLOCATION_FAILED` | 0 | See allocation | Replacement allocation failed. |
+
+Allocation and release results are propagated from [`catmm_alloc`](#catmm_alloc) and [`catmm_free`](#catmm_free). The cleanup result is not propagated.
 
 ## catmm_free
+
+**C**
 
 ```c
 void catmm_free(void* memory, CATALYST_RESULT* result);
 ```
+
+**C++**
 
 ```cpp
 void catalyst::free(void* memory, RESULT* result);
@@ -50,4 +76,12 @@ void catalyst::free(void* memory, RESULT* result);
 
 Releases the allocation at the original payload address. The caller's pointer is not cleared. Allocation metadata must remain intact.
 
-**Results:** `SUCCESS` on release; `ERROR_INVALID_ARGUMENT` with detail 0 for a null pointer, or on native release failure (Linux narrowed errno, Windows/Darwin detail 0). No payload access guarantee after release failure.
+**Results**
+
+| Status | Operation | Detail | Meaning |
+| --- | ---: | --- | --- |
+| `SUCCESS` | 0 | 0 | Allocation released. |
+| `ERROR_INVALID_ARGUMENT` | 0 | 0 | Null `memory`. |
+| `ERROR_INVALID_ARGUMENT` | 0 | Linux: `errno` (low byte); Windows/Darwin: 0 | Native release failed. |
+
+No payload access guarantee after release failure.
