@@ -4,7 +4,7 @@
 
 using namespace catalyst;
 
-static void printResult(const char* label, const RESULT& result) {
+static void print_result(const char* label, const RESULT& result) {
     printf(
         "%s -> status=0x%02X context=0x%02X operation=0x%02X detail=0x%02X\n",
         label,
@@ -32,9 +32,9 @@ int main() {
 
     printf("Allocating 64 bytes...\n");
     catalyst::alloc(&memory, 64, &result);
-    printResult("alloc", result);
+    print_result("alloc", result);
 
-    if (!statusCodeIsSuccess(result.status)) {
+    if (!status_code_is_success(result.status)) {
         printf("Allocation failed.\n");
         return 1;
     }
@@ -74,9 +74,9 @@ int main() {
 
     printf("Reallocating 64 bytes to 128 bytes...\n");
     catalyst::realloc(&memory, 128, &result);
-    printResult("realloc grow", result);
+    print_result("realloc grow", result);
 
-    if (!statusCodeIsSuccess(result.status)) {
+    if (!status_code_is_success(result.status)) {
         printf("Realloc grow failed.\n");
         return 4;
     }
@@ -120,9 +120,9 @@ int main() {
 
     printf("Reallocating 128 bytes down to 32 bytes...\n");
     catalyst::realloc(&memory, 32, &result);
-    printResult("realloc shrink", result);
+    print_result("realloc shrink", result);
 
-    if (!statusCodeIsSuccess(result.status)) {
+    if (!status_code_is_success(result.status)) {
         printf("Realloc shrink failed.\n");
         return 8;
     }
@@ -152,9 +152,9 @@ int main() {
 
     printf("Reallocating to 0 bytes. This should free the memory...\n");
     catalyst::realloc(&memory, 0, &result);
-    printResult("realloc zero", result);
+    print_result("realloc zero", result);
 
-    if (!statusCodeIsSuccess(result.status)) {
+    if (!status_code_is_success(result.status)) {
         printf("Realloc zero/free failed.\n");
         return 11;
     }
@@ -172,9 +172,9 @@ int main() {
 
     printf("Testing realloc with null pointer. This should behave like alloc...\n");
     catalyst::realloc(&memory, 16, &result);
-    printResult("realloc null", result);
+    print_result("realloc null", result);
 
-    if (!statusCodeIsSuccess(result.status)) {
+    if (!status_code_is_success(result.status)) {
         printf("Realloc null-as-alloc failed.\n");
         return 13;
     }
@@ -207,9 +207,9 @@ int main() {
 
     printf("Freeing final allocation...\n");
     catalyst::free(memory, &result);
-    printResult("free final", result);
+    print_result("free final", result);
 
-    if (!statusCodeIsSuccess(result.status)) {
+    if (!status_code_is_success(result.status)) {
         printf("Final free failed.\n");
         return 16;
     }
@@ -220,8 +220,8 @@ int main() {
 
     printf("Testing invalid realloc: memory == 0...\n");
     result = RESULT();
-    catmmRealloc(0, 64, &result);
-    printResult("realloc invalid memory", result);
+    catmm_realloc(0, 64, &result);
+    print_result("realloc invalid memory", result);
 
     if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT) {
         printf("Expected invalid argument error for memory == 0.\n");

@@ -15,7 +15,7 @@
 
 using namespace catalyst;
 
-extern "C" void catmmAlloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result) {
+extern "C" void catmm_alloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (memory == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -63,7 +63,7 @@ extern "C" void catmmAlloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* 
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
 }
 
-extern "C" void catmmFree(void* memory, CATALYST_RESULT* result) {
+extern "C" void catmm_free(void* memory, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (memory == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);

@@ -89,13 +89,13 @@ struct CODEPOINT : public ::CATALYST_CODEPOINT {
 
 #if CATALYST_SUPPORTS_32BIT
     explicit CODEPOINT(UINT value) {
-        *this = ::catCodepointFromUInt(value);
+        *this = ::cat_codepoint_from_uint(value);
     }
     CODEPOINT& operator=(UINT value) {
-        return *this = ::catCodepointFromUInt(value);
+        return *this = ::cat_codepoint_from_uint(value);
     }
     operator UINT() const {
-        return ::catCodepointToUInt(*this);
+        return ::cat_codepoint_to_uint(*this);
     }
 #endif
 };
@@ -134,13 +134,13 @@ struct UTF16LE_CODE_UNIT : public ::CATALYST_UTF16LE_CODE_UNIT {
 
 #if CATALYST_SUPPORTS_16BIT
     explicit UTF16LE_CODE_UNIT(USHORT value) {
-        *this = ::catUtf16leCodeUnitFromUShort(value);
+        *this = ::cat_utf16le_code_unit_from_ushort(value);
     }
     UTF16LE_CODE_UNIT& operator=(USHORT value) {
-        return *this = ::catUtf16leCodeUnitFromUShort(value);
+        return *this = ::cat_utf16le_code_unit_from_ushort(value);
     }
     operator USHORT() const {
-        return ::catUtf16leCodeUnitToUShort(*this);
+        return ::cat_utf16le_code_unit_to_ushort(*this);
     }
 #endif
 };
@@ -187,23 +187,23 @@ static const STATUS_CODE_LEVEL STATUS_CODE_LEVEL_FATAL = ::CATALYST_STATUS_CODE_
 
 static const STATUS_CODE STATUS_CODE_LEVEL_MASK = CATALYST_STATUS_CODE_LEVEL_MASK;
 
-inline STATUS_CODE_LEVEL statusCodeGetLevel(STATUS_CODE status) {
+inline STATUS_CODE_LEVEL status_code_get_level(STATUS_CODE status) {
     return CATALYST_STATUS_CODE_GET_LEVEL(status);
 }
 
-inline BOOL statusCodeIsSuccess(STATUS_CODE status) {
+inline BOOL status_code_is_success(STATUS_CODE status) {
     return CATALYST_STATUS_CODE_IS_SUCCESS(status) ? TRUE : FALSE;
 }
 
-inline BOOL statusCodeIsWarning(STATUS_CODE status) {
+inline BOOL status_code_is_warning(STATUS_CODE status) {
     return CATALYST_STATUS_CODE_IS_WARNING(status) ? TRUE : FALSE;
 }
 
-inline BOOL statusCodeIsError(STATUS_CODE status) {
+inline BOOL status_code_is_error(STATUS_CODE status) {
     return CATALYST_STATUS_CODE_IS_ERROR(status) ? TRUE : FALSE;
 }
 
-inline BOOL statusCodeIsFatal(STATUS_CODE status) {
+inline BOOL status_code_is_fatal(STATUS_CODE status) {
     return CATALYST_STATUS_CODE_IS_FATAL(status) ? TRUE : FALSE;
 }
 
@@ -248,13 +248,13 @@ struct RESULT : public ::CATALYST_RESULT {
 
 #if CATALYST_SUPPORTS_32BIT
     explicit RESULT(UINT value) {
-        *this = ::catResultFromUInt(value);
+        *this = ::cat_result_from_uint(value);
     }
     RESULT& operator=(UINT value) {
-        return *this = ::catResultFromUInt(value);
+        return *this = ::cat_result_from_uint(value);
     }
     operator UINT() const {
-        return ::catResultToUInt(*this);
+        return ::cat_result_to_uint(*this);
     }
 #endif
 };

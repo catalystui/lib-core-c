@@ -96,7 +96,7 @@ int main() {
         CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
         BYTE output[1] = { 0 };
 
-        catteAsciiEncode(codepoint, output, &result);
+        catte_ascii_encode(codepoint, output, &result);
 
         if (
             output[0] != (BYTE) 'A' ||
@@ -105,10 +105,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != DETAIL_CODE_NONE
         ) {
-            std::printf("FAIL: catteAsciiEncode U+0041\n");
+            std::printf("FAIL: catte_ascii_encode U+0041\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiEncode U+0041 -> 'A'\n");
+            std::printf("PASS: catte_ascii_encode U+0041 -> 'A'\n");
         }
     }
 
@@ -116,7 +116,7 @@ int main() {
         CODEPOINT codepoint = { 0, 0, 0, (BYTE) 0x80 };
         BYTE output[1] = { 0 };
 
-        catteAsciiEncode(codepoint, output, &result);
+        catte_ascii_encode(codepoint, output, &result);
 
         if (
             output[0] != (BYTE) '?' ||
@@ -125,10 +125,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != DETAIL_CODE_NONE
         ) {
-            std::printf("FAIL: catteAsciiEncode U+0080\n");
+            std::printf("FAIL: catte_ascii_encode U+0080\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiEncode U+0080 -> '?'\n");
+            std::printf("PASS: catte_ascii_encode U+0080 -> '?'\n");
         }
     }
 
@@ -139,7 +139,7 @@ int main() {
         BYTE input[1] = { (BYTE) 'Z' };
         CODEPOINT codepoint = { 0xFF, 0xFF, 0xFF, 0xFF };
 
-        catteAsciiDecode(input, &codepoint, &result);
+        catte_ascii_decode(input, &codepoint, &result);
 
         if (
             codepoint.byte0 != 0 ||
@@ -151,10 +151,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != DETAIL_CODE_NONE
         ) {
-            std::printf("FAIL: catteAsciiDecode 'Z'\n");
+            std::printf("FAIL: catte_ascii_decode 'Z'\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiDecode 'Z' -> U+005A\n");
+            std::printf("PASS: catte_ascii_decode 'Z' -> U+005A\n");
         }
     }
 
@@ -165,7 +165,7 @@ int main() {
         BYTE input[] = { 'H', 'e', 'l', 'l', 'o', '\0' };
         NUINT length = 0;
 
-        catteAsciiLength(input, &length, &result);
+        catte_ascii_length(input, &length, &result);
 
         if (
             length != 5 ||
@@ -174,10 +174,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != DETAIL_CODE_NONE
         ) {
-            std::printf("FAIL: catteAsciiLength \"Hello\"\n");
+            std::printf("FAIL: catte_ascii_length \"Hello\"\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiLength \"Hello\" -> 5\n");
+            std::printf("PASS: catte_ascii_length \"Hello\" -> 5\n");
         }
     }
 
@@ -239,7 +239,7 @@ int main() {
             codepoint.byte3 = tests[i].byte3;
             output[0] = 0;
 
-            catteCp1252Encode(codepoint, output, &result);
+            catte_cp1252_encode(codepoint, output, &result);
 
             if (
                 output[0] != tests[i].expectedCodeunit ||
@@ -248,13 +248,13 @@ int main() {
                 result.operation != OPERATION_CODE_NONE ||
                 result.detail != DETAIL_CODE_NONE
             ) {
-                std::printf("FAIL: catteCp1252Encode %s\n", tests[i].name);
+                std::printf("FAIL: catte_cp1252_encode %s\n", tests[i].name);
                 std::printf("  expected output=0x%02X status=0x%02X\n", tests[i].expectedCodeunit, tests[i].expectedStatus);
                 std::printf("  actual   output=0x%02X status=0x%02X context=0x%02X operation=0x%02X detail=0x%02X\n",
                     output[0], result.status, result.context, result.operation, result.detail);
                 failed++;
             } else {
-                std::printf("PASS: catteCp1252Encode %s -> 0x%02X\n", tests[i].name, output[0]);
+                std::printf("PASS: catte_cp1252_encode %s -> 0x%02X\n", tests[i].name, output[0]);
             }
         }
     }
@@ -265,7 +265,7 @@ int main() {
     {
         CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
 
-        catteCp1252Encode(codepoint, 0, &result);
+        catte_cp1252_encode(codepoint, 0, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -273,10 +273,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 0
         ) {
-            std::printf("FAIL: catteCp1252Encode null output\n");
+            std::printf("FAIL: catte_cp1252_encode null output\n");
             failed++;
         } else {
-            std::printf("PASS: catteCp1252Encode null output -> invalid argument detail 0\n");
+            std::printf("PASS: catte_cp1252_encode null output -> invalid argument detail 0\n");
         }
     }
 
@@ -340,7 +340,7 @@ int main() {
             codepoint.byte2 = 0xFF;
             codepoint.byte3 = 0xFF;
 
-            catteCp1252Decode(input, &codepoint, &result);
+            catte_cp1252_decode(input, &codepoint, &result);
 
             if (
                 codepoint.byte0 != tests[i].expectedByte0 ||
@@ -352,7 +352,7 @@ int main() {
                 result.operation != OPERATION_CODE_NONE ||
                 result.detail != DETAIL_CODE_NONE
             ) {
-                std::printf("FAIL: catteCp1252Decode %s\n", tests[i].name);
+                std::printf("FAIL: catte_cp1252_decode %s\n", tests[i].name);
                 std::printf("  expected codepoint=%02X %02X %02X %02X status=0x%02X\n",
                     tests[i].expectedByte0,
                     tests[i].expectedByte1,
@@ -370,7 +370,7 @@ int main() {
                     result.detail);
                 failed++;
             } else {
-                std::printf("PASS: catteCp1252Decode %s -> U+%02X%02X%02X%02X\n",
+                std::printf("PASS: catte_cp1252_decode %s -> U+%02X%02X%02X%02X\n",
                     tests[i].name,
                     codepoint.byte0,
                     codepoint.byte1,
@@ -386,7 +386,7 @@ int main() {
     {
         CODEPOINT codepoint = { 0xFF, 0xFF, 0xFF, 0xFF };
 
-        catteCp1252Decode(0, &codepoint, &result);
+        catte_cp1252_decode(0, &codepoint, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -394,17 +394,17 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 0
         ) {
-            std::printf("FAIL: catteCp1252Decode null input\n");
+            std::printf("FAIL: catte_cp1252_decode null input\n");
             failed++;
         } else {
-            std::printf("PASS: catteCp1252Decode null input -> invalid argument detail 0\n");
+            std::printf("PASS: catte_cp1252_decode null input -> invalid argument detail 0\n");
         }
     }
 
     {
         BYTE input[1] = { (BYTE) 'A' };
 
-        catteCp1252Decode(input, 0, &result);
+        catte_cp1252_decode(input, 0, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -412,10 +412,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 1
         ) {
-            std::printf("FAIL: catteCp1252Decode null codepoint\n");
+            std::printf("FAIL: catte_cp1252_decode null codepoint\n");
             failed++;
         } else {
-            std::printf("PASS: catteCp1252Decode null codepoint -> invalid argument detail 1\n");
+            std::printf("PASS: catte_cp1252_decode null codepoint -> invalid argument detail 1\n");
         }
     }
 
@@ -426,7 +426,7 @@ int main() {
         BYTE input[] = { 'H', 'e', (BYTE) 0x80, (BYTE) 0xA0, '!', '\0' };
         NUINT length = 0;
 
-        catteCp1252Length(input, &length, &result);
+        catte_cp1252_length(input, &length, &result);
 
         if (
             length != 5 ||
@@ -435,11 +435,11 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != DETAIL_CODE_NONE
         ) {
-            std::printf("FAIL: catteCp1252Length mixed string\n");
+            std::printf("FAIL: catte_cp1252_length mixed string\n");
             std::printf("  actual length=%lu\n", (unsigned long) length);
             failed++;
         } else {
-            std::printf("PASS: catteCp1252Length mixed string -> 5\n");
+            std::printf("PASS: catte_cp1252_length mixed string -> 5\n");
         }
     }
 
@@ -447,7 +447,7 @@ int main() {
         BYTE input[] = { '\0' };
         NUINT length = 123;
 
-        catteCp1252Length(input, &length, &result);
+        catte_cp1252_length(input, &length, &result);
 
         if (
             length != 0 ||
@@ -456,11 +456,11 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != DETAIL_CODE_NONE
         ) {
-            std::printf("FAIL: catteCp1252Length empty string\n");
+            std::printf("FAIL: catte_cp1252_length empty string\n");
             std::printf("  actual length=%lu\n", (unsigned long) length);
             failed++;
         } else {
-            std::printf("PASS: catteCp1252Length empty string -> 0\n");
+            std::printf("PASS: catte_cp1252_length empty string -> 0\n");
         }
     }
 
@@ -468,7 +468,7 @@ int main() {
         BYTE input[] = { 'A', '\0', 'B', '\0' };
         NUINT length = 0;
 
-        catteCp1252Length(input, &length, &result);
+        catte_cp1252_length(input, &length, &result);
 
         if (
             length != 1 ||
@@ -477,18 +477,18 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != DETAIL_CODE_NONE
         ) {
-            std::printf("FAIL: catteCp1252Length stops at NUL\n");
+            std::printf("FAIL: catte_cp1252_length stops at NUL\n");
             std::printf("  actual length=%lu\n", (unsigned long) length);
             failed++;
         } else {
-            std::printf("PASS: catteCp1252Length stops at NUL -> 1\n");
+            std::printf("PASS: catte_cp1252_length stops at NUL -> 1\n");
         }
     }
 
     {
         NUINT length = 123;
 
-        catteCp1252Length(0, &length, &result);
+        catte_cp1252_length(0, &length, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -496,17 +496,17 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 0
         ) {
-            std::printf("FAIL: catteCp1252Length null input\n");
+            std::printf("FAIL: catte_cp1252_length null input\n");
             failed++;
         } else {
-            std::printf("PASS: catteCp1252Length null input -> invalid argument detail 0\n");
+            std::printf("PASS: catte_cp1252_length null input -> invalid argument detail 0\n");
         }
     }
 
     {
         BYTE input[] = { 'A', '\0' };
 
-        catteCp1252Length(input, 0, &result);
+        catte_cp1252_length(input, 0, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -514,10 +514,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 1
         ) {
-            std::printf("FAIL: catteCp1252Length null length\n");
+            std::printf("FAIL: catte_cp1252_length null length\n");
             failed++;
         } else {
-            std::printf("PASS: catteCp1252Length null length -> invalid argument detail 1\n");
+            std::printf("PASS: catte_cp1252_length null length -> invalid argument detail 1\n");
         }
     }
 
@@ -567,7 +567,7 @@ int main() {
             output[3] = 0;
             produced = 123;
 
-            catteUtf8Encode(codepoint, output, &produced, &result);
+            catte_utf8_encode(codepoint, output, &produced, &result);
 
             if (
                 output[0] != tests[i].expected0 ||
@@ -580,7 +580,7 @@ int main() {
                 result.operation != tests[i].expectedOperation ||
                 result.detail != DETAIL_CODE_NONE
             ) {
-                std::printf("FAIL: catteUtf8Encode %s\n", tests[i].name);
+                std::printf("FAIL: catte_utf8_encode %s\n", tests[i].name);
                 std::printf("  expected output=%02X %02X %02X %02X produced=%lu status=0x%02X operation=0x%02X\n",
                     tests[i].expected0,
                     tests[i].expected1,
@@ -601,7 +601,7 @@ int main() {
                     result.detail);
                 failed++;
             } else {
-                std::printf("PASS: catteUtf8Encode %s -> %02X %02X %02X %02X\n",
+                std::printf("PASS: catte_utf8_encode %s -> %02X %02X %02X %02X\n",
                     tests[i].name,
                     output[0],
                     output[1],
@@ -618,7 +618,7 @@ int main() {
         CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
         NUINT produced = 123;
 
-        catteUtf8Encode(codepoint, 0, &produced, &result);
+        catte_utf8_encode(codepoint, 0, &produced, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -626,10 +626,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 0
         ) {
-            std::printf("FAIL: catteUtf8Encode null output\n");
+            std::printf("FAIL: catte_utf8_encode null output\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf8Encode null output -> invalid argument detail 0\n");
+            std::printf("PASS: catte_utf8_encode null output -> invalid argument detail 0\n");
         }
     }
 
@@ -637,7 +637,7 @@ int main() {
         CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
         BYTE output[4];
 
-        catteUtf8Encode(codepoint, output, 0, &result);
+        catte_utf8_encode(codepoint, output, 0, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -645,10 +645,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 1
         ) {
-            std::printf("FAIL: catteUtf8Encode null produced\n");
+            std::printf("FAIL: catte_utf8_encode null produced\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf8Encode null produced -> invalid argument detail 1\n");
+            std::printf("PASS: catte_utf8_encode null produced -> invalid argument detail 1\n");
         }
     }
 
@@ -707,7 +707,7 @@ int main() {
             codepoint.byte3 = 0xFF;
             consumed = 123;
 
-            catteUtf8Decode(input, &codepoint, &consumed, &result);
+            catte_utf8_decode(input, &codepoint, &consumed, &result);
 
             if (
                 codepoint.byte0 != tests[i].expectedByte0 ||
@@ -720,7 +720,7 @@ int main() {
                 result.operation != tests[i].expectedOperation ||
                 result.detail != DETAIL_CODE_NONE
             ) {
-                std::printf("FAIL: catteUtf8Decode %s\n", tests[i].name);
+                std::printf("FAIL: catte_utf8_decode %s\n", tests[i].name);
                 std::printf("  expected codepoint=%02X %02X %02X %02X consumed=%lu status=0x%02X operation=0x%02X\n",
                     tests[i].expectedByte0,
                     tests[i].expectedByte1,
@@ -741,7 +741,7 @@ int main() {
                     result.detail);
                 failed++;
             } else {
-                std::printf("PASS: catteUtf8Decode %s -> U+%02X%02X%02X%02X\n",
+                std::printf("PASS: catte_utf8_decode %s -> U+%02X%02X%02X%02X\n",
                     tests[i].name,
                     codepoint.byte0,
                     codepoint.byte1,
@@ -758,7 +758,7 @@ int main() {
         CODEPOINT codepoint = { 0xFF, 0xFF, 0xFF, 0xFF };
         NUINT consumed = 123;
 
-        catteUtf8Decode(0, &codepoint, &consumed, &result);
+        catte_utf8_decode(0, &codepoint, &consumed, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -766,10 +766,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 0
         ) {
-            std::printf("FAIL: catteUtf8Decode null input\n");
+            std::printf("FAIL: catte_utf8_decode null input\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf8Decode null input -> invalid argument detail 0\n");
+            std::printf("PASS: catte_utf8_decode null input -> invalid argument detail 0\n");
         }
     }
 
@@ -777,7 +777,7 @@ int main() {
         BYTE input[] = { 'A', '\0' };
         NUINT consumed = 123;
 
-        catteUtf8Decode(input, 0, &consumed, &result);
+        catte_utf8_decode(input, 0, &consumed, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -785,10 +785,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 1
         ) {
-            std::printf("FAIL: catteUtf8Decode null codepoint\n");
+            std::printf("FAIL: catte_utf8_decode null codepoint\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf8Decode null codepoint -> invalid argument detail 1\n");
+            std::printf("PASS: catte_utf8_decode null codepoint -> invalid argument detail 1\n");
         }
     }
 
@@ -796,7 +796,7 @@ int main() {
         BYTE input[] = { 'A', '\0' };
         CODEPOINT codepoint = { 0xFF, 0xFF, 0xFF, 0xFF };
 
-        catteUtf8Decode(input, &codepoint, 0, &result);
+        catte_utf8_decode(input, &codepoint, 0, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -804,10 +804,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 2
         ) {
-            std::printf("FAIL: catteUtf8Decode null consumed\n");
+            std::printf("FAIL: catte_utf8_decode null consumed\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf8Decode null consumed -> invalid argument detail 2\n");
+            std::printf("PASS: catte_utf8_decode null consumed -> invalid argument detail 2\n");
         }
     }
 
@@ -825,7 +825,7 @@ int main() {
         };
         NUINT length = 0;
 
-        catteUtf8Length(input, &length, &result);
+        catte_utf8_length(input, &length, &result);
 
         if (
             length != 5 ||
@@ -834,14 +834,14 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != DETAIL_CODE_NONE
         ) {
-            std::printf("FAIL: catteUtf8Length mixed string\n");
+            std::printf("FAIL: catte_utf8_length mixed string\n");
             std::printf("  actual length=%lu status=0x%02X operation=0x%02X\n",
                 (unsigned long) length,
                 result.status,
                 result.operation);
             failed++;
         } else {
-            std::printf("PASS: catteUtf8Length mixed string -> 5\n");
+            std::printf("PASS: catte_utf8_length mixed string -> 5\n");
         }
     }
 
@@ -854,7 +854,7 @@ int main() {
         };
         NUINT length = 0;
 
-        catteUtf8Length(input, &length, &result);
+        catte_utf8_length(input, &length, &result);
 
         if (
             length != 2 ||
@@ -863,14 +863,14 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != DETAIL_CODE_NONE
         ) {
-            std::printf("FAIL: catteUtf8Length BOM + emoji\n");
+            std::printf("FAIL: catte_utf8_length BOM + emoji\n");
             std::printf("  actual length=%lu status=0x%02X operation=0x%02X\n",
                 (unsigned long) length,
                 result.status,
                 result.operation);
             failed++;
         } else {
-            std::printf("PASS: catteUtf8Length BOM + emoji -> 2\n");
+            std::printf("PASS: catte_utf8_length BOM + emoji -> 2\n");
         }
     }
 
@@ -882,7 +882,7 @@ int main() {
         };
         NUINT length = 123;
 
-        catteUtf8Length(input, &length, &result);
+        catte_utf8_length(input, &length, &result);
 
         if (
             result.status != STATUS_CODE_ERROR ||
@@ -890,7 +890,7 @@ int main() {
             result.operation != 1 ||
             result.detail != DETAIL_CODE_NONE
         ) {
-            std::printf("FAIL: catteUtf8Length invalid UTF-8 sequence\n");
+            std::printf("FAIL: catte_utf8_length invalid UTF-8 sequence\n");
             std::printf("  actual length=%lu status=0x%02X operation=0x%02X detail=0x%02X\n",
                 (unsigned long) length,
                 result.status,
@@ -898,14 +898,14 @@ int main() {
                 result.detail);
             failed++;
         } else {
-            std::printf("PASS: catteUtf8Length invalid UTF-8 sequence -> error operation 1\n");
+            std::printf("PASS: catte_utf8_length invalid UTF-8 sequence -> error operation 1\n");
         }
     }
 
     {
         NUINT length = 123;
 
-        catteUtf8Length(0, &length, &result);
+        catte_utf8_length(0, &length, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -913,17 +913,17 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 0
         ) {
-            std::printf("FAIL: catteUtf8Length null input\n");
+            std::printf("FAIL: catte_utf8_length null input\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf8Length null input -> invalid argument detail 0\n");
+            std::printf("PASS: catte_utf8_length null input -> invalid argument detail 0\n");
         }
     }
 
     {
         BYTE input[] = { 'A', '\0' };
 
-        catteUtf8Length(input, 0, &result);
+        catte_utf8_length(input, 0, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -931,10 +931,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 1
         ) {
-            std::printf("FAIL: catteUtf8Length null length\n");
+            std::printf("FAIL: catte_utf8_length null length\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf8Length null length -> invalid argument detail 1\n");
+            std::printf("PASS: catte_utf8_length null length -> invalid argument detail 1\n");
         }
     }
 
@@ -979,7 +979,7 @@ int main() {
             output[1].lsb = 0;
             produced = 123;
 
-            catteUtf16leEncode(codepoint, output, &produced, &result);
+            catte_utf16le_encode(codepoint, output, &produced, &result);
 
             if (
                 output[0].msb != tests[i].expected0msb ||
@@ -992,7 +992,7 @@ int main() {
                 result.operation != tests[i].expectedOperation ||
                 result.detail != DETAIL_CODE_NONE
             ) {
-                std::printf("FAIL: catteUtf16leEncode %s\n", tests[i].name);
+                std::printf("FAIL: catte_utf16le_encode %s\n", tests[i].name);
                 std::printf("  expected output=%02X%02X %02X%02X produced=%lu status=0x%02X operation=0x%02X\n",
                     tests[i].expected0msb,
                     tests[i].expected0lsb,
@@ -1013,7 +1013,7 @@ int main() {
                     result.detail);
                 failed++;
             } else {
-                std::printf("PASS: catteUtf16leEncode %s -> %02X%02X %02X%02X\n",
+                std::printf("PASS: catte_utf16le_encode %s -> %02X%02X %02X%02X\n",
                     tests[i].name,
                     output[0].msb,
                     output[0].lsb,
@@ -1030,7 +1030,7 @@ int main() {
         CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
         NUINT produced = 123;
 
-        catteUtf16leEncode(codepoint, 0, &produced, &result);
+        catte_utf16le_encode(codepoint, 0, &produced, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -1038,10 +1038,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 0
         ) {
-            std::printf("FAIL: catteUtf16leEncode null output\n");
+            std::printf("FAIL: catte_utf16le_encode null output\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leEncode null output -> invalid argument detail 0\n");
+            std::printf("PASS: catte_utf16le_encode null output -> invalid argument detail 0\n");
         }
     }
 
@@ -1049,7 +1049,7 @@ int main() {
         CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
         UTF16LE_CODE_UNIT output[2];
 
-        catteUtf16leEncode(codepoint, output, 0, &result);
+        catte_utf16le_encode(codepoint, output, 0, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -1057,10 +1057,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 1
         ) {
-            std::printf("FAIL: catteUtf16leEncode null produced\n");
+            std::printf("FAIL: catte_utf16le_encode null produced\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leEncode null produced -> invalid argument detail 1\n");
+            std::printf("PASS: catte_utf16le_encode null produced -> invalid argument detail 1\n");
         }
     }
 
@@ -1104,7 +1104,7 @@ int main() {
             codepoint.byte3 = 0xFF;
             consumed = 123;
 
-            catteUtf16leDecode(input, &codepoint, &consumed, &result);
+            catte_utf16le_decode(input, &codepoint, &consumed, &result);
 
             if (
                 codepoint.byte0 != tests[i].expectedByte0 ||
@@ -1117,7 +1117,7 @@ int main() {
                 result.operation != tests[i].expectedOperation ||
                 result.detail != DETAIL_CODE_NONE
             ) {
-                std::printf("FAIL: catteUtf16leDecode %s\n", tests[i].name);
+                std::printf("FAIL: catte_utf16le_decode %s\n", tests[i].name);
                 std::printf("  expected codepoint=%02X %02X %02X %02X consumed=%lu status=0x%02X operation=0x%02X\n",
                     tests[i].expectedByte0,
                     tests[i].expectedByte1,
@@ -1138,7 +1138,7 @@ int main() {
                     result.detail);
                 failed++;
             } else {
-                std::printf("PASS: catteUtf16leDecode %s -> U+%02X%02X%02X%02X\n",
+                std::printf("PASS: catte_utf16le_decode %s -> U+%02X%02X%02X%02X\n",
                     tests[i].name,
                     codepoint.byte0,
                     codepoint.byte1,
@@ -1155,7 +1155,7 @@ int main() {
         CODEPOINT codepoint = { 0xFF, 0xFF, 0xFF, 0xFF };
         NUINT consumed = 123;
 
-        catteUtf16leDecode(0, &codepoint, &consumed, &result);
+        catte_utf16le_decode(0, &codepoint, &consumed, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -1163,10 +1163,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 0
         ) {
-            std::printf("FAIL: catteUtf16leDecode null input\n");
+            std::printf("FAIL: catte_utf16le_decode null input\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leDecode null input -> invalid argument detail 0\n");
+            std::printf("PASS: catte_utf16le_decode null input -> invalid argument detail 0\n");
         }
     }
 
@@ -1179,7 +1179,7 @@ int main() {
         input[1].msb = 0;
         input[1].lsb = 0;
 
-        catteUtf16leDecode(input, 0, &consumed, &result);
+        catte_utf16le_decode(input, 0, &consumed, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -1187,10 +1187,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 1
         ) {
-            std::printf("FAIL: catteUtf16leDecode null codepoint\n");
+            std::printf("FAIL: catte_utf16le_decode null codepoint\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leDecode null codepoint -> invalid argument detail 1\n");
+            std::printf("PASS: catte_utf16le_decode null codepoint -> invalid argument detail 1\n");
         }
     }
 
@@ -1203,7 +1203,7 @@ int main() {
         input[1].msb = 0;
         input[1].lsb = 0;
 
-        catteUtf16leDecode(input, &codepoint, 0, &result);
+        catte_utf16le_decode(input, &codepoint, 0, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -1211,10 +1211,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 2
         ) {
-            std::printf("FAIL: catteUtf16leDecode null consumed\n");
+            std::printf("FAIL: catte_utf16le_decode null consumed\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leDecode null consumed -> invalid argument detail 2\n");
+            std::printf("PASS: catte_utf16le_decode null consumed -> invalid argument detail 2\n");
         }
     }
 
@@ -1234,7 +1234,7 @@ int main() {
         input[6].msb = 0x00; input[6].lsb = 0x00; // NUL
         input[7].msb = 0x00; input[7].lsb = 0x00;
 
-        catteUtf16leLength(input, &length, &result);
+        catte_utf16le_length(input, &length, &result);
 
         if (
             length != 4 ||
@@ -1243,14 +1243,14 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != DETAIL_CODE_NONE
         ) {
-            std::printf("FAIL: catteUtf16leLength mixed string\n");
+            std::printf("FAIL: catte_utf16le_length mixed string\n");
             std::printf("  actual length=%lu status=0x%02X operation=0x%02X\n",
                 (unsigned long) length,
                 result.status,
                 result.operation);
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leLength mixed string -> 4\n");
+            std::printf("PASS: catte_utf16le_length mixed string -> 4\n");
         }
     }
 
@@ -1264,7 +1264,7 @@ int main() {
         input[3].msb = 0xDE; input[3].lsb = 0x00; // U+1F600 low
         input[4].msb = 0x00; input[4].lsb = 0x00; // NUL
 
-        catteUtf16leLength(input, &length, &result);
+        catte_utf16le_length(input, &length, &result);
 
         if (
             length != 2 ||
@@ -1273,14 +1273,14 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != DETAIL_CODE_NONE
         ) {
-            std::printf("FAIL: catteUtf16leLength BOM + emoji\n");
+            std::printf("FAIL: catte_utf16le_length BOM + emoji\n");
             std::printf("  actual length=%lu status=0x%02X operation=0x%02X\n",
                 (unsigned long) length,
                 result.status,
                 result.operation);
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leLength BOM + emoji -> 2\n");
+            std::printf("PASS: catte_utf16le_length BOM + emoji -> 2\n");
         }
     }
 
@@ -1292,7 +1292,7 @@ int main() {
         input[1].msb = 0xD8; input[1].lsb = 0x3D; // high surrogate without valid low surrogate
         input[2].msb = 0x00; input[2].lsb = 0x00;
 
-        catteUtf16leLength(input, &length, &result);
+        catte_utf16le_length(input, &length, &result);
 
         if (
             result.status != STATUS_CODE_ERROR ||
@@ -1300,7 +1300,7 @@ int main() {
             result.operation != 1 ||
             result.detail != DETAIL_CODE_NONE
         ) {
-            std::printf("FAIL: catteUtf16leLength invalid UTF-16LE sequence\n");
+            std::printf("FAIL: catte_utf16le_length invalid UTF-16LE sequence\n");
             std::printf("  actual length=%lu status=0x%02X operation=0x%02X detail=0x%02X\n",
                 (unsigned long) length,
                 result.status,
@@ -1308,14 +1308,14 @@ int main() {
                 result.detail);
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leLength invalid UTF-16LE sequence -> error operation 1\n");
+            std::printf("PASS: catte_utf16le_length invalid UTF-16LE sequence -> error operation 1\n");
         }
     }
 
     {
         NUINT length = 123;
 
-        catteUtf16leLength(0, &length, &result);
+        catte_utf16le_length(0, &length, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -1323,10 +1323,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 0
         ) {
-            std::printf("FAIL: catteUtf16leLength null input\n");
+            std::printf("FAIL: catte_utf16le_length null input\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leLength null input -> invalid argument detail 0\n");
+            std::printf("PASS: catte_utf16le_length null input -> invalid argument detail 0\n");
         }
     }
 
@@ -1338,7 +1338,7 @@ int main() {
         input[1].msb = 0;
         input[1].lsb = 0;
 
-        catteUtf16leLength(input, 0, &result);
+        catte_utf16le_length(input, 0, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT ||
@@ -1346,10 +1346,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != 1
         ) {
-            std::printf("FAIL: catteUtf16leLength null length\n");
+            std::printf("FAIL: catte_utf16le_length null length\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leLength null length -> invalid argument detail 1\n");
+            std::printf("PASS: catte_utf16le_length null length -> invalid argument detail 1\n");
         }
     }
 
@@ -1365,7 +1365,7 @@ int main() {
         output[2] = 0;
         output[3] = 0;
 
-        catteAsciiToCp1252(input, output, &result);
+        catte_ascii_to_cp1252(input, output, &result);
 
         if (
             output[0] != 'A' ||
@@ -1377,10 +1377,10 @@ int main() {
             result.operation != OPERATION_CODE_NONE ||
             result.detail != DETAIL_CODE_NONE
         ) {
-            std::printf("FAIL: catteAsciiToCp1252 ASCII direct\n");
+            std::printf("FAIL: catte_ascii_to_cp1252 ASCII direct\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiToCp1252 ASCII direct\n");
+            std::printf("PASS: catte_ascii_to_cp1252 ASCII direct\n");
         }
     }
 
@@ -1393,7 +1393,7 @@ int main() {
         output[2] = 0;
         output[3] = 0;
 
-        catteAsciiToCp1252(input, output, &result);
+        catte_ascii_to_cp1252(input, output, &result);
 
         if (
             output[0] != 'A' ||
@@ -1402,36 +1402,36 @@ int main() {
             output[3] != '\0' ||
             result.status != STATUS_CODE_WARNING_PARTIAL
         ) {
-            std::printf("FAIL: catteAsciiToCp1252 invalid ASCII fallback\n");
+            std::printf("FAIL: catte_ascii_to_cp1252 invalid ASCII fallback\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiToCp1252 invalid ASCII fallback -> '?'\n");
+            std::printf("PASS: catte_ascii_to_cp1252 invalid ASCII fallback -> '?'\n");
         }
     }
 
     {
         BYTE output[4];
 
-        catteAsciiToCp1252(0, output, &result);
+        catte_ascii_to_cp1252(0, output, &result);
 
         if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.detail != 0) {
-            std::printf("FAIL: catteAsciiToCp1252 null input\n");
+            std::printf("FAIL: catte_ascii_to_cp1252 null input\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiToCp1252 null input -> invalid argument detail 0\n");
+            std::printf("PASS: catte_ascii_to_cp1252 null input -> invalid argument detail 0\n");
         }
     }
 
     {
         BYTE input[] = { 'A', '\0' };
 
-        catteAsciiToCp1252(input, 0, &result);
+        catte_ascii_to_cp1252(input, 0, &result);
 
         if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.detail != 1) {
-            std::printf("FAIL: catteAsciiToCp1252 null output\n");
+            std::printf("FAIL: catte_ascii_to_cp1252 null output\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiToCp1252 null output -> invalid argument detail 1\n");
+            std::printf("PASS: catte_ascii_to_cp1252 null output -> invalid argument detail 1\n");
         }
     }
 
@@ -1447,7 +1447,7 @@ int main() {
         output[2] = 0;
         output[3] = 0;
 
-        catteAsciiToUtf8(input, output, 4, &result);
+        catte_ascii_to_utf8(input, output, 4, &result);
 
         if (
             output[0] != 'A' ||
@@ -1456,10 +1456,10 @@ int main() {
             output[3] != '\0' ||
             result.status != STATUS_CODE_SUCCESS
         ) {
-            std::printf("FAIL: catteAsciiToUtf8 ASCII direct\n");
+            std::printf("FAIL: catte_ascii_to_utf8 ASCII direct\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiToUtf8 ASCII direct\n");
+            std::printf("PASS: catte_ascii_to_utf8 ASCII direct\n");
         }
     }
 
@@ -1467,7 +1467,7 @@ int main() {
         BYTE input[] = { 'A', (BYTE) 0x80u, 'B', '\0' };
         BYTE output[4];
 
-        catteAsciiToUtf8(input, output, 4, &result);
+        catte_ascii_to_utf8(input, output, 4, &result);
 
         if (
             output[0] != 'A' ||
@@ -1476,10 +1476,10 @@ int main() {
             output[3] != '\0' ||
             result.status != STATUS_CODE_WARNING_PARTIAL
         ) {
-            std::printf("FAIL: catteAsciiToUtf8 invalid ASCII fallback\n");
+            std::printf("FAIL: catte_ascii_to_utf8 invalid ASCII fallback\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiToUtf8 invalid ASCII fallback -> '?'\n");
+            std::printf("PASS: catte_ascii_to_utf8 invalid ASCII fallback -> '?'\n");
         }
     }
 
@@ -1487,13 +1487,13 @@ int main() {
         BYTE input[] = { 'A', 'B', '\0' };
         BYTE output[2];
 
-        catteAsciiToUtf8(input, output, 2, &result);
+        catte_ascii_to_utf8(input, output, 2, &result);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW) {
-            std::printf("FAIL: catteAsciiToUtf8 buffer overflow\n");
+            std::printf("FAIL: catte_ascii_to_utf8 buffer overflow\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiToUtf8 buffer overflow\n");
+            std::printf("PASS: catte_ascii_to_utf8 buffer overflow\n");
         }
     }
 
@@ -1501,31 +1501,31 @@ int main() {
         BYTE input[] = { 'A', '\0' };
         BYTE output[2];
 
-        catteAsciiToUtf8(0, output, 2, &result);
+        catte_ascii_to_utf8(0, output, 2, &result);
 
         if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.detail != 0) {
-            std::printf("FAIL: catteAsciiToUtf8 null input\n");
+            std::printf("FAIL: catte_ascii_to_utf8 null input\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiToUtf8 null input -> invalid argument detail 0\n");
+            std::printf("PASS: catte_ascii_to_utf8 null input -> invalid argument detail 0\n");
         }
 
-        catteAsciiToUtf8(input, 0, 2, &result);
+        catte_ascii_to_utf8(input, 0, 2, &result);
 
         if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.detail != 1) {
-            std::printf("FAIL: catteAsciiToUtf8 null output\n");
+            std::printf("FAIL: catte_ascii_to_utf8 null output\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiToUtf8 null output -> invalid argument detail 1\n");
+            std::printf("PASS: catte_ascii_to_utf8 null output -> invalid argument detail 1\n");
         }
 
-        catteAsciiToUtf8(input, output, 0, &result);
+        catte_ascii_to_utf8(input, output, 0, &result);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW) {
-            std::printf("FAIL: catteAsciiToUtf8 zero capacity\n");
+            std::printf("FAIL: catte_ascii_to_utf8 zero capacity\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiToUtf8 zero capacity -> buffer overflow\n");
+            std::printf("PASS: catte_ascii_to_utf8 zero capacity -> buffer overflow\n");
         }
     }
 
@@ -1536,7 +1536,7 @@ int main() {
         BYTE input[] = { 'A', 'B', '\0' };
         UTF16LE_CODE_UNIT output[3];
 
-        catteAsciiToUtf16le(input, output, 3, &result);
+        catte_ascii_to_utf16le(input, output, 3, &result);
 
         if (
             output[0].msb != 0x00 || output[0].lsb != 'A' ||
@@ -1544,10 +1544,10 @@ int main() {
             output[2].msb != 0x00 || output[2].lsb != 0x00 ||
             result.status != STATUS_CODE_SUCCESS
         ) {
-            std::printf("FAIL: catteAsciiToUtf16le ASCII direct\n");
+            std::printf("FAIL: catte_ascii_to_utf16le ASCII direct\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiToUtf16le ASCII direct\n");
+            std::printf("PASS: catte_ascii_to_utf16le ASCII direct\n");
         }
     }
 
@@ -1555,7 +1555,7 @@ int main() {
         BYTE input[] = { 'A', (BYTE) 0x80u, '\0' };
         UTF16LE_CODE_UNIT output[3];
 
-        catteAsciiToUtf16le(input, output, 3, &result);
+        catte_ascii_to_utf16le(input, output, 3, &result);
 
         if (
             output[0].msb != 0x00 || output[0].lsb != 'A' ||
@@ -1563,10 +1563,10 @@ int main() {
             output[2].msb != 0x00 || output[2].lsb != 0x00 ||
             result.status != STATUS_CODE_WARNING_PARTIAL
         ) {
-            std::printf("FAIL: catteAsciiToUtf16le invalid ASCII fallback\n");
+            std::printf("FAIL: catte_ascii_to_utf16le invalid ASCII fallback\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiToUtf16le invalid ASCII fallback -> '?'\n");
+            std::printf("PASS: catte_ascii_to_utf16le invalid ASCII fallback -> '?'\n");
         }
     }
 
@@ -1574,13 +1574,13 @@ int main() {
         BYTE input[] = { 'A', 'B', '\0' };
         UTF16LE_CODE_UNIT output[2];
 
-        catteAsciiToUtf16le(input, output, 2, &result);
+        catte_ascii_to_utf16le(input, output, 2, &result);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW) {
-            std::printf("FAIL: catteAsciiToUtf16le buffer overflow\n");
+            std::printf("FAIL: catte_ascii_to_utf16le buffer overflow\n");
             failed++;
         } else {
-            std::printf("PASS: catteAsciiToUtf16le buffer overflow\n");
+            std::printf("PASS: catte_ascii_to_utf16le buffer overflow\n");
         }
     }
 
@@ -1591,7 +1591,7 @@ int main() {
         BYTE input[] = { 'A', (BYTE) 0x80u, (BYTE) 0x81u, '\0' };
         BYTE output[4];
 
-        catteCp1252ToAscii(input, output, &result);
+        catte_cp1252_to_ascii(input, output, &result);
 
         if (
             output[0] != 'A' ||
@@ -1600,36 +1600,36 @@ int main() {
             output[3] != '\0' ||
             result.status != STATUS_CODE_WARNING_PARTIAL
         ) {
-            std::printf("FAIL: catteCp1252ToAscii fallback behavior\n");
+            std::printf("FAIL: catte_cp1252_to_ascii fallback behavior\n");
             failed++;
         } else {
-            std::printf("PASS: catteCp1252ToAscii fallback behavior\n");
+            std::printf("PASS: catte_cp1252_to_ascii fallback behavior\n");
         }
     }
 
     {
         BYTE output[2];
 
-        catteCp1252ToAscii(0, output, &result);
+        catte_cp1252_to_ascii(0, output, &result);
 
         if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.detail != 0) {
-            std::printf("FAIL: catteCp1252ToAscii null input\n");
+            std::printf("FAIL: catte_cp1252_to_ascii null input\n");
             failed++;
         } else {
-            std::printf("PASS: catteCp1252ToAscii null input -> invalid argument detail 0\n");
+            std::printf("PASS: catte_cp1252_to_ascii null input -> invalid argument detail 0\n");
         }
     }
 
     {
         BYTE input[] = { 'A', '\0' };
 
-        catteCp1252ToAscii(input, 0, &result);
+        catte_cp1252_to_ascii(input, 0, &result);
 
         if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.detail != 1) {
-            std::printf("FAIL: catteCp1252ToAscii null output\n");
+            std::printf("FAIL: catte_cp1252_to_ascii null output\n");
             failed++;
         } else {
-            std::printf("PASS: catteCp1252ToAscii null output -> invalid argument detail 1\n");
+            std::printf("PASS: catte_cp1252_to_ascii null output -> invalid argument detail 1\n");
         }
     }
 
@@ -1640,7 +1640,7 @@ int main() {
         BYTE input[] = { 'A', (BYTE) 0x80u, (BYTE) 0x81u, '\0' };
         BYTE output[8];
 
-        catteCp1252ToUtf8(input, output, 8, &result);
+        catte_cp1252_to_utf8(input, output, 8, &result);
 
         if (
             output[0] != 'A' ||
@@ -1651,10 +1651,10 @@ int main() {
             output[5] != '\0' ||
             result.status != STATUS_CODE_WARNING_PARTIAL
         ) {
-            std::printf("FAIL: catteCp1252ToUtf8 euro + undefined fallback\n");
+            std::printf("FAIL: catte_cp1252_to_utf8 euro + undefined fallback\n");
             failed++;
         } else {
-            std::printf("PASS: catteCp1252ToUtf8 euro + undefined fallback\n");
+            std::printf("PASS: catte_cp1252_to_utf8 euro + undefined fallback\n");
         }
     }
 
@@ -1662,13 +1662,13 @@ int main() {
         BYTE input[] = { (BYTE) 0x80u, '\0' };
         BYTE output[3];
 
-        catteCp1252ToUtf8(input, output, 3, &result);
+        catte_cp1252_to_utf8(input, output, 3, &result);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW) {
-            std::printf("FAIL: catteCp1252ToUtf8 buffer overflow\n");
+            std::printf("FAIL: catte_cp1252_to_utf8 buffer overflow\n");
             failed++;
         } else {
-            std::printf("PASS: catteCp1252ToUtf8 buffer overflow\n");
+            std::printf("PASS: catte_cp1252_to_utf8 buffer overflow\n");
         }
     }
 
@@ -1679,7 +1679,7 @@ int main() {
         BYTE input[] = { 'A', (BYTE) 0x80u, (BYTE) 0x81u, '\0' };
         UTF16LE_CODE_UNIT output[4];
 
-        catteCp1252ToUtf16le(input, output, 4, &result);
+        catte_cp1252_to_utf16le(input, output, 4, &result);
 
         if (
             output[0].msb != 0x00 || output[0].lsb != 'A' ||
@@ -1688,10 +1688,10 @@ int main() {
             output[3].msb != 0x00 || output[3].lsb != 0x00 ||
             result.status != STATUS_CODE_WARNING_PARTIAL
         ) {
-            std::printf("FAIL: catteCp1252ToUtf16le euro + undefined fallback\n");
+            std::printf("FAIL: catte_cp1252_to_utf16le euro + undefined fallback\n");
             failed++;
         } else {
-            std::printf("PASS: catteCp1252ToUtf16le euro + undefined fallback\n");
+            std::printf("PASS: catte_cp1252_to_utf16le euro + undefined fallback\n");
         }
     }
 
@@ -1699,13 +1699,13 @@ int main() {
         BYTE input[] = { 'A', 'B', '\0' };
         UTF16LE_CODE_UNIT output[2];
 
-        catteCp1252ToUtf16le(input, output, 2, &result);
+        catte_cp1252_to_utf16le(input, output, 2, &result);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW) {
-            std::printf("FAIL: catteCp1252ToUtf16le buffer overflow\n");
+            std::printf("FAIL: catte_cp1252_to_utf16le buffer overflow\n");
             failed++;
         } else {
-            std::printf("PASS: catteCp1252ToUtf16le buffer overflow\n");
+            std::printf("PASS: catte_cp1252_to_utf16le buffer overflow\n");
         }
     }
 
@@ -1722,7 +1722,7 @@ int main() {
         };
         BYTE output[4];
 
-        catteUtf8ToAscii(input, output, 4, &result);
+        catte_utf8_to_ascii(input, output, 4, &result);
 
         if (
             output[0] != 'A' ||
@@ -1731,10 +1731,10 @@ int main() {
             output[3] != '\0' ||
             result.status != STATUS_CODE_WARNING_PARTIAL
         ) {
-            std::printf("FAIL: catteUtf8ToAscii BOM + fallback\n");
+            std::printf("FAIL: catte_utf8_to_ascii BOM + fallback\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf8ToAscii BOM + fallback\n");
+            std::printf("PASS: catte_utf8_to_ascii BOM + fallback\n");
         }
     }
 
@@ -1742,13 +1742,13 @@ int main() {
         BYTE input[] = { 'A', 'B', '\0' };
         BYTE output[2];
 
-        catteUtf8ToAscii(input, output, 2, &result);
+        catte_utf8_to_ascii(input, output, 2, &result);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW) {
-            std::printf("FAIL: catteUtf8ToAscii buffer overflow\n");
+            std::printf("FAIL: catte_utf8_to_ascii buffer overflow\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf8ToAscii buffer overflow\n");
+            std::printf("PASS: catte_utf8_to_ascii buffer overflow\n");
         }
     }
 
@@ -1765,7 +1765,7 @@ int main() {
         };
         BYTE output[4];
 
-        catteUtf8ToCp1252(input, output, 4, &result);
+        catte_utf8_to_cp1252(input, output, 4, &result);
 
         if (
             output[0] != 'A' ||
@@ -1774,10 +1774,10 @@ int main() {
             output[3] != '\0' ||
             result.status != STATUS_CODE_WARNING_PARTIAL
         ) {
-            std::printf("FAIL: catteUtf8ToCp1252 BOM + euro + fallback\n");
+            std::printf("FAIL: catte_utf8_to_cp1252 BOM + euro + fallback\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf8ToCp1252 BOM + euro + fallback\n");
+            std::printf("PASS: catte_utf8_to_cp1252 BOM + euro + fallback\n");
         }
     }
 
@@ -1785,13 +1785,13 @@ int main() {
         BYTE input[] = { 'A', 'B', '\0' };
         BYTE output[2];
 
-        catteUtf8ToCp1252(input, output, 2, &result);
+        catte_utf8_to_cp1252(input, output, 2, &result);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW) {
-            std::printf("FAIL: catteUtf8ToCp1252 buffer overflow\n");
+            std::printf("FAIL: catte_utf8_to_cp1252 buffer overflow\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf8ToCp1252 buffer overflow\n");
+            std::printf("PASS: catte_utf8_to_cp1252 buffer overflow\n");
         }
     }
 
@@ -1809,7 +1809,7 @@ int main() {
         };
         UTF16LE_CODE_UNIT output[7];
 
-        catteUtf8ToUtf16le(input, output, 7, &result);
+        catte_utf8_to_utf16le(input, output, 7, &result);
 
         if (
             output[0].msb != 0x00 || output[0].lsb != 'A' ||
@@ -1821,10 +1821,10 @@ int main() {
             output[6].msb != 0x00 || output[6].lsb != 0x00 ||
             result.status != STATUS_CODE_SUCCESS
         ) {
-            std::printf("FAIL: catteUtf8ToUtf16le BOM + mixed Unicode\n");
+            std::printf("FAIL: catte_utf8_to_utf16le BOM + mixed Unicode\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf8ToUtf16le BOM + mixed Unicode\n");
+            std::printf("PASS: catte_utf8_to_utf16le BOM + mixed Unicode\n");
         }
     }
 
@@ -1835,13 +1835,13 @@ int main() {
         };
         UTF16LE_CODE_UNIT output[2];
 
-        catteUtf8ToUtf16le(input, output, 2, &result);
+        catte_utf8_to_utf16le(input, output, 2, &result);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW) {
-            std::printf("FAIL: catteUtf8ToUtf16le buffer overflow\n");
+            std::printf("FAIL: catte_utf8_to_utf16le buffer overflow\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf8ToUtf16le buffer overflow\n");
+            std::printf("PASS: catte_utf8_to_utf16le buffer overflow\n");
         }
     }
 
@@ -1859,7 +1859,7 @@ int main() {
         input[4].msb = 0xDE; input[4].lsb = 0x00;
         input[5].msb = 0x00; input[5].lsb = 0x00;
 
-        catteUtf16leToAscii(input, output, 4, &result);
+        catte_utf16le_to_ascii(input, output, 4, &result);
 
         if (
             output[0] != 'A' ||
@@ -1868,10 +1868,10 @@ int main() {
             output[3] != '\0' ||
             result.status != STATUS_CODE_WARNING_PARTIAL
         ) {
-            std::printf("FAIL: catteUtf16leToAscii BOM + fallback\n");
+            std::printf("FAIL: catte_utf16le_to_ascii BOM + fallback\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leToAscii BOM + fallback\n");
+            std::printf("PASS: catte_utf16le_to_ascii BOM + fallback\n");
         }
     }
 
@@ -1883,13 +1883,13 @@ int main() {
         input[1].msb = 0x00; input[1].lsb = 'B';
         input[2].msb = 0x00; input[2].lsb = 0x00;
 
-        catteUtf16leToAscii(input, output, 2, &result);
+        catte_utf16le_to_ascii(input, output, 2, &result);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW) {
-            std::printf("FAIL: catteUtf16leToAscii buffer overflow\n");
+            std::printf("FAIL: catte_utf16le_to_ascii buffer overflow\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leToAscii buffer overflow\n");
+            std::printf("PASS: catte_utf16le_to_ascii buffer overflow\n");
         }
     }
 
@@ -1907,7 +1907,7 @@ int main() {
         input[4].msb = 0xDE; input[4].lsb = 0x00;
         input[5].msb = 0x00; input[5].lsb = 0x00;
 
-        catteUtf16leToCp1252(input, output, 4, &result);
+        catte_utf16le_to_cp1252(input, output, 4, &result);
 
         if (
             output[0] != 'A' ||
@@ -1916,10 +1916,10 @@ int main() {
             output[3] != '\0' ||
             result.status != STATUS_CODE_WARNING_PARTIAL
         ) {
-            std::printf("FAIL: catteUtf16leToCp1252 BOM + euro + fallback\n");
+            std::printf("FAIL: catte_utf16le_to_cp1252 BOM + euro + fallback\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leToCp1252 BOM + euro + fallback\n");
+            std::printf("PASS: catte_utf16le_to_cp1252 BOM + euro + fallback\n");
         }
     }
 
@@ -1931,13 +1931,13 @@ int main() {
         input[1].msb = 0x00; input[1].lsb = 'B';
         input[2].msb = 0x00; input[2].lsb = 0x00;
 
-        catteUtf16leToCp1252(input, output, 2, &result);
+        catte_utf16le_to_cp1252(input, output, 2, &result);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW) {
-            std::printf("FAIL: catteUtf16leToCp1252 buffer overflow\n");
+            std::printf("FAIL: catte_utf16le_to_cp1252 buffer overflow\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leToCp1252 buffer overflow\n");
+            std::printf("PASS: catte_utf16le_to_cp1252 buffer overflow\n");
         }
     }
 
@@ -1967,7 +1967,7 @@ int main() {
             terminated[7].msb = 0x00;
             terminated[7].lsb = 0x00;
 
-            catteUtf16leToUtf8(terminated, output, 13, &result);
+            catte_utf16le_to_utf8(terminated, output, 13, &result);
         }
 
         if (
@@ -1986,10 +1986,10 @@ int main() {
             output[12] != '\0' ||
             result.status != STATUS_CODE_SUCCESS
         ) {
-            std::printf("FAIL: catteUtf16leToUtf8 BOM + mixed Unicode\n");
+            std::printf("FAIL: catte_utf16le_to_utf8 BOM + mixed Unicode\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leToUtf8 BOM + mixed Unicode\n");
+            std::printf("PASS: catte_utf16le_to_utf8 BOM + mixed Unicode\n");
         }
     }
 
@@ -2001,13 +2001,13 @@ int main() {
         input[1].msb = 0xDE; input[1].lsb = 0x00;
         input[2].msb = 0x00; input[2].lsb = 0x00;
 
-        catteUtf16leToUtf8(input, output, 4, &result);
+        catte_utf16le_to_utf8(input, output, 4, &result);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW) {
-            std::printf("FAIL: catteUtf16leToUtf8 buffer overflow\n");
+            std::printf("FAIL: catte_utf16le_to_utf8 buffer overflow\n");
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leToUtf8 buffer overflow\n");
+            std::printf("PASS: catte_utf16le_to_utf8 buffer overflow\n");
         }
     }
 
@@ -2022,7 +2022,7 @@ int main() {
         };
         BYTE output[4];
 
-        catteUtf8ToAscii(input, output, 4, &result);
+        catte_utf8_to_ascii(input, output, 4, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_DEPENDENCY_FAILURE ||
@@ -2030,7 +2030,7 @@ int main() {
             result.operation != 1 ||
             result.detail != (BYTE) STATUS_CODE_ERROR
         ) {
-            std::printf("FAIL: catteUtf8ToAscii dependency failure from UTF-8 decode\n");
+            std::printf("FAIL: catte_utf8_to_ascii dependency failure from UTF-8 decode\n");
             std::printf("  actual status=0x%02X context=0x%02X operation=0x%02X detail=0x%02X\n",
                 result.status,
                 result.context,
@@ -2038,7 +2038,7 @@ int main() {
                 result.detail);
             failed++;
         } else {
-            std::printf("PASS: catteUtf8ToAscii dependency failure from UTF-8 decode\n");
+            std::printf("PASS: catte_utf8_to_ascii dependency failure from UTF-8 decode\n");
         }
     }
 
@@ -2049,7 +2049,7 @@ int main() {
         };
         BYTE output[4];
 
-        catteUtf8ToCp1252(input, output, 4, &result);
+        catte_utf8_to_cp1252(input, output, 4, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_DEPENDENCY_FAILURE ||
@@ -2057,7 +2057,7 @@ int main() {
             result.operation != 1 ||
             result.detail != (BYTE) STATUS_CODE_ERROR
         ) {
-            std::printf("FAIL: catteUtf8ToCp1252 dependency failure from UTF-8 decode\n");
+            std::printf("FAIL: catte_utf8_to_cp1252 dependency failure from UTF-8 decode\n");
             std::printf("  actual status=0x%02X context=0x%02X operation=0x%02X detail=0x%02X\n",
                 result.status,
                 result.context,
@@ -2065,7 +2065,7 @@ int main() {
                 result.detail);
             failed++;
         } else {
-            std::printf("PASS: catteUtf8ToCp1252 dependency failure from UTF-8 decode\n");
+            std::printf("PASS: catte_utf8_to_cp1252 dependency failure from UTF-8 decode\n");
         }
     }
 
@@ -2076,7 +2076,7 @@ int main() {
         };
         UTF16LE_CODE_UNIT output[4];
 
-        catteUtf8ToUtf16le(input, output, 4, &result);
+        catte_utf8_to_utf16le(input, output, 4, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_DEPENDENCY_FAILURE ||
@@ -2084,7 +2084,7 @@ int main() {
             result.operation != 1 ||
             result.detail != (BYTE) STATUS_CODE_ERROR
         ) {
-            std::printf("FAIL: catteUtf8ToUtf16le dependency failure from UTF-8 decode\n");
+            std::printf("FAIL: catte_utf8_to_utf16le dependency failure from UTF-8 decode\n");
             std::printf("  actual status=0x%02X context=0x%02X operation=0x%02X detail=0x%02X\n",
                 result.status,
                 result.context,
@@ -2092,7 +2092,7 @@ int main() {
                 result.detail);
             failed++;
         } else {
-            std::printf("PASS: catteUtf8ToUtf16le dependency failure from UTF-8 decode\n");
+            std::printf("PASS: catte_utf8_to_utf16le dependency failure from UTF-8 decode\n");
         }
     }
 
@@ -2104,7 +2104,7 @@ int main() {
         input[1].msb = 0x00; input[1].lsb = 'A';  // invalid low surrogate
         input[2].msb = 0x00; input[2].lsb = 0x00;
 
-        catteUtf16leToAscii(input, output, 4, &result);
+        catte_utf16le_to_ascii(input, output, 4, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_DEPENDENCY_FAILURE ||
@@ -2112,7 +2112,7 @@ int main() {
             result.operation != 1 ||
             result.detail != (BYTE) STATUS_CODE_ERROR
         ) {
-            std::printf("FAIL: catteUtf16leToAscii dependency failure from UTF-16LE decode\n");
+            std::printf("FAIL: catte_utf16le_to_ascii dependency failure from UTF-16LE decode\n");
             std::printf("  actual status=0x%02X context=0x%02X operation=0x%02X detail=0x%02X\n",
                 result.status,
                 result.context,
@@ -2120,7 +2120,7 @@ int main() {
                 result.detail);
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leToAscii dependency failure from UTF-16LE decode\n");
+            std::printf("PASS: catte_utf16le_to_ascii dependency failure from UTF-16LE decode\n");
         }
     }
 
@@ -2132,7 +2132,7 @@ int main() {
         input[1].msb = 0x00; input[1].lsb = 'A';  // invalid low surrogate
         input[2].msb = 0x00; input[2].lsb = 0x00;
 
-        catteUtf16leToCp1252(input, output, 4, &result);
+        catte_utf16le_to_cp1252(input, output, 4, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_DEPENDENCY_FAILURE ||
@@ -2140,7 +2140,7 @@ int main() {
             result.operation != 1 ||
             result.detail != (BYTE) STATUS_CODE_ERROR
         ) {
-            std::printf("FAIL: catteUtf16leToCp1252 dependency failure from UTF-16LE decode\n");
+            std::printf("FAIL: catte_utf16le_to_cp1252 dependency failure from UTF-16LE decode\n");
             std::printf("  actual status=0x%02X context=0x%02X operation=0x%02X detail=0x%02X\n",
                 result.status,
                 result.context,
@@ -2148,7 +2148,7 @@ int main() {
                 result.detail);
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leToCp1252 dependency failure from UTF-16LE decode\n");
+            std::printf("PASS: catte_utf16le_to_cp1252 dependency failure from UTF-16LE decode\n");
         }
     }
 
@@ -2160,7 +2160,7 @@ int main() {
         input[1].msb = 0x00; input[1].lsb = 'A';  // invalid low surrogate
         input[2].msb = 0x00; input[2].lsb = 0x00;
 
-        catteUtf16leToUtf8(input, output, 4, &result);
+        catte_utf16le_to_utf8(input, output, 4, &result);
 
         if (
             result.status != STATUS_CODE_ERROR_DEPENDENCY_FAILURE ||
@@ -2168,7 +2168,7 @@ int main() {
             result.operation != 1 ||
             result.detail != (BYTE) STATUS_CODE_ERROR
         ) {
-            std::printf("FAIL: catteUtf16leToUtf8 dependency failure from UTF-16LE decode\n");
+            std::printf("FAIL: catte_utf16le_to_utf8 dependency failure from UTF-16LE decode\n");
             std::printf("  actual status=0x%02X context=0x%02X operation=0x%02X detail=0x%02X\n",
                 result.status,
                 result.context,
@@ -2176,7 +2176,7 @@ int main() {
                 result.detail);
             failed++;
         } else {
-            std::printf("PASS: catteUtf16leToUtf8 dependency failure from UTF-16LE decode\n");
+            std::printf("PASS: catte_utf16le_to_utf8 dependency failure from UTF-16LE decode\n");
         }
     }
 

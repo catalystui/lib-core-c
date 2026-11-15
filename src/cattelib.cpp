@@ -7,7 +7,7 @@
 
 using namespace catalyst;
 
-void catteAsciiEncode(const CATALYST_CODEPOINT codepoint, CATALYST_ASCIIW asciiw, CATALYST_RESULT* result) {
+void catte_ascii_encode(const CATALYST_CODEPOINT codepoint, CATALYST_ASCIIW asciiw, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (asciiw == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -35,7 +35,7 @@ void catteAsciiEncode(const CATALYST_CODEPOINT codepoint, CATALYST_ASCIIW asciiw
     }
 }
 
-void catteAsciiDecode(CATALYST_ASCII ascii, CATALYST_CODEPOINT* codepoint, CATALYST_RESULT* result) {
+void catte_ascii_decode(CATALYST_ASCII ascii, CATALYST_CODEPOINT* codepoint, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (ascii == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -55,7 +55,7 @@ void catteAsciiDecode(CATALYST_ASCII ascii, CATALYST_CODEPOINT* codepoint, CATAL
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
 }
 
-void catteAsciiLength(CATALYST_ASCII ascii, CATALYST_NUINT* length, CATALYST_RESULT* result) {
+void catte_ascii_length(CATALYST_ASCII ascii, CATALYST_NUINT* length, CATALYST_RESULT* result) {
     if (ascii == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
         return;
@@ -76,7 +76,7 @@ void catteAsciiLength(CATALYST_ASCII ascii, CATALYST_NUINT* length, CATALYST_RES
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
 }
 
-void catteCp1252Encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp1252w, CATALYST_RESULT* result) {
+void catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp1252w, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (cp1252w == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -154,7 +154,7 @@ void catteCp1252Encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp12
     return;
 }
 
-void catteCp1252Decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* codepoint, CATALYST_RESULT* result) {
+void catte_cp1252_decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* codepoint, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (cp1252 == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -216,7 +216,7 @@ void catteCp1252Decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* codepoint, CA
     return;
 }
 
-void catteCp1252Length(CATALYST_CP1252 cp1252, CATALYST_NUINT* length, CATALYST_RESULT* result) {
+void catte_cp1252_length(CATALYST_CP1252 cp1252, CATALYST_NUINT* length, CATALYST_RESULT* result) {
     if (cp1252 == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
         return;
@@ -246,7 +246,7 @@ void catteCp1252Length(CATALYST_CP1252 cp1252, CATALYST_NUINT* length, CATALYST_
  * operation 3 = invalid codepoint.
  * See cattelib.h for buffer, output, and argument-result contracts.
  */
-void catteUtf8Encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, CATALYST_NUINT* produced, CATALYST_RESULT* result) {
+void catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, CATALYST_NUINT* produced, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8w == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -341,7 +341,7 @@ void catteUtf8Encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, C
  * operation 6 = invalid leading code unit.
  * See cattelib.h for buffer, output, and argument-result contracts.
  */
-void catteUtf8Decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed, CATALYST_RESULT* result) {
+void catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8 == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -498,7 +498,7 @@ void catteUtf8Decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALYST
  * operation 1 = invalid UTF-8 sequence.
  * See cattelib.h for buffer, output, and argument-result contracts.
  */
-void catteUtf8Length(CATALYST_UTF8 utf8, CATALYST_NUINT* length, CATALYST_RESULT* result) {
+void catte_utf8_length(CATALYST_UTF8 utf8, CATALYST_NUINT* length, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8 == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -520,8 +520,8 @@ void catteUtf8Length(CATALYST_UTF8 utf8, CATALYST_NUINT* length, CATALYST_RESULT
         CODEPOINT codepoint;
         NUINT consumed;
         RESULT decodeResult;
-        catteUtf8Decode(utf8, &codepoint, &consumed, &decodeResult);
-        if (!statusCodeIsSuccess(decodeResult.status)) {
+        catte_utf8_decode(utf8, &codepoint, &consumed, &decodeResult);
+        if (!status_code_is_success(decodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 1, 0);
             return;
         }
@@ -542,7 +542,7 @@ void catteUtf8Length(CATALYST_UTF8 utf8, CATALYST_NUINT* length, CATALYST_RESULT
  * operation 2 = invalid surrogate codepoint.
  * See cattelib.h for buffer, output, and argument-result contracts.
  */
-void catteUtf16leEncode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT* produced, CATALYST_RESULT* result) {
+void catte_utf16le_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT* produced, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16lew == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -607,7 +607,7 @@ void catteUtf16leEncode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW ut
  * operation 2 = invalid low surrogate.
  * See cattelib.h for buffer, output, and argument-result contracts.
  */
-void catteUtf16leDecode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed, CATALYST_RESULT* result) {
+void catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16le == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -686,7 +686,7 @@ void catteUtf16leDecode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoint,
  * operation 1 = invalid UTF-16LE sequence.
  * See cattelib.h for buffer, output, and argument-result contracts.
  */
-void catteUtf16leLength(CATALYST_UTF16LE utf16le, CATALYST_NUINT* length, CATALYST_RESULT* result) {
+void catte_utf16le_length(CATALYST_UTF16LE utf16le, CATALYST_NUINT* length, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16le == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -708,8 +708,8 @@ void catteUtf16leLength(CATALYST_UTF16LE utf16le, CATALYST_NUINT* length, CATALY
         CODEPOINT codepoint;
         NUINT consumed;
         RESULT decodeResult;
-        catteUtf16leDecode(utf16le, &codepoint, &consumed, &decodeResult);
-        if (!statusCodeIsSuccess(decodeResult.status)) {
+        catte_utf16le_decode(utf16le, &codepoint, &consumed, &decodeResult);
+        if (!status_code_is_success(decodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 1, 0); // Invalid UTF-16LE sequence
             return;
         }
@@ -724,7 +724,7 @@ void catteUtf16leLength(CATALYST_UTF16LE utf16le, CATALYST_NUINT* length, CATALY
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
 }
 
-void catteAsciiToCp1252(CATALYST_ASCII ascii, CATALYST_CP1252W cp1252w, CATALYST_RESULT* result) {
+void catte_ascii_to_cp1252(CATALYST_ASCII ascii, CATALYST_CP1252W cp1252w, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (ascii == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -756,7 +756,7 @@ void catteAsciiToCp1252(CATALYST_ASCII ascii, CATALYST_CP1252W cp1252w, CATALYST
     if (result != 0) *result = RESULT(status, 0, 0, 0);
 }
 
-void catteAsciiToUtf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
+void catte_ascii_to_utf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (ascii == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -796,7 +796,7 @@ void catteAsciiToUtf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, CATALYST_NUINT
     if (result != 0) *result = RESULT(status, 0, 0, 0);
 }
 
-void catteAsciiToUtf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
+void catte_ascii_to_utf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (ascii == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -846,7 +846,7 @@ void catteAsciiToUtf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW utf16lew, CATAL
  * operation 2 = failed ASCII encode.
  * See cattelib.h for buffer, output, and argument-result contracts.
  */
-void catteCp1252ToAscii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW asciiw, CATALYST_RESULT* result) {
+void catte_cp1252_to_ascii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW asciiw, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (cp1252 == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -866,21 +866,21 @@ void catteCp1252ToAscii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW asciiw, CATALYST
         RESULT decodeResult;
         RESULT encodeResult;
 
-        catteCp1252Decode(cp1252 + index, &codepoint, &decodeResult);
-        if (statusCodeIsError(decodeResult.status) || statusCodeIsFatal(decodeResult.status)) {
+        catte_cp1252_decode(cp1252 + index, &codepoint, &decodeResult);
+        if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(decodeResult.status)) {
+        if (status_code_is_warning(decodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
-        catteAsciiEncode(codepoint, output, &encodeResult);
-        if (statusCodeIsError(encodeResult.status) || statusCodeIsFatal(encodeResult.status)) {
+        catte_ascii_encode(codepoint, output, &encodeResult);
+        if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(encodeResult.status)) {
+        if (status_code_is_warning(encodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
@@ -903,7 +903,7 @@ void catteCp1252ToAscii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW asciiw, CATALYST
  * operation 2 = failed UTF-8 encode.
  * See cattelib.h for buffer, output, and argument-result contracts.
  */
-void catteCp1252ToUtf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
+void catte_cp1252_to_utf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (cp1252 == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -935,21 +935,21 @@ void catteCp1252ToUtf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST_NU
         output[2] = 0;
         output[3] = 0;
 
-        catteCp1252Decode(cp1252 + read, &codepoint, &decodeResult);
-        if (statusCodeIsError(decodeResult.status) || statusCodeIsFatal(decodeResult.status)) {
+        catte_cp1252_decode(cp1252 + read, &codepoint, &decodeResult);
+        if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(decodeResult.status)) {
+        if (status_code_is_warning(decodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
-        catteUtf8Encode(codepoint, output, &produced, &encodeResult);
-        if (statusCodeIsError(encodeResult.status) || statusCodeIsFatal(encodeResult.status)) {
+        catte_utf8_encode(codepoint, output, &produced, &encodeResult);
+        if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(encodeResult.status)) {
+        if (status_code_is_warning(encodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
@@ -977,7 +977,7 @@ void catteCp1252ToUtf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST_NU
  * operation 2 = failed UTF-16LE encode.
  * See cattelib.h for buffer, output, and argument-result contracts.
  */
-void catteCp1252ToUtf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
+void catte_cp1252_to_utf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (cp1252 == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -1009,21 +1009,21 @@ void catteCp1252ToUtf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew, CA
         output[1].msb = 0;
         output[1].lsb = 0;
 
-        catteCp1252Decode(cp1252 + read, &codepoint, &decodeResult);
-        if (statusCodeIsError(decodeResult.status) || statusCodeIsFatal(decodeResult.status)) {
+        catte_cp1252_decode(cp1252 + read, &codepoint, &decodeResult);
+        if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(decodeResult.status)) {
+        if (status_code_is_warning(decodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
-        catteUtf16leEncode(codepoint, output, &produced, &encodeResult);
-        if (statusCodeIsError(encodeResult.status) || statusCodeIsFatal(encodeResult.status)) {
+        catte_utf16le_encode(codepoint, output, &produced, &encodeResult);
+        if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(encodeResult.status)) {
+        if (status_code_is_warning(encodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
@@ -1052,7 +1052,7 @@ void catteCp1252ToUtf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew, CA
  * operation 2 = failed ASCII encode.
  * See cattelib.h for buffer, output, and argument-result contracts.
  */
-void catteUtf8ToAscii(CATALYST_UTF8 utf8, CATALYST_ASCIIW asciiw, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
+void catte_utf8_to_ascii(CATALYST_UTF8 utf8, CATALYST_ASCIIW asciiw, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8 == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -1082,21 +1082,21 @@ void catteUtf8ToAscii(CATALYST_UTF8 utf8, CATALYST_ASCIIW asciiw, CATALYST_NUINT
         RESULT decodeResult;
         RESULT encodeResult;
 
-        catteUtf8Decode(utf8, &codepoint, &consumed, &decodeResult);
-        if (statusCodeIsError(decodeResult.status) || statusCodeIsFatal(decodeResult.status)) {
+        catte_utf8_decode(utf8, &codepoint, &consumed, &decodeResult);
+        if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(decodeResult.status)) {
+        if (status_code_is_warning(decodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
-        catteAsciiEncode(codepoint, output, &encodeResult);
-        if (statusCodeIsError(encodeResult.status) || statusCodeIsFatal(encodeResult.status)) {
+        catte_ascii_encode(codepoint, output, &encodeResult);
+        if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(encodeResult.status)) {
+        if (status_code_is_warning(encodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
@@ -1121,7 +1121,7 @@ void catteUtf8ToAscii(CATALYST_UTF8 utf8, CATALYST_ASCIIW asciiw, CATALYST_NUINT
  * operation 2 = failed CP1252 encode.
  * See cattelib.h for buffer, output, and argument-result contracts.
  */
-void catteUtf8ToCp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
+void catte_utf8_to_cp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8 == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -1151,21 +1151,21 @@ void catteUtf8ToCp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST_NU
         RESULT decodeResult;
         RESULT encodeResult;
 
-        catteUtf8Decode(utf8, &codepoint, &consumed, &decodeResult);
-        if (statusCodeIsError(decodeResult.status) || statusCodeIsFatal(decodeResult.status)) {
+        catte_utf8_decode(utf8, &codepoint, &consumed, &decodeResult);
+        if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(decodeResult.status)) {
+        if (status_code_is_warning(decodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
-        catteCp1252Encode(codepoint, output, &encodeResult);
-        if (statusCodeIsError(encodeResult.status) || statusCodeIsFatal(encodeResult.status)) {
+        catte_cp1252_encode(codepoint, output, &encodeResult);
+        if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(encodeResult.status)) {
+        if (status_code_is_warning(encodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
@@ -1190,7 +1190,7 @@ void catteUtf8ToCp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST_NU
  * operation 2 = failed UTF-16LE encode.
  * See cattelib.h for buffer, output, and argument-result contracts.
  */
-void catteUtf8ToUtf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
+void catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8 == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -1227,21 +1227,21 @@ void catteUtf8ToUtf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATALYST
         output[1].msb = 0;
         output[1].lsb = 0;
 
-        catteUtf8Decode(utf8, &codepoint, &consumed, &decodeResult);
-        if (statusCodeIsError(decodeResult.status) || statusCodeIsFatal(decodeResult.status)) {
+        catte_utf8_decode(utf8, &codepoint, &consumed, &decodeResult);
+        if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(decodeResult.status)) {
+        if (status_code_is_warning(decodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
-        catteUtf16leEncode(codepoint, output, &produced, &encodeResult);
-        if (statusCodeIsError(encodeResult.status) || statusCodeIsFatal(encodeResult.status)) {
+        catte_utf16le_encode(codepoint, output, &produced, &encodeResult);
+        if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(encodeResult.status)) {
+        if (status_code_is_warning(encodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
@@ -1270,7 +1270,7 @@ void catteUtf8ToUtf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATALYST
  * operation 2 = failed ASCII encode.
  * See cattelib.h for buffer, output, and argument-result contracts.
  */
-void catteUtf16leToAscii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW asciiw, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
+void catte_utf16le_to_ascii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW asciiw, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16le == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -1300,21 +1300,21 @@ void catteUtf16leToAscii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW asciiw, CATAL
         RESULT decodeResult;
         RESULT encodeResult;
 
-        catteUtf16leDecode(utf16le, &codepoint, &consumed, &decodeResult);
-        if (statusCodeIsError(decodeResult.status) || statusCodeIsFatal(decodeResult.status)) {
+        catte_utf16le_decode(utf16le, &codepoint, &consumed, &decodeResult);
+        if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(decodeResult.status)) {
+        if (status_code_is_warning(decodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
-        catteAsciiEncode(codepoint, output, &encodeResult);
-        if (statusCodeIsError(encodeResult.status) || statusCodeIsFatal(encodeResult.status)) {
+        catte_ascii_encode(codepoint, output, &encodeResult);
+        if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(encodeResult.status)) {
+        if (status_code_is_warning(encodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
@@ -1339,7 +1339,7 @@ void catteUtf16leToAscii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW asciiw, CATAL
  * operation 2 = failed CP1252 encode.
  * See cattelib.h for buffer, output, and argument-result contracts.
  */
-void catteUtf16leToCp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
+void catte_utf16le_to_cp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16le == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -1369,21 +1369,21 @@ void catteUtf16leToCp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w, CA
         RESULT decodeResult;
         RESULT encodeResult;
 
-        catteUtf16leDecode(utf16le, &codepoint, &consumed, &decodeResult);
-        if (statusCodeIsError(decodeResult.status) || statusCodeIsFatal(decodeResult.status)) {
+        catte_utf16le_decode(utf16le, &codepoint, &consumed, &decodeResult);
+        if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(decodeResult.status)) {
+        if (status_code_is_warning(decodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
-        catteCp1252Encode(codepoint, output, &encodeResult);
-        if (statusCodeIsError(encodeResult.status) || statusCodeIsFatal(encodeResult.status)) {
+        catte_cp1252_encode(codepoint, output, &encodeResult);
+        if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(encodeResult.status)) {
+        if (status_code_is_warning(encodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
@@ -1408,7 +1408,7 @@ void catteUtf16leToCp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w, CA
  * operation 2 = failed UTF-8 encode.
  * See cattelib.h for buffer, output, and argument-result contracts.
  */
-void catteUtf16leToUtf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
+void catte_utf16le_to_utf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16le == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
@@ -1445,21 +1445,21 @@ void catteUtf16leToUtf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W utf8w, CATALYST
         output[2] = 0;
         output[3] = 0;
 
-        catteUtf16leDecode(utf16le, &codepoint, &consumed, &decodeResult);
-        if (statusCodeIsError(decodeResult.status) || statusCodeIsFatal(decodeResult.status)) {
+        catte_utf16le_decode(utf16le, &codepoint, &consumed, &decodeResult);
+        if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(decodeResult.status)) {
+        if (status_code_is_warning(decodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
-        catteUtf8Encode(codepoint, output, &produced, &encodeResult);
-        if (statusCodeIsError(encodeResult.status) || statusCodeIsFatal(encodeResult.status)) {
+        catte_utf8_encode(codepoint, output, &produced, &encodeResult);
+        if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
             if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
             return;
         }
-        if (statusCodeIsWarning(encodeResult.status)) {
+        if (status_code_is_warning(encodeResult.status)) {
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 

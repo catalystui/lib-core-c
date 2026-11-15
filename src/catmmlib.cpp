@@ -7,20 +7,20 @@
 
 using namespace catalyst;
 
-void catmmRealloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result) {
+void catmm_realloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (memory == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
         return;
     }
     if (*memory == 0) {
-        catmmAlloc(memory, size, result);
+        catmm_alloc(memory, size, result);
         return;
     }
     if (size == 0) {
         RESULT freeResult;
-        catmmFree(*memory, &freeResult);
-        if (statusCodeIsSuccess(freeResult.status)) {
+        catmm_free(*memory, &freeResult);
+        if (status_code_is_success(freeResult.status)) {
             *memory = 0;
         }
         if (result != 0) *result = freeResult;
@@ -32,8 +32,8 @@ void catmmRealloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result) {
     CATALYST_MEMORY_HEADER* oldHeader = (CATALYST_MEMORY_HEADER*) (oldBytes - sizeof(CATALYST_MEMORY_HEADER));
     void* newMemory = 0;
     RESULT allocResult;
-    catmmAlloc(&newMemory, size, &allocResult);
-    if (!statusCodeIsSuccess(allocResult.status)) {
+    catmm_alloc(&newMemory, size, &allocResult);
+    if (!status_code_is_success(allocResult.status)) {
         if (result != 0) *result = allocResult;
         return;
     }
@@ -47,10 +47,10 @@ void catmmRealloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result) {
 
     // Free the old block and return
     RESULT freeResult;
-    catmmFree(*memory, &freeResult);
-    if (!statusCodeIsSuccess(freeResult.status)) {
+    catmm_free(*memory, &freeResult);
+    if (!status_code_is_success(freeResult.status)) {
         // Restore original state if we failed to free the old block
-        catmmFree(newMemory, 0);
+        catmm_free(newMemory, 0);
         if (result != 0) *result = freeResult;
         return;
     }

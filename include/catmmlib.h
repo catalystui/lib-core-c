@@ -41,7 +41,7 @@ typedef struct CATALYST_MEMORY_HEADER {
  * sizeof(CATALYST_MEMORY_HEADER) bytes after the OS allocation base; it is
  * not the original page-aligned address. There is no adjustable alignment or
  * additional guarantee for over-aligned objects. Use only the requested
- * payload extent. Release through catmmFree using the same allocator backend.
+ * payload extent. Release through catmm_free using the same allocator backend.
  *
  * Results (context and operation are zero):
  * SUCCESS: *memory receives the payload.
@@ -53,13 +53,13 @@ typedef struct CATALYST_MEMORY_HEADER {
  * ERROR_ALLOCATION_FAILED: OS allocation failed; Linux detail is narrowed
  *     errno, while Windows and Darwin use detail 0.
  */
-CATMMLIB_API void catmmAlloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result);
+CATMMLIB_API void catmm_alloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result);
 
 /**
  * Resize an allocation, allocating a replacement before releasing the old block.
  * memory must point to writable pointer storage. A non-null *memory must be a
  * live payload returned by this allocator, with its header intact.
- * If *memory is null, delegates to catmmAlloc (including its zero-size error).
+ * If *memory is null, delegates to catmm_alloc (including its zero-size error).
  * If *memory is non-null and size is zero, frees it and sets *memory to null
  * only on success. Otherwise copies min(old requested_size, size) bytes into
  * new zero-filled storage and returns the new payload; any added bytes are zero.
@@ -67,10 +67,10 @@ CATMMLIB_API void catmmAlloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT
  * pointers into the allocation are invalid. If replacement allocation or
  * release of the old block fails, *memory is left unchanged; a replacement
  * block release is attempted on the latter path. Cleanup status is not returned.
- * result may be null. Results are propagated from catmmAlloc/catmmFree;
+ * result may be null. Results are propagated from catmm_alloc/catmm_free;
  * a null memory argument returns ERROR_INVALID_ARGUMENT with detail 0.
  */
-CATMMLIB_API void catmmRealloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result);
+CATMMLIB_API void catmm_realloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result);
 
 /**
  * Release a live payload returned by this allocator, using the same backend.
@@ -85,7 +85,7 @@ CATMMLIB_API void catmmRealloc(void** memory, CATALYST_NUINT size, CATALYST_RESU
  * Darwin supply detail 0. No payload access guarantee is made after an OS
  * release failure.
  */
-CATMMLIB_API void catmmFree(void* memory, CATALYST_RESULT* result);
+CATMMLIB_API void catmm_free(void* memory, CATALYST_RESULT* result);
 
 #ifdef __cplusplus
 } /* extern C */

@@ -11,15 +11,15 @@ namespace catalyst {
 typedef ::CATALYST_MEMORY_HEADER MEMORY_HEADER;
 
 inline void alloc(void** memory, NUINT size, RESULT* result) {
-    ::catmmAlloc(memory, size, result);
+    ::catmm_alloc(memory, size, result);
 }
 
 inline void realloc(void** memory, NUINT size, RESULT* result) {
-    ::catmmRealloc(memory, size, result);
+    ::catmm_realloc(memory, size, result);
 }
 
 inline void free(void* memory, RESULT* result) {
-    ::catmmFree(memory, result);
+    ::catmm_free(memory, result);
 }
 
 } /* namespace catalyst */

@@ -51,7 +51,7 @@ extern "C" {
  * Unrepresentable values write '?' and return WARNING_PARTIAL.
  * ERROR_INVALID_ARGUMENT: detail 0 = null asciiw (the output argument).
  */
-CATTELIB_API void catteAsciiEncode(const CATALYST_CODEPOINT codepoint, CATALYST_ASCIIW asciiw, CATALYST_RESULT* result);
+CATTELIB_API void catte_ascii_encode(const CATALYST_CODEPOINT codepoint, CATALYST_ASCIIW asciiw, CATALYST_RESULT* result);
 
 /**
  * Read one ASCII unit into codepoint, including the zero terminator.
@@ -61,7 +61,7 @@ CATTELIB_API void catteAsciiEncode(const CATALYST_CODEPOINT codepoint, CATALYST_
  * On success all four codepoint bytes are assigned; null-argument errors
  * leave the codepoint storage unchanged.
  */
-CATTELIB_API void catteAsciiDecode(CATALYST_ASCII ascii, CATALYST_CODEPOINT* codepoint, CATALYST_RESULT* result);
+CATTELIB_API void catte_ascii_decode(CATALYST_ASCII ascii, CATALYST_CODEPOINT* codepoint, CATALYST_RESULT* result);
 
 /**
  * Count nonzero ASCII units before the terminator, without validating them.
@@ -69,14 +69,14 @@ CATTELIB_API void catteAsciiDecode(CATALYST_ASCII ascii, CATALYST_CODEPOINT* cod
  * ERROR_BUFFER_OVERFLOW: count reaches CATALYST_NUINT_MAX.
  * *length is assigned only on success and is otherwise unchanged.
  */
-CATTELIB_API void catteAsciiLength(CATALYST_ASCII ascii, CATALYST_NUINT* length, CATALYST_RESULT* result);
+CATTELIB_API void catte_ascii_length(CATALYST_ASCII ascii, CATALYST_NUINT* length, CATALYST_RESULT* result);
 
 /**
  * Encode one codepoint into one Windows-1252 unit, including U+0000.
  * Unrepresentable values write '?' and return WARNING_PARTIAL.
  * ERROR_INVALID_ARGUMENT: detail 0 = null cp1252w (the output argument).
  */
-CATTELIB_API void catteCp1252Encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp1252w, CATALYST_RESULT* result);
+CATTELIB_API void catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp1252w, CATALYST_RESULT* result);
 
 /**
  * Decode one Windows-1252 unit into codepoint, including the terminator.
@@ -85,7 +85,7 @@ CATTELIB_API void catteCp1252Encode(const CATALYST_CODEPOINT codepoint, CATALYST
  * ERROR_INVALID_ARGUMENT: detail 0 = null cp1252, 1 = null codepoint.
  * Null-argument errors leave the codepoint storage unchanged.
  */
-CATTELIB_API void catteCp1252Decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* codepoint, CATALYST_RESULT* result);
+CATTELIB_API void catte_cp1252_decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* codepoint, CATALYST_RESULT* result);
 
 /**
  * Count nonzero CP1252 units before the terminator without decoding them.
@@ -94,7 +94,7 @@ CATTELIB_API void catteCp1252Decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* 
  * ERROR_BUFFER_OVERFLOW: count reaches CATALYST_NUINT_MAX.
  * *length is assigned only on success and is otherwise unchanged.
  */
-CATTELIB_API void catteCp1252Length(CATALYST_CP1252 cp1252, CATALYST_NUINT* length, CATALYST_RESULT* result);
+CATTELIB_API void catte_cp1252_length(CATALYST_CP1252 cp1252, CATALYST_NUINT* length, CATALYST_RESULT* result);
 
 /**
  * Encode one Unicode scalar value into one to four UTF-8 units.
@@ -106,7 +106,7 @@ CATTELIB_API void catteCp1252Length(CATALYST_CP1252 cp1252, CATALYST_NUINT* leng
  * 3 = codepoint above U+10FFFF. Operation 1 is retained by the implementation,
  * but earlier branches handle the values that would reach this condition.
  */
-CATTELIB_API void catteUtf8Encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, CATALYST_NUINT* produced, CATALYST_RESULT* result);
+CATTELIB_API void catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, CATALYST_NUINT* produced, CATALYST_RESULT* result);
 
 /**
  * Decode one UTF-8 sequence into a Unicode scalar value.
@@ -120,7 +120,7 @@ CATTELIB_API void catteUtf8Encode(const CATALYST_CODEPOINT codepoint, CATALYST_U
  * 6 = invalid leading unit (including C0/C1, stray continuations, and F5..FF).
  * On success, *consumed is the sequence's one-to-four-unit width.
  */
-CATTELIB_API void catteUtf8Decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed, CATALYST_RESULT* result);
+CATTELIB_API void catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed, CATALYST_RESULT* result);
 
 /**
  * Count Unicode scalar values in a terminated UTF-8 string, skipping a
@@ -131,7 +131,7 @@ CATTELIB_API void catteUtf8Decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepo
  * decode result is not propagated. ERROR_BUFFER_OVERFLOW = count reaches
  * CATALYST_NUINT_MAX, with operation/detail zero.
  */
-CATTELIB_API void catteUtf8Length(CATALYST_UTF8 utf8, CATALYST_NUINT* length, CATALYST_RESULT* result);
+CATTELIB_API void catte_utf8_length(CATALYST_UTF8 utf8, CATALYST_NUINT* length, CATALYST_RESULT* result);
 
 /**
  * Encode one Unicode scalar value into one or two UTF-16LE units.
@@ -141,7 +141,7 @@ CATTELIB_API void catteUtf8Length(CATALYST_UTF8 utf8, CATALYST_NUINT* length, CA
  * leave the destination unchanged and use ERROR with detail 0:
  * operation 1 = codepoint above U+10FFFF; 2 = surrogate U+D800..U+DFFF.
  */
-CATTELIB_API void catteUtf16leEncode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT* produced, CATALYST_RESULT* result);
+CATTELIB_API void catte_utf16le_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT* produced, CATALYST_RESULT* result);
 
 /**
  * Decode one UTF-16LE scalar value, consuming one unit or a surrogate pair.
@@ -153,7 +153,7 @@ CATTELIB_API void catteUtf16leEncode(const CATALYST_CODEPOINT codepoint, CATALYS
  * operation 1 = low surrogate without a preceding high surrogate;
  * 2 = high surrogate not followed by a low surrogate (including a terminator).
  */
-CATTELIB_API void catteUtf16leDecode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed, CATALYST_RESULT* result);
+CATTELIB_API void catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed, CATALYST_RESULT* result);
 
 /**
  * Count Unicode scalar values in terminated UTF-16LE, skipping a leading
@@ -164,7 +164,7 @@ CATTELIB_API void catteUtf16leDecode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOIN
  * decode result is not propagated. ERROR_BUFFER_OVERFLOW = count reaches
  * CATALYST_NUINT_MAX, with operation/detail zero.
  */
-CATTELIB_API void catteUtf16leLength(CATALYST_UTF16LE utf16le, CATALYST_NUINT* length, CATALYST_RESULT* result);
+CATTELIB_API void catte_utf16le_length(CATALYST_UTF16LE utf16le, CATALYST_NUINT* length, CATALYST_RESULT* result);
 
 /**
  * Convert a terminated ASCII string to terminated CP1252.
@@ -173,7 +173,7 @@ CATTELIB_API void catteUtf16leLength(CATALYST_UTF16LE utf16le, CATALYST_NUINT* l
  * ERROR_BUFFER_OVERFLOW: index reaches CATALYST_NUINT_MAX.
  * Source bytes above 7F (hex) become '?' with WARNING_PARTIAL.
  */
-CATTELIB_API void catteAsciiToCp1252(CATALYST_ASCII ascii, CATALYST_CP1252W cp1252w, CATALYST_RESULT* result);
+CATTELIB_API void catte_ascii_to_cp1252(CATALYST_ASCII ascii, CATALYST_CP1252W cp1252w, CATALYST_RESULT* result);
 
 /**
  * Convert a terminated ASCII string to terminated UTF-8.
@@ -183,7 +183,7 @@ CATTELIB_API void catteAsciiToCp1252(CATALYST_ASCII ascii, CATALYST_CP1252W cp12
  * value plus a terminator. Previously written output is not rolled back.
  * Source bytes above 7F (hex) become '?' with WARNING_PARTIAL.
  */
-CATTELIB_API void catteAsciiToUtf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API void catte_ascii_to_utf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
 
 /**
  * Convert a terminated ASCII string to terminated UTF-16LE.
@@ -193,19 +193,19 @@ CATTELIB_API void catteAsciiToUtf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, C
  * value plus a terminator. Previously written output is not rolled back.
  * Source bytes above 7F (hex) become '?' with WARNING_PARTIAL.
  */
-CATTELIB_API void catteAsciiToUtf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API void catte_ascii_to_utf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result);
 
 /**
  * Convert a terminated CP1252 string to terminated ASCII.
  * ERROR_INVALID_ARGUMENT: detail 0 = null source, 1 = null destination.
  * No capacity parameter: destination must hold source length plus one unit.
  * ERROR_BUFFER_OVERFLOW: index reaches CATALYST_NUINT_MAX.
- * ERROR_DEPENDENCY_FAILURE: operation 1 = catteCp1252Decode failed;
- * operation 2 = catteAsciiEncode failed. detail contains its status byte.
+ * ERROR_DEPENDENCY_FAILURE: operation 1 = catte_cp1252_decode failed;
+ * operation 2 = catte_ascii_encode failed. detail contains its status byte.
  * Undefined CP1252 bytes become '?' with WARNING_PARTIAL.
  * Values unrepresentable in the destination become '?' with WARNING_PARTIAL.
  */
-CATTELIB_API void catteCp1252ToAscii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW ascii, CATALYST_RESULT* result);
+CATTELIB_API void catte_cp1252_to_ascii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW ascii, CATALYST_RESULT* result);
 
 /**
  * Convert a terminated CP1252 string to terminated UTF-8.
@@ -213,11 +213,11 @@ CATTELIB_API void catteCp1252ToAscii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW asc
  * capacity is the number of writable UTF-8 units, including the terminator.
  * ERROR_BUFFER_OVERFLOW: capacity is zero or cannot hold the next encoded
  * value plus a terminator. Previously written output is not rolled back.
- * ERROR_DEPENDENCY_FAILURE: operation 1 = catteCp1252Decode failed;
- * operation 2 = catteUtf8Encode failed. detail contains its status byte.
+ * ERROR_DEPENDENCY_FAILURE: operation 1 = catte_cp1252_decode failed;
+ * operation 2 = catte_utf8_encode failed. detail contains its status byte.
  * Undefined CP1252 bytes become '?' with WARNING_PARTIAL.
  */
-CATTELIB_API void catteCp1252ToUtf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API void catte_cp1252_to_utf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
 
 /**
  * Convert a terminated CP1252 string to terminated UTF-16LE.
@@ -225,11 +225,11 @@ CATTELIB_API void catteCp1252ToUtf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w
  * capacity is the number of writable UTF-16LE units, including the terminator.
  * ERROR_BUFFER_OVERFLOW: capacity is zero or cannot hold the next encoded
  * value plus a terminator. Previously written output is not rolled back.
- * ERROR_DEPENDENCY_FAILURE: operation 1 = catteCp1252Decode failed;
- * operation 2 = catteUtf16leEncode failed. detail contains its status byte.
+ * ERROR_DEPENDENCY_FAILURE: operation 1 = catte_cp1252_decode failed;
+ * operation 2 = catte_utf16le_encode failed. detail contains its status byte.
  * Undefined CP1252 bytes become '?' with WARNING_PARTIAL.
  */
-CATTELIB_API void catteCp1252ToUtf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API void catte_cp1252_to_utf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result);
 
 /**
  * Convert a terminated UTF-8 string to terminated ASCII.
@@ -238,11 +238,11 @@ CATTELIB_API void catteCp1252ToUtf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW
  * capacity is the number of writable ASCII units, including the terminator.
  * ERROR_BUFFER_OVERFLOW: capacity is zero or cannot hold the next encoded
  * value plus a terminator. Previously written output is not rolled back.
- * ERROR_DEPENDENCY_FAILURE: operation 1 = catteUtf8Decode failed;
- * operation 2 = catteAsciiEncode failed. detail contains its status byte.
+ * ERROR_DEPENDENCY_FAILURE: operation 1 = catte_utf8_decode failed;
+ * operation 2 = catte_ascii_encode failed. detail contains its status byte.
  * Values unrepresentable in the destination become '?' with WARNING_PARTIAL.
  */
-CATTELIB_API void catteUtf8ToAscii(CATALYST_UTF8 utf8, CATALYST_ASCIIW ascii, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API void catte_utf8_to_ascii(CATALYST_UTF8 utf8, CATALYST_ASCIIW ascii, CATALYST_NUINT capacity, CATALYST_RESULT* result);
 
 /**
  * Convert a terminated UTF-8 string to terminated CP1252.
@@ -251,11 +251,11 @@ CATTELIB_API void catteUtf8ToAscii(CATALYST_UTF8 utf8, CATALYST_ASCIIW ascii, CA
  * capacity is the number of writable CP1252 units, including the terminator.
  * ERROR_BUFFER_OVERFLOW: capacity is zero or cannot hold the next encoded
  * value plus a terminator. Previously written output is not rolled back.
- * ERROR_DEPENDENCY_FAILURE: operation 1 = catteUtf8Decode failed;
- * operation 2 = catteCp1252Encode failed. detail contains its status byte.
+ * ERROR_DEPENDENCY_FAILURE: operation 1 = catte_utf8_decode failed;
+ * operation 2 = catte_cp1252_encode failed. detail contains its status byte.
  * Values unrepresentable in the destination become '?' with WARNING_PARTIAL.
  */
-CATTELIB_API void catteUtf8ToCp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API void catte_utf8_to_cp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
 
 /**
  * Convert a terminated UTF-8 string to terminated UTF-16LE.
@@ -264,10 +264,10 @@ CATTELIB_API void catteUtf8ToCp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w
  * capacity is the number of writable UTF-16LE units, including the terminator.
  * ERROR_BUFFER_OVERFLOW: capacity is zero or cannot hold the next encoded
  * value plus a terminator. Previously written output is not rolled back.
- * ERROR_DEPENDENCY_FAILURE: operation 1 = catteUtf8Decode failed;
- * operation 2 = catteUtf16leEncode failed. detail contains its status byte.
+ * ERROR_DEPENDENCY_FAILURE: operation 1 = catte_utf8_decode failed;
+ * operation 2 = catte_utf16le_encode failed. detail contains its status byte.
  */
-CATTELIB_API void catteUtf8ToUtf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API void catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result);
 
 /**
  * Convert a terminated UTF-16LE string to terminated ASCII.
@@ -276,11 +276,11 @@ CATTELIB_API void catteUtf8ToUtf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16
  * capacity is the number of writable ASCII units, including the terminator.
  * ERROR_BUFFER_OVERFLOW: capacity is zero or cannot hold the next encoded
  * value plus a terminator. Previously written output is not rolled back.
- * ERROR_DEPENDENCY_FAILURE: operation 1 = catteUtf16leDecode failed;
- * operation 2 = catteAsciiEncode failed. detail contains its status byte.
+ * ERROR_DEPENDENCY_FAILURE: operation 1 = catte_utf16le_decode failed;
+ * operation 2 = catte_ascii_encode failed. detail contains its status byte.
  * Values unrepresentable in the destination become '?' with WARNING_PARTIAL.
  */
-CATTELIB_API void catteUtf16leToAscii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW ascii, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API void catte_utf16le_to_ascii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW ascii, CATALYST_NUINT capacity, CATALYST_RESULT* result);
 
 /**
  * Convert a terminated UTF-16LE string to terminated CP1252.
@@ -289,11 +289,11 @@ CATTELIB_API void catteUtf16leToAscii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW 
  * capacity is the number of writable CP1252 units, including the terminator.
  * ERROR_BUFFER_OVERFLOW: capacity is zero or cannot hold the next encoded
  * value plus a terminator. Previously written output is not rolled back.
- * ERROR_DEPENDENCY_FAILURE: operation 1 = catteUtf16leDecode failed;
- * operation 2 = catteCp1252Encode failed. detail contains its status byte.
+ * ERROR_DEPENDENCY_FAILURE: operation 1 = catte_utf16le_decode failed;
+ * operation 2 = catte_cp1252_encode failed. detail contains its status byte.
  * Values unrepresentable in the destination become '?' with WARNING_PARTIAL.
  */
-CATTELIB_API void catteUtf16leToCp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API void catte_utf16le_to_cp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
 
 /**
  * Convert a terminated UTF-16LE string to terminated UTF-8.
@@ -302,10 +302,10 @@ CATTELIB_API void catteUtf16leToCp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252
  * capacity is the number of writable UTF-8 units, including the terminator.
  * ERROR_BUFFER_OVERFLOW: capacity is zero or cannot hold the next encoded
  * value plus a terminator. Previously written output is not rolled back.
- * ERROR_DEPENDENCY_FAILURE: operation 1 = catteUtf16leDecode failed;
- * operation 2 = catteUtf8Encode failed. detail contains its status byte.
+ * ERROR_DEPENDENCY_FAILURE: operation 1 = catte_utf16le_decode failed;
+ * operation 2 = catte_utf8_encode failed. detail contains its status byte.
  */
-CATTELIB_API void catteUtf16leToUtf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API void catte_utf16le_to_utf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
 
 #ifdef __cplusplus
 } /* extern C */
