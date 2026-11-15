@@ -3,6 +3,22 @@
         {
             "title": "Overview",
             "path": "/"
+        },
+        {
+            "title": "Foundational definitions",
+            "path": "/definitions"
+        },
+        {
+            "title": "Memory management (CATMMLIB)",
+            "path": "/catmmlib"
+        },
+        {
+            "title": "Text encoding (CATTELIB)",
+            "path": "/cattelib"
+        },
+        {
+            "title": "Relational collections (CATRLLIB)",
+            "path": "/catrllib"
         }
     ]
 }
