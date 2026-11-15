@@ -29,6 +29,15 @@ Core is independent of any particular layer or sensory domain of the CatalystUI 
 
 The compile workflow checks C90 and C++98 on x86, and C99 and C++11 on x64, using GCC on Linux.
 
+## Libraries
+
+| Library | Windows | macOS | Linux | Description |
+| --- | --- | --- | --- | --- |
+| [CATMMLIB](include/catmmlib.h) | `catmmlib.dll`, `catmmlib.lib` | `libcatmm.dylib`, `libcatmm.a` | `libcatmm.so`, `libcatmm.a` | Memory allocation, reallocation, and deallocation. |
+| [CATTELIB](include/cattelib.h) | `cattelib.dll`, `cattelib.lib` | `libcatte.dylib`, `libcatte.a` | `libcatte.so`, `libcatte.a` | Text encoding, decoding, length calculation, and conversion. |
+
+The filenames follow the shared build configuration and platform toolchain conventions. Core types are provided through [`catalyst.h`](include/catalyst.h) and [`catalyst.hpp`](include/catalyst.hpp), without a separate binary library.
+
 ## Getting Started
 
 The repository uses **CMake 4.3 or later**, Git, and a C/C++ toolchain appropriate for the selected build preset.
@@ -55,25 +64,6 @@ cmake --build --preset aclang17-darwin24.6-arm64-release
 ```
 
 Preset availability depends on the host and installed toolchain; the presence of a preset does not imply verified runtime support.
-
-## Related Projects
-
-<table>
-  <tr>
-    <td width="33%" valign="top">
-      <h3><a href="https://github.com/catalystui/lib-crystal-c">lib-crystal-c</a></h3>
-      <p>The native windowing ABI for CatalystUI, implementing Layer 2: Window of the CatalystUI model.</p>
-    </td>
-    <td width="33%" valign="top">
-      <h3><a href="https://github.com/catalystui/lib-aether-c">lib-aether-c</a></h3>
-      <p>Aether, the native system ABI for CatalystUI.</p>
-    </td>
-    <td width="33%" valign="top">
-      <h3><a href="https://github.com/catalystui/build-cmake">build-cmake</a></h3>
-      <p>Shared CMake configuration, target metadata, and platform-specific build presets for CatalystUI's native libraries.</p>
-    </td>
-  </tr>
-</table>
 
 ## AI-Assisted Development
 
