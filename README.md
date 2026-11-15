@@ -11,27 +11,17 @@
   <img src="https://img.shields.io/badge/Interface-C%20ABI-00599C?style=flat-square&amp;logo=c&amp;logoColor=white" alt="Interface: C ABI">
   <img src="https://img.shields.io/badge/CatalystUI-Core-526b80?style=flat-square" alt="CatalystUI: Core">
   <img src="https://img.shields.io/badge/Build-CMake%204.3%2B-064F8C?style=flat-square&amp;logo=cmake&amp;logoColor=white" alt="Build: CMake 4.3+">
-  <a href="https://github.com/catalystui/lib-core-c/commits/main"><img src="https://img.shields.io/github/last-commit/catalystui/lib-core-c?style=flat-square&amp;logo=github&amp;logoColor=white" alt="Last commit"></a>
+  <a href="https://github.com/catalystui/lib-core-c/commits/main"><img src="https://img.shields.io/github/last-commit/catalystui/lib-core-c/main?style=flat-square&amp;logo=github&amp;logoColor=white" alt="Last commit"></a>
   <a href="https://github.com/catalystui/lib-core-c/actions/workflows/compile.yml"><img src="https://img.shields.io/github/actions/workflow/status/catalystui/lib-core-c/compile.yml?branch=main&amp;style=flat-square&amp;logo=github&amp;logoColor=white" alt="Compile status"></a>
 </p>
 
-## About Catalyst Core
+## About Core
 
-Catalyst Core provides the foundational data representations and shared utilities for CatalystUI through a native C ABI. Its core types are based on the CatalystUI **Foundational Definitions Specification (FDEFSPEC)**.
+Core provides the foundational data representations and shared utilities for CatalystUI through a native C ABI. Its core types are based on the CatalystUI **Foundational Definitions Specification (FDEFSPEC)**.
 
 These libraries establish a consistent foundation for representing digital data, reporting operation results, managing memory, and converting between text encodings, without tying applications to a particular programming language or platform.
 
 The core is independent of any particular layer or sensory domain of the CatalystUI model. Its purpose is to provide the shared building blocks upon which higher-level libraries can be developed.
-
-## Libraries
-
-| Library | Description |
-| --- | --- |
-| [Core Types](include/catalyst.h) | Foundational numeric types, text representations, and operation status codes. |
-| [CATMMLIB](include/catmmlib.h) | Memory allocation, reallocation, and deallocation. |
-| [CATTELIB](include/cattelib.h) | Text encoding, decoding, length calculation, and conversion between ASCII, CP1252, UTF-8, and UTF-16LE. |
-
-Each interface provides a C header and a corresponding C++ header. CATMMLIB and CATTELIB are available as static and shared library targets.
 
 ## Development Status
 
@@ -62,7 +52,7 @@ The shared presets define target-specific compiler and platform configurations. 
 
 ```powershell
 cmake --preset aclang17-darwin24.6-arm64
-cmake --build --preset aclang17-darwin24.6-arm64 --config Release
+cmake --build --preset aclang17-darwin24.6-arm64-release
 ```
 
 Preset availability depends on the host and installed toolchain; the presence of a preset does not imply verified runtime support.
@@ -71,11 +61,15 @@ Preset availability depends on the host and installed toolchain; the presence of
 
 <table>
   <tr>
-    <td width="50%" valign="top">
+    <td width="33%" valign="top">
       <h3><a href="https://github.com/catalystui/lib-crystal-c">lib-crystal-c</a></h3>
       <p>The native windowing ABI for CatalystUI, implementing Layer 2: Window of the CatalystUI model.</p>
     </td>
-    <td width="50%" valign="top">
+    <td width="33%" valign="top">
+      <h3><a href="https://github.com/catalystui/lib-aether-c">lib-aether-c</a></h3>
+      <p>Aether, the native system ABI for CatalystUI.</p>
+    </td>
+    <td width="33%" valign="top">
       <h3><a href="https://github.com/catalystui/build-cmake">build-cmake</a></h3>
       <p>Shared CMake configuration, target metadata, and platform-specific build presets for CatalystUI's native libraries.</p>
     </td>
@@ -84,7 +78,7 @@ Preset availability depends on the host and installed toolchain; the presence of
 
 ## AI-Assisted Development
 
-Catalyst Core is developed with AI assistance under human direction. AI coding agents assist with implementation and repository maintenance, while the project owner defines the model, requirements, and design decisions.
+Core is developed with AI assistance under human direction. AI coding agents assist with implementation and repository maintenance, while the project owner defines the model, requirements, and design decisions.
 
 AI-assisted contributions are subject to the same expectations for correctness, maintainability, attribution, and licensing as human-written contributions. Their presence does not imply independent line-by-line human review.
 
