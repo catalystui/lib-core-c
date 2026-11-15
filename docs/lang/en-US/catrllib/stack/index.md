@@ -2,179 +2,145 @@
 
 See [CATRLLIB conventions](../index.md#conventions) and [storage results](../index.md#storage-results) for shared requirements.
 
+All functions return `void`. Result context, operation and detail default to zero unless indicated.
+
 ## catrl_stack_create
 
-**C**
+Creates an empty stack with `element_size` bytes per element.
 
 ```c
 void catrl_stack_create(CATALYST_STACK** stack, CATALYST_NUINT element_size, CATALYST_RESULT* result);
 ```
 
-**C++**
+| Parameter | Description |
+| --- | --- |
+| `stack` | Receives the new stack handle; cleared on failure. |
+| `element_size` | Element size in bytes. Must be nonzero. |
+| `result` | Optional result output. |
 
-```cpp
-void catalyst::stack_create(STACK** stack, NUINT element_size, RESULT* result);
-```
-
-Creates an empty stack with element_size bytes per element.
-
-**Results**
-
-| Status | Operation | Detail | Meaning |
-| --- | ---: | --- | --- |
-| `SUCCESS` | 0 | 0 | Operation completed successfully. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 0 | Null `stack` output. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 1 | Zero `element_size`. |
-| `ERROR_BUFFER_OVERFLOW` | 0 | 0 | Allocation exceeds representable storage. |
-| `ERROR_DEPENDENCY_FAILURE` | 1 | Dependency status | Allocation failed. [Storage results](../index.md#storage-results). |
-| `ERROR_DEPENDENCY_FAILURE` | 3 | Dependency status | Release failed during creation cleanup. [Storage results](../index.md#storage-results). |
+| Status | Meaning |
+| --- | --- |
+| `SUCCESS` | Handle created. |
+| `ERROR_INVALID_ARGUMENT` | **Detail `0`:** Null `stack` output.<br>**Detail `1`:** Zero `element_size`. |
+| `ERROR_BUFFER_OVERFLOW` | Allocation exceeds representable storage. |
+| `ERROR_DEPENDENCY_FAILURE` | **Operation `1`:** Allocation failed.<br>**Operation `3`:** Release failed during creation cleanup.<br>Detail: dependency status byte. |
 
 ## catrl_stack_destroy
 
-**C**
+Releases stack storage and handle.
 
 ```c
 void catrl_stack_destroy(CATALYST_STACK* stack, CATALYST_RESULT* result);
 ```
 
-**C++**
+| Parameter | Description |
+| --- | --- |
+| `stack` | Stack handle. |
+| `result` | Optional result output. |
 
-```cpp
-void catalyst::stack_destroy(STACK* stack, RESULT* result);
-```
-
-Releases stack storage and handle.
-
-**Results**
-
-| Status | Operation | Detail | Meaning |
-| --- | ---: | --- | --- |
-| `SUCCESS` | 0 | 0 | Operation completed successfully. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 0 | Null `stack`. |
-| `ERROR_BUFFER_OVERFLOW` | 0 | 0 | Allocator reported overflow (if returned). |
-| `ERROR_DEPENDENCY_FAILURE` | 3 | Dependency status | Release failed. [Storage results](../index.md#storage-results). |
+| Status | Meaning |
+| --- | --- |
+| `SUCCESS` | Handle and storage released. |
+| `ERROR_INVALID_ARGUMENT` | **Detail `0`:** Null `stack`. |
+| `ERROR_BUFFER_OVERFLOW` | Allocator reported overflow (if returned). |
+| `ERROR_DEPENDENCY_FAILURE` | **Operation `3`:** Release failed.<br>Detail: dependency status byte. |
 
 ## catrl_stack_push
 
-**C**
+Copies value to the top of the stack. Grows storage as needed.
 
 ```c
 void catrl_stack_push(CATALYST_STACK* stack, const void* value, CATALYST_RESULT* result);
 ```
 
-**C++**
+| Parameter | Description |
+| --- | --- |
+| `stack` | Stack handle. |
+| `value` | Readable value to copy or match. |
+| `result` | Optional result output. |
 
-```cpp
-void catalyst::stack_push(STACK* stack, const void* value, RESULT* result);
-```
-
-Copies value to the top of the stack. Grows storage as needed.
-
-**Results**
-
-| Status | Operation | Detail | Meaning |
-| --- | ---: | --- | --- |
-| `SUCCESS` | 0 | 0 | Operation completed successfully. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 0 | Null `stack`. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 1 | Null `value`. |
-| `ERROR_BUFFER_OVERFLOW` | 0 | 0 | Growth exceeds representable storage. |
-| `ERROR_DEPENDENCY_FAILURE` | 2 | Dependency status | Reallocation failed. [Storage results](../index.md#storage-results). |
-| `FATAL_INVARIANT_VIOLATION` | 2 | `0x81` | Storage may no longer be usable. [Storage results](../index.md#storage-results). |
+| Status | Meaning |
+| --- | --- |
+| `SUCCESS` | Value pushed. |
+| `ERROR_INVALID_ARGUMENT` | **Detail `0`:** Null `stack`.<br>**Detail `1`:** Null `value`. |
+| `ERROR_BUFFER_OVERFLOW` | Growth exceeds representable storage. |
+| `ERROR_DEPENDENCY_FAILURE` | **Operation `2`:** Reallocation failed.<br>Detail: dependency status byte. |
+| `FATAL_INVARIANT_VIOLATION` | **Operation `2`, detail `0x81`:** Storage may no longer be usable. |
 
 ## catrl_stack_pop
 
-**C**
+Copies the top element into value and removes it.
 
 ```c
 void catrl_stack_pop(CATALYST_STACK* stack, void* value, CATALYST_RESULT* result);
 ```
 
-**C++**
+| Parameter | Description |
+| --- | --- |
+| `stack` | Stack handle. |
+| `value` | Writable buffer receiving the value. |
+| `result` | Optional result output. |
 
-```cpp
-void catalyst::stack_pop(STACK* stack, void* value, RESULT* result);
-```
-
-Copies the top element into value and removes it.
-
-**Results**
-
-| Status | Operation | Detail | Meaning |
-| --- | ---: | --- | --- |
-| `SUCCESS` | 0 | 0 | Operation completed successfully. |
-| `ERROR_NOT_FOUND` | 0 | 0 | Collection is empty. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 0 | Null `stack`. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 1 | Null `value`. |
+| Status | Meaning |
+| --- | --- |
+| `SUCCESS` | Top element removed and copied. |
+| `ERROR_NOT_FOUND` | Collection is empty. |
+| `ERROR_INVALID_ARGUMENT` | **Detail `0`:** Null `stack`.<br>**Detail `1`:** Null `value`. |
 
 ## catrl_stack_peek
 
-**C**
+Copies the top element into value without removing it.
 
 ```c
 void catrl_stack_peek(const CATALYST_STACK* stack, void* value, CATALYST_RESULT* result);
 ```
 
-**C++**
+| Parameter | Description |
+| --- | --- |
+| `stack` | Stack handle. |
+| `value` | Writable buffer receiving the value. |
+| `result` | Optional result output. |
 
-```cpp
-void catalyst::stack_peek(const STACK* stack, void* value, RESULT* result);
-```
-
-Copies the top element into value without removing it.
-
-**Results**
-
-| Status | Operation | Detail | Meaning |
-| --- | ---: | --- | --- |
-| `SUCCESS` | 0 | 0 | Operation completed successfully. |
-| `ERROR_NOT_FOUND` | 0 | 0 | Collection is empty. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 0 | Null `stack`. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 1 | Null `value`. |
+| Status | Meaning |
+| --- | --- |
+| `SUCCESS` | Value retrieved. |
+| `ERROR_NOT_FOUND` | Collection is empty. |
+| `ERROR_INVALID_ARGUMENT` | **Detail `0`:** Null `stack`.<br>**Detail `1`:** Null `value`. |
 
 ## catrl_stack_count
 
-**C**
+Writes the number of elements to count.
 
 ```c
 void catrl_stack_count(const CATALYST_STACK* stack, CATALYST_NUINT* count, CATALYST_RESULT* result);
 ```
 
-**C++**
+| Parameter | Description |
+| --- | --- |
+| `stack` | Stack handle. |
+| `count` | Receives the number of elements. |
+| `result` | Optional result output. |
 
-```cpp
-void catalyst::stack_count(const STACK* stack, NUINT* count, RESULT* result);
-```
-
-Writes the number of elements to count.
-
-**Results**
-
-| Status | Operation | Detail | Meaning |
-| --- | ---: | --- | --- |
-| `SUCCESS` | 0 | 0 | Operation completed successfully. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 0 | Null `stack`. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 1 | Null `count`. |
+| Status | Meaning |
+| --- | --- |
+| `SUCCESS` | Count written. |
+| `ERROR_INVALID_ARGUMENT` | **Detail `0`:** Null `stack`.<br>**Detail `1`:** Null `count`. |
 
 ## catrl_stack_clear
 
-**C**
+Removes all elements without releasing `capacity` or zeroing stored bytes.
 
 ```c
 void catrl_stack_clear(CATALYST_STACK* stack, CATALYST_RESULT* result);
 ```
 
-**C++**
+| Parameter | Description |
+| --- | --- |
+| `stack` | Stack handle. |
+| `result` | Optional result output. |
 
-```cpp
-void catalyst::stack_clear(STACK* stack, RESULT* result);
-```
-
-Removes all elements without releasing capacity or zeroing stored bytes.
-
-**Results**
-
-| Status | Operation | Detail | Meaning |
-| --- | ---: | --- | --- |
-| `SUCCESS` | 0 | 0 | Operation completed successfully. |
-| `SUCCESS_NOOP` | 0 | 0 | No action if empty. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 0 | Null `stack`. |
+| Status | Meaning |
+| --- | --- |
+| `SUCCESS` | Collection cleared. |
+| `SUCCESS_NOOP` | Collection is already empty. |
+| `ERROR_INVALID_ARGUMENT` | **Detail `0`:** Null `stack`. |

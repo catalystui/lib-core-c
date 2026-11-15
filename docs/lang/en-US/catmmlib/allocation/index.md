@@ -2,86 +2,72 @@
 
 See [CATMMLIB conventions](../index.md#conventions) for shared requirements and result conventions.
 
+All functions return `void`. Result context, operation and detail default to zero unless indicated.
+
 ## catmm_alloc
 
-**C**
+Allocates `size` zero-filled bytes and stores the address in `*memory`. The output is cleared before allocation and remains null on failure. An existing pointer is replaced without releasing its allocation.
 
 ```c
 void catmm_alloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result);
 ```
 
-**C++**
+| Parameter | Description |
+| --- | --- |
+| `memory` | Receives the allocation address; cleared on failure. |
+| `size` | Requested allocation size in bytes; must be nonzero. |
+| `result` | Optional result output. |
 
-```cpp
-void catalyst::alloc(void** memory, NUINT size, RESULT* result);
-```
-
-Allocates `size` nonzero bytes and writes the address to `*memory`. After validating the output pointer, clears `*memory`; it remains null on failure. An existing pointer is replaced without freeing its allocation.
-
-**Results**
-
-| Status | Operation | Detail | Meaning |
-| --- | ---: | --- | --- |
-| `SUCCESS` | 0 | 0 | Payload allocated. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 0 | Null `memory` output. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 1 | Zero `size`. |
-| `ERROR_BUFFER_OVERFLOW` | 0 | 0 | Header plus payload overflow. |
-| `ERROR_BUFFER_OVERFLOW` | 0 | 1 | Page-rounding overflow (Linux). |
-| `ERROR_INVALID_STATE` | 0 | `errno` (low byte) | Page-size query failed (Linux). |
-| `ERROR_ALLOCATION_FAILED` | 0 | Linux: `errno` (low byte); Windows/Darwin: 0 | Native allocation failed. |
+| Status | Meaning |
+| --- | --- |
+| `SUCCESS` | Payload allocated. |
+| `ERROR_INVALID_ARGUMENT` | **Detail `0`:** Null `memory` output.<br>**Detail `1`:** Zero `size`. |
+| `ERROR_BUFFER_OVERFLOW` | **Detail `0`:** Header plus payload overflow.<br>**Detail `1`:** Page-rounding overflow (Linux). |
+| `ERROR_INVALID_STATE` | Page-size query failed (Linux). Detail: low byte of `errno`. |
+| `ERROR_ALLOCATION_FAILED` | Native allocation failed. Detail: low byte of `errno` on Linux; `0` on Windows/Darwin. |
 
 ## catmm_realloc
 
-**C**
+Resizes the allocation at `*memory`, preserving the smaller of the original and requested byte counts. New bytes are zero-filled. A null allocation is treated as an allocation request; a zero size releases a non-null allocation and clears its pointer on success. Even an unchanged size replaces the allocation.
+
+On replacement allocation or old-block release failure, the pointer value is unchanged. The replacement is released on a best-effort basis; the old allocation may no longer be usable after a release failure. On successful replacement, old pointers are invalid.
 
 ```c
 void catmm_realloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result);
 ```
 
-**C++**
+| Parameter | Description |
+| --- | --- |
+| `memory` | Address of the allocation pointer; updated on success. |
+| `size` | New allocation size in bytes; zero releases a non-null allocation. |
+| `result` | Optional result output. |
 
-```cpp
-void catalyst::realloc(void** memory, NUINT size, RESULT* result);
-```
-
-Resizes the allocation addressed by `*memory`. Null `*memory` delegates to allocation. A non-null allocation and size zero delegates to release and clears the pointer on success. Otherwise allocates a replacement, copies the smaller of the old and new requested sizes, and releases the old allocation. New bytes are zero-filled. Even equal sizes replace the allocation.
-
-On success old pointers are invalid. On replacement allocation or old-block release failure the pointer value remains unchanged; the replacement is released on a best-effort basis. The old allocation's usability is not guaranteed after release failure.
-
-**Results**
-
-| Status | Operation | Detail | Meaning |
-| --- | ---: | --- | --- |
-| `SUCCESS` | 0 | 0 | Replacement or delegated operation succeeded. |
-| `ERROR_INVALID_ARGUMENT` | 0 | See allocation/release | Null `memory` output, or delegated allocation/release reported an invalid argument. |
-| `ERROR_BUFFER_OVERFLOW` | 0 | See allocation | Replacement allocation exceeds representable extent. |
-| `ERROR_INVALID_STATE` | 0 | `errno` (low byte) | Linux page-size query failed. |
-| `ERROR_ALLOCATION_FAILED` | 0 | See allocation | Replacement allocation failed. |
+| Status | Meaning |
+| --- | --- |
+| `SUCCESS` | Replacement or delegated operation succeeded. |
+| `ERROR_INVALID_ARGUMENT` | Null `memory` output (detail `0`), or invalid argument reported by allocation/release. |
+| `ERROR_BUFFER_OVERFLOW` | Replacement allocation exceeds representable extent; detail as in allocation. |
+| `ERROR_INVALID_STATE` | Linux page-size query failed. Detail: low byte of `errno`. |
+| `ERROR_ALLOCATION_FAILED` | Replacement allocation failed; detail as in allocation. |
 
 Allocation and release results are propagated from [`catmm_alloc`](#catmm_alloc) and [`catmm_free`](#catmm_free). The cleanup result is not propagated.
 
 ## catmm_free
 
-**C**
+Releases a live CATMMLIB allocation at its original payload address. The caller's pointer is not cleared, and the allocation metadata must be intact.
 
 ```c
 void catmm_free(void* memory, CATALYST_RESULT* result);
 ```
 
-**C++**
+| Parameter | Description |
+| --- | --- |
+| `memory` | Address of the memory region. |
+| `result` | Optional result output. |
 
-```cpp
-void catalyst::free(void* memory, RESULT* result);
-```
-
-Releases the allocation at the original payload address. The caller's pointer is not cleared. Allocation metadata must remain intact.
-
-**Results**
-
-| Status | Operation | Detail | Meaning |
-| --- | ---: | --- | --- |
-| `SUCCESS` | 0 | 0 | Allocation released. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 0 | Null `memory`. |
-| `ERROR_INVALID_ARGUMENT` | 0 | Linux: `errno` (low byte); Windows/Darwin: 0 | Native release failed. |
+| Status | Meaning |
+| --- | --- |
+| `SUCCESS` | Allocation released. |
+| `ERROR_INVALID_ARGUMENT` | **Detail `0`:** Null `memory`.<br>Native release failed. Detail: low byte of `errno` on Linux; `0` on Windows/Darwin. |
 
 No payload access guarantee after release failure.

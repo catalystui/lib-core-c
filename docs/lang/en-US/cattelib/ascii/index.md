@@ -2,75 +2,63 @@
 
 See [CATTELIB conventions](../index.md#conventions) for buffer requirements and result conventions.
 
+All functions return `void`. Result context, operation and detail default to zero unless indicated.
+
 ## catte_ascii_encode
 
-**C**
+Encodes one codepoint as ASCII. Codepoints outside U+0000–U+007F are replaced with `?`.
 
 ```c
 void catte_ascii_encode(const CATALYST_CODEPOINT codepoint, CATALYST_ASCIIW asciiw, CATALYST_RESULT* result);
 ```
 
-**C++**
+| Parameter | Description |
+| --- | --- |
+| `codepoint` | Codepoint to encode. |
+| `asciiw` | Writable buffer for one code unit. |
+| `result` | Optional result output. |
 
-```cpp
-void catalyst::ascii_encode(const CODEPOINT codepoint, ASCIIW asciiw, RESULT* result);
-```
-
-Encodes one codepoint into one ASCII byte. Values outside U+0000–U+007F become '?'.
-
-**Results**
-
-| Status | Operation | Detail | Meaning |
-| --- | ---: | --- | --- |
-| `SUCCESS` | 0 | 0 | Operation succeeded for representable values. |
-| `WARNING_PARTIAL` | 0 | 0 | Substituted output. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 0 | Null `asciiw`. |
+| Status | Meaning |
+| --- | --- |
+| `SUCCESS` | Codepoint encoded. |
+| `WARNING_PARTIAL` | Unrepresentable codepoint replaced with '?'. |
+| `ERROR_INVALID_ARGUMENT` | **Detail `0`:** Null `asciiw`. |
 
 ## catte_ascii_decode
 
-**C**
+Decodes a single ASCII code unit into a codepoint. The input byte becomes the least significant codepoint byte; the remaining bytes are zero. The ASCII range is not validated.
 
 ```c
 void catte_ascii_decode(CATALYST_ASCII ascii, CATALYST_CODEPOINT* codepoint, CATALYST_RESULT* result);
 ```
 
-**C++**
+| Parameter | Description |
+| --- | --- |
+| `ascii` | Readable input containing one code unit. |
+| `codepoint` | Receives the decoded codepoint. |
+| `result` | Optional result output. |
 
-```cpp
-void catalyst::ascii_decode(ASCII ascii, CODEPOINT* codepoint, RESULT* result);
-```
-
-Copies one ASCII byte into the least significant codepoint byte and zeroes the other three. The high bit is not validated.
-
-**Results**
-
-| Status | Operation | Detail | Meaning |
-| --- | ---: | --- | --- |
-| `SUCCESS` | 0 | 0 | Operation completed successfully. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 0 | Null `ascii`. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 1 | Null `codepoint`. |
+| Status | Meaning |
+| --- | --- |
+| `SUCCESS` | Codepoint decoded. |
+| `ERROR_INVALID_ARGUMENT` | **Detail `0`:** Null `ascii`.<br>**Detail `1`:** Null `codepoint`. |
 
 ## catte_ascii_length
 
-**C**
+Counts the code units in a null-terminated ASCII string, excluding the terminator. ASCII values are not validated. `length` is written only on success.
 
 ```c
 void catte_ascii_length(CATALYST_ASCII ascii, CATALYST_NUINT* length, CATALYST_RESULT* result);
 ```
 
-**C++**
+| Parameter | Description |
+| --- | --- |
+| `ascii` | Readable null-terminated input. |
+| `length` | Receives the number of code units before the terminator. |
+| `result` | Optional result output. |
 
-```cpp
-void catalyst::ascii_length(ASCII ascii, NUINT* length, RESULT* result);
-```
-
-Writes the number of nonzero bytes before the terminator to length, without validating ASCII values. Output is assigned only on success.
-
-**Results**
-
-| Status | Operation | Detail | Meaning |
-| --- | ---: | --- | --- |
-| `SUCCESS` | 0 | 0 | Operation completed successfully. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 0 | Null `ascii`. |
-| `ERROR_INVALID_ARGUMENT` | 0 | 1 | Null `length`. |
-| `ERROR_BUFFER_OVERFLOW` | 0 | 0 | Overflow if the count reaches `CATALYST_NUINT_MAX`. |
+| Status | Meaning |
+| --- | --- |
+| `SUCCESS` | Count written. |
+| `ERROR_INVALID_ARGUMENT` | **Detail `0`:** Null `ascii`.<br>**Detail `1`:** Null `length`. |
+| `ERROR_BUFFER_OVERFLOW` | The count reaches `CATALYST_NUINT_MAX`. |
