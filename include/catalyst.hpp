@@ -13,6 +13,8 @@ namespace catalyst {
  * C++ API :: NUMERICS
  * ------------------------------------------------------------------------------------------------- */
 
+typedef ::CATALYST_BIT BIT;
+typedef ::CATALYST_NIBBLE NIBBLE;
 typedef ::CATALYST_BYTE BYTE;
 typedef ::CATALYST_SBYTE SBYTE;
 
@@ -87,20 +89,13 @@ struct CODEPOINT : public ::CATALYST_CODEPOINT {
 
 #if CATALYST_SUPPORTS_32BIT
     explicit CODEPOINT(UINT value) {
-        byte0 = (BYTE) ((value >> 24) & (UINT) 0x000000FFu);
-        byte1 = (BYTE) ((value >> 16) & (UINT) 0x000000FFu);
-        byte2 = (BYTE) ((value >> 8)  & (UINT) 0x000000FFu);
-        byte3 = (BYTE) ( value        & (UINT) 0x000000FFu);
+        *this = ::catCodepointFromUInt(value);
     }
     CODEPOINT& operator=(UINT value) {
-        byte0 = (BYTE) ((value >> 24) & (UINT) 0x000000FFu);
-        byte1 = (BYTE) ((value >> 16) & (UINT) 0x000000FFu);
-        byte2 = (BYTE) ((value >> 8)  & (UINT) 0x000000FFu);
-        byte3 = (BYTE) ( value        & (UINT) 0x000000FFu);
-        return *this;
+        return *this = ::catCodepointFromUInt(value);
     }
     operator UINT() const {
-        return ((UINT) byte0 << 24) | ((UINT) byte1 << 16) | ((UINT) byte2 << 8) |  (UINT) byte3;
+        return ::catCodepointToUInt(*this);
     }
 #endif
 };
@@ -139,16 +134,13 @@ struct UTF16LE_CODE_UNIT : public ::CATALYST_UTF16LE_CODE_UNIT {
 
 #if CATALYST_SUPPORTS_16BIT
     explicit UTF16LE_CODE_UNIT(USHORT value) {
-        msb = (BYTE) ((value >> 8) & (USHORT) 0x00FFu);
-        lsb = (BYTE) (value & (USHORT) 0x00FFu);
+        *this = ::catUtf16leCodeUnitFromUShort(value);
     }
     UTF16LE_CODE_UNIT& operator=(USHORT value) {
-        msb = (BYTE) ((value >> 8) & (USHORT) 0x00FFu);
-        lsb = (BYTE) (value & (USHORT) 0x00FFu);
-        return *this;
+        return *this = ::catUtf16leCodeUnitFromUShort(value);
     }
     operator USHORT() const {
-        return ((USHORT) msb << 8) | (USHORT)lsb;
+        return ::catUtf16leCodeUnitToUShort(*this);
     }
 #endif
 };
@@ -186,7 +178,18 @@ static const STATUS_CODE STATUS_CODE_ERROR_IO_ERROR = ::CATALYST_STATUS_CODE_ERR
 static const STATUS_CODE STATUS_CODE_FATAL = ::CATALYST_STATUS_CODE_FATAL;
 static const STATUS_CODE STATUS_CODE_FATAL_INVARIANT_VIOLATION = ::CATALYST_STATUS_CODE_FATAL_INVARIANT_VIOLATION;
 
+typedef ::CATALYST_STATUS_CODE_LEVEL STATUS_CODE_LEVEL;
+
+static const STATUS_CODE_LEVEL STATUS_CODE_LEVEL_SUCCESS = ::CATALYST_STATUS_CODE_LEVEL_SUCCESS;
+static const STATUS_CODE_LEVEL STATUS_CODE_LEVEL_WARNING = ::CATALYST_STATUS_CODE_LEVEL_WARNING;
+static const STATUS_CODE_LEVEL STATUS_CODE_LEVEL_ERROR = ::CATALYST_STATUS_CODE_LEVEL_ERROR;
+static const STATUS_CODE_LEVEL STATUS_CODE_LEVEL_FATAL = ::CATALYST_STATUS_CODE_LEVEL_FATAL;
+
 static const STATUS_CODE STATUS_CODE_LEVEL_MASK = CATALYST_STATUS_CODE_LEVEL_MASK;
+
+inline STATUS_CODE_LEVEL statusCodeGetLevel(STATUS_CODE status) {
+    return CATALYST_STATUS_CODE_GET_LEVEL(status);
+}
 
 inline BOOL statusCodeIsSuccess(STATUS_CODE status) {
     return CATALYST_STATUS_CODE_IS_SUCCESS(status) ? TRUE : FALSE;
@@ -245,20 +248,13 @@ struct RESULT : public ::CATALYST_RESULT {
 
 #if CATALYST_SUPPORTS_32BIT
     explicit RESULT(UINT value) {
-        status = (STATUS_CODE) ((value >> 24) & (UINT) 0x000000FFu);
-        context = (CONTEXT_CODE) ((value >> 16) & (UINT) 0x000000FFu);
-        operation = (OPERATION_CODE) ((value >> 8) & (UINT) 0x000000FFu);
-        detail = (DETAIL_CODE) (value & (UINT) 0x000000FFu);
+        *this = ::catResultFromUInt(value);
     }
     RESULT& operator=(UINT value) {
-        status = (STATUS_CODE) ((value >> 24) & (UINT) 0x000000FFu);
-        context = (CONTEXT_CODE) ((value >> 16) & (UINT) 0x000000FFu);
-        operation = (OPERATION_CODE) ((value >> 8) & (UINT) 0x000000FFu);
-        detail = (DETAIL_CODE) (value & (UINT) 0x000000FFu);
-        return *this;
+        return *this = ::catResultFromUInt(value);
     }
     operator UINT() const {
-        return ((UINT) status << 24) | ((UINT) context << 16) | ((UINT) operation << 8) |  (UINT) detail;
+        return ::catResultToUInt(*this);
     }
 #endif
 };

@@ -18,6 +18,17 @@
 
 #include <float.h>
 
+/* Header-only C conversion helpers, including the configured C90 fallback. */
+#if defined(__cplusplus)
+    #define CATALYST_CORE_INLINE inline
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+    #define CATALYST_CORE_INLINE static inline
+#elif defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
+    #define CATALYST_CORE_INLINE static __inline
+#else
+    #define CATALYST_CORE_INLINE static
+#endif
+
 /* CONSTEXPR Support */
 #if defined(__cplusplus)
     #if __cplusplus >= 201103L
@@ -30,6 +41,18 @@
 /* -------------------------------------------------------------------------------------------------
  * C API :: NUMERICS
  * ------------------------------------------------------------------------------------------------- */
+
+/**
+ * Bit and nibble use byte storage. Callers supply values in the ranges
+ * 0..1 and 0..15 respectively; these aliases do not enforce those ranges.
+ */
+typedef CATALYST_BYTE CATALYST_BIT;
+typedef CATALYST_BYTE CATALYST_NIBBLE;
+
+#define CATALYST_BIT_MIN    ((CATALYST_BIT) 0)
+#define CATALYST_BIT_MAX    ((CATALYST_BIT) 1)
+#define CATALYST_NIBBLE_MIN ((CATALYST_NIBBLE) 0)
+#define CATALYST_NIBBLE_MAX ((CATALYST_NIBBLE) 15)
 
 #if (FLT_RADIX == 2 && FLT_MANT_DIG == 24 && FLT_MIN_EXP == -125 && FLT_MAX_EXP == 128)
     #define CATALYST_SUPPORTS_SINGLE 1
@@ -138,6 +161,23 @@ typedef struct CATALYST_CODEPOINT {
     CATALYST_BYTE byte3; /* Least significant byte */
 } CATALYST_CODEPOINT;
 
+#if CATALYST_SUPPORTS_32BIT
+/** Convert between the four stored bytes and a numeric value without validation. */
+CATALYST_CORE_INLINE CATALYST_CODEPOINT catCodepointFromUInt(CATALYST_UINT value) {
+    CATALYST_CODEPOINT codepoint;
+    codepoint.byte0 = (CATALYST_BYTE) (value >> 24);
+    codepoint.byte1 = (CATALYST_BYTE) (value >> 16);
+    codepoint.byte2 = (CATALYST_BYTE) (value >> 8);
+    codepoint.byte3 = (CATALYST_BYTE) value;
+    return codepoint;
+}
+
+CATALYST_CORE_INLINE CATALYST_UINT catCodepointToUInt(CATALYST_CODEPOINT codepoint) {
+    return ((CATALYST_UINT) codepoint.byte0 << 24) | ((CATALYST_UINT) codepoint.byte1 << 16) |
+           ((CATALYST_UINT) codepoint.byte2 << 8) | (CATALYST_UINT) codepoint.byte3;
+}
+#endif
+
 /**
  * Encoded string pointers address null-terminated code-unit sequences.
  * The W suffix denotes writable storage; unsuffixed pointers are read-only.
@@ -161,6 +201,20 @@ typedef struct CATALYST_UTF16LE_CODE_UNIT {
     CATALYST_BYTE lsb; /* Low byte of the UTF-16 code unit; first byte in UTF-16LE storage. */
     CATALYST_BYTE msb; /* High byte of the UTF-16 code unit; second byte in UTF-16LE storage. */
 } CATALYST_UTF16LE_CODE_UNIT;
+
+#if CATALYST_SUPPORTS_16BIT
+/** Convert between a UTF-16LE code unit and its numeric value, independent of host byte order. */
+CATALYST_CORE_INLINE CATALYST_UTF16LE_CODE_UNIT catUtf16leCodeUnitFromUShort(CATALYST_USHORT value) {
+    CATALYST_UTF16LE_CODE_UNIT codeunit;
+    codeunit.lsb = (CATALYST_BYTE) value;
+    codeunit.msb = (CATALYST_BYTE) (value >> 8);
+    return codeunit;
+}
+
+CATALYST_CORE_INLINE CATALYST_USHORT catUtf16leCodeUnitToUShort(CATALYST_UTF16LE_CODE_UNIT codeunit) {
+    return (CATALYST_USHORT) (((CATALYST_USHORT) codeunit.msb << 8) | (CATALYST_USHORT) codeunit.lsb);
+}
+#endif
 typedef CATALYST_UTF16LE_CODE_UNIT* CATALYST_UTF16LEW;
 typedef const CATALYST_UTF16LE_CODE_UNIT* CATALYST_UTF16LE;
 
@@ -225,12 +279,23 @@ enum {
     CATALYST_STATUS_CODE_FATAL_INVARIANT_VIOLATION  = 0xC1
 };
 
-#define CATALYST_STATUS_CODE_LEVEL_MASK ((CATALYST_STATUS_CODE) 0xC0)
+/** The four FDEFSPEC severity levels, represented by the upper two status bits. */
+typedef CATALYST_BYTE CATALYST_STATUS_CODE_LEVEL;
 
-#define CATALYST_STATUS_CODE_IS_SUCCESS(status) ((((CATALYST_STATUS_CODE) (status)) & CATALYST_STATUS_CODE_LEVEL_MASK) == CATALYST_STATUS_CODE_SUCCESS)
-#define CATALYST_STATUS_CODE_IS_WARNING(status) ((((CATALYST_STATUS_CODE) (status)) & CATALYST_STATUS_CODE_LEVEL_MASK) == CATALYST_STATUS_CODE_WARNING)
-#define CATALYST_STATUS_CODE_IS_ERROR(status) ((((CATALYST_STATUS_CODE) (status)) & CATALYST_STATUS_CODE_LEVEL_MASK) == CATALYST_STATUS_CODE_ERROR)
-#define CATALYST_STATUS_CODE_IS_FATAL(status) ((((CATALYST_STATUS_CODE) (status)) & CATALYST_STATUS_CODE_LEVEL_MASK) == CATALYST_STATUS_CODE_FATAL)
+enum {
+    CATALYST_STATUS_CODE_LEVEL_SUCCESS = 0x00,
+    CATALYST_STATUS_CODE_LEVEL_WARNING = 0x40,
+    CATALYST_STATUS_CODE_LEVEL_ERROR   = 0x80,
+    CATALYST_STATUS_CODE_LEVEL_FATAL   = 0xC0
+};
+
+#define CATALYST_STATUS_CODE_LEVEL_MASK ((CATALYST_STATUS_CODE) 0xC0)
+#define CATALYST_STATUS_CODE_GET_LEVEL(status) ((CATALYST_STATUS_CODE_LEVEL) (((CATALYST_STATUS_CODE) (status)) & CATALYST_STATUS_CODE_LEVEL_MASK))
+
+#define CATALYST_STATUS_CODE_IS_SUCCESS(status) (CATALYST_STATUS_CODE_GET_LEVEL(status) == CATALYST_STATUS_CODE_LEVEL_SUCCESS)
+#define CATALYST_STATUS_CODE_IS_WARNING(status) (CATALYST_STATUS_CODE_GET_LEVEL(status) == CATALYST_STATUS_CODE_LEVEL_WARNING)
+#define CATALYST_STATUS_CODE_IS_ERROR(status) (CATALYST_STATUS_CODE_GET_LEVEL(status) == CATALYST_STATUS_CODE_LEVEL_ERROR)
+#define CATALYST_STATUS_CODE_IS_FATAL(status) (CATALYST_STATUS_CODE_GET_LEVEL(status) == CATALYST_STATUS_CODE_LEVEL_FATAL)
 
 /**
  * Result metadata uses byte-sized codes. context must be zero on success;
@@ -248,7 +313,7 @@ typedef CATALYST_BYTE CATALYST_DETAIL_CODE;
 /**
  * Four ordered result bytes: status, context, operation, detail.
  * These field names define the C representation; there is no host-endian
- * integer cast contract. The C++ RESULT helper explicitly packs/unpacks a
+ * integer cast contract. The C and C++ helpers explicitly pack/unpack a
  * numeric 0xSSCCOODD value when a 32-bit unsigned type is available.
  * Automatic C aggregate storage must be initialized by the caller.
  */
@@ -258,5 +323,24 @@ typedef struct CATALYST_RESULT {
     CATALYST_OPERATION_CODE operation;
     CATALYST_DETAIL_CODE detail;
 } CATALYST_RESULT;
+
+#if CATALYST_SUPPORTS_32BIT
+/** Convert between ordered result fields and numeric 0xSSCCOODD without validation. */
+CATALYST_CORE_INLINE CATALYST_RESULT catResultFromUInt(CATALYST_UINT value) {
+    CATALYST_RESULT result;
+    result.status = (CATALYST_STATUS_CODE) (value >> 24);
+    result.context = (CATALYST_CONTEXT_CODE) (value >> 16);
+    result.operation = (CATALYST_OPERATION_CODE) (value >> 8);
+    result.detail = (CATALYST_DETAIL_CODE) value;
+    return result;
+}
+
+CATALYST_CORE_INLINE CATALYST_UINT catResultToUInt(CATALYST_RESULT result) {
+    return ((CATALYST_UINT) result.status << 24) | ((CATALYST_UINT) result.context << 16) |
+           ((CATALYST_UINT) result.operation << 8) | (CATALYST_UINT) result.detail;
+}
+#endif
+
+#undef CATALYST_CORE_INLINE
 
 #endif /* CATALYST_H */
