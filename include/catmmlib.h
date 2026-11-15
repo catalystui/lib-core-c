@@ -33,6 +33,18 @@ CATMMLIB_API void catmm_realloc(void** memory, CATALYST_NUINT size, CATALYST_RES
 /** Release an allocation returned by CATMMLIB; the caller's pointer is not cleared. */
 CATMMLIB_API void catmm_free(void* memory, CATALYST_RESULT* result);
 
+/** Copy bytes between non-overlapping regions; zero size or identical addresses are a no-op. */
+CATMMLIB_API void catmm_copy(void* destination, const void* source, CATALYST_NUINT size, CATALYST_RESULT* result);
+
+/** Move bytes between regions that may overlap; zero size or identical addresses are a no-op. */
+CATMMLIB_API void catmm_move(void* destination, const void* source, CATALYST_NUINT size, CATALYST_RESULT* result);
+
+/** Compare unsigned bytes lexicographically; comparison receives -1, 0, or 1 (zero for empty regions). */
+CATMMLIB_API void catmm_compare(const void* first, const void* second, CATALYST_NUINT size, CATALYST_SBYTE* comparison, CATALYST_RESULT* result);
+
+/** Fill a region with the specified byte value; zero size is a no-op. */
+CATMMLIB_API void catmm_set(void* memory, CATALYST_BYTE value, CATALYST_NUINT size, CATALYST_RESULT* result);
+
 #ifdef __cplusplus
 } /* extern C */
 #endif

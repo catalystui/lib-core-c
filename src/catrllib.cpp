@@ -33,15 +33,6 @@ struct CATALYST_STACK { catrl_storage storage; };
 
 #define CATRL_ELEMENT_AT(storage, index) ((storage)->bytes + (index) * (storage)->stride)
 
-#define CATRL_COPY_BYTES(destination, source, size) do { \
-    BYTE* const catrl_destination = static_cast<BYTE*>(destination); \
-    const BYTE* const catrl_source = static_cast<const BYTE*>(source); \
-    const NUINT catrl_size = (size); \
-    for (NUINT catrl_i = 0; catrl_i < catrl_size; catrl_i++) { \
-        catrl_destination[catrl_i] = catrl_source[catrl_i]; \
-    } \
-} while (0)
-
 /* Translate allocator failures, including a potentially lost allocation during growth. */
 #define CATRL_DEPENDENCY_FAILURE(output, stage, code) do { \
     const OPERATION_CODE catrl_stage = (stage); \
@@ -139,12 +130,10 @@ static BOOL grow(catrl_storage* storage, CATALYST_RESULT* result) {
 
 /* Return count when the key or element is absent. */
 static inline NUINT find(const catrl_storage* storage, const void* value, NUINT size) {
-    const BYTE* input = static_cast<const BYTE*>(value);
     for (NUINT i = 0; i < storage->count; i++) {
-        const BYTE* entry = CATRL_ELEMENT_AT(storage, i);
-        NUINT j = 0;
-        while (j < size && entry[j] == input[j]) j++;
-        if (j == size) return i;
+        SBYTE comparison;
+        catmm_compare(CATRL_ELEMENT_AT(storage, i), value, size, &comparison, 0);
+        if (comparison == 0) return i;
     }
     return storage->count;
 }
@@ -167,7 +156,7 @@ void catrl_array_get(const CATALYST_ARRAY* array, CATALYST_NUINT index, void* va
     if (array == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0); return; }
     if (index >= array->storage.count) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 1); return; }
     if (value == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 2); return; }
-    CATRL_COPY_BYTES(value, CATRL_ELEMENT_AT(&array->storage, index), array->storage.stride);
+    catmm_copy(value, CATRL_ELEMENT_AT(&array->storage, index), array->storage.stride, 0);
     CATRL_RESULT(result, STATUS_CODE_SUCCESS, 0, 0);
 }
 
@@ -175,7 +164,7 @@ void catrl_array_set(CATALYST_ARRAY* array, CATALYST_NUINT index, const void* va
     if (array == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0); return; }
     if (index >= array->storage.count) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 1); return; }
     if (value == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 2); return; }
-    CATRL_COPY_BYTES(CATRL_ELEMENT_AT(&array->storage, index), value, array->storage.stride);
+    catmm_copy(CATRL_ELEMENT_AT(&array->storage, index), value, array->storage.stride, 0);
     CATRL_RESULT(result, STATUS_CODE_SUCCESS, 0, 0);
 }
 
@@ -205,7 +194,7 @@ void catrl_set_add(CATALYST_SET* set, const void* value, CATALYST_RESULT* result
     if (value == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 1); return; }
     if (find(&set->storage, value, set->storage.stride) != set->storage.count) { CATRL_RESULT(result, STATUS_CODE_SUCCESS_NOOP, 0, 0); return; }
     if (set->storage.count == set->storage.capacity && !grow(&set->storage, result)) return;
-    CATRL_COPY_BYTES(CATRL_ELEMENT_AT(&set->storage, set->storage.count), value, set->storage.stride);
+    catmm_copy(CATRL_ELEMENT_AT(&set->storage, set->storage.count), value, set->storage.stride, 0);
     set->storage.count++;
     CATRL_RESULT(result, STATUS_CODE_SUCCESS, 0, 0);
 }
@@ -218,8 +207,8 @@ void catrl_set_remove(CATALYST_SET* set, const void* value, CATALYST_RESULT* res
     if (index == set->storage.count) { CATRL_RESULT(result, STATUS_CODE_SUCCESS_NOOP, 0, 0); return; }
     set->storage.count--;
     if (index != set->storage.count) {
-        CATRL_COPY_BYTES(CATRL_ELEMENT_AT(&set->storage, index),
-                         CATRL_ELEMENT_AT(&set->storage, set->storage.count), set->storage.stride);
+        catmm_copy(CATRL_ELEMENT_AT(&set->storage, index),
+                         CATRL_ELEMENT_AT(&set->storage, set->storage.count), set->storage.stride, 0);
     }
     CATRL_RESULT(result, STATUS_CODE_SUCCESS, 0, 0);
 }
@@ -243,7 +232,7 @@ void catrl_set_at(const CATALYST_SET* set, CATALYST_NUINT index, void* value, CA
     if (set == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0); return; }
     if (index >= set->storage.count) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 1); return; }
     if (value == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 2); return; }
-    CATRL_COPY_BYTES(value, CATRL_ELEMENT_AT(&set->storage, index), set->storage.stride);
+    catmm_copy(value, CATRL_ELEMENT_AT(&set->storage, index), set->storage.stride, 0);
     CATRL_RESULT(result, STATUS_CODE_SUCCESS, 0, 0);
 }
 
@@ -281,7 +270,7 @@ void catrl_map_get(const CATALYST_MAP* map, const void* key, void* value, CATALY
     if (value == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 2); return; }
     index = find(&map->storage, key, map->key_size);
     if (index == map->storage.count) { CATRL_RESULT(result, STATUS_CODE_ERROR_NOT_FOUND, 0, 0); return; }
-    CATRL_COPY_BYTES(value, CATRL_ELEMENT_AT(&map->storage, index) + map->key_size, map->storage.stride - map->key_size);
+    catmm_copy(value, CATRL_ELEMENT_AT(&map->storage, index) + map->key_size, map->storage.stride - map->key_size, 0);
     CATRL_RESULT(result, STATUS_CODE_SUCCESS, 0, 0);
 }
 
@@ -295,12 +284,12 @@ void catrl_map_set(CATALYST_MAP* map, const void* key, const void* value, CATALY
     if (index == map->storage.count) {
         if (map->storage.count == map->storage.capacity && !grow(&map->storage, result)) return;
         entry = CATRL_ELEMENT_AT(&map->storage, index);
-        CATRL_COPY_BYTES(entry, key, map->key_size);
+        catmm_copy(entry, key, map->key_size, 0);
         map->storage.count++;
     } else {
         entry = CATRL_ELEMENT_AT(&map->storage, index);
     }
-    CATRL_COPY_BYTES(entry + map->key_size, value, map->storage.stride - map->key_size);
+    catmm_copy(entry + map->key_size, value, map->storage.stride - map->key_size, 0);
     CATRL_RESULT(result, STATUS_CODE_SUCCESS, 0, 0);
 }
 
@@ -312,8 +301,8 @@ void catrl_map_remove(CATALYST_MAP* map, const void* key, CATALYST_RESULT* resul
     if (index == map->storage.count) { CATRL_RESULT(result, STATUS_CODE_SUCCESS_NOOP, 0, 0); return; }
     map->storage.count--;
     if (index != map->storage.count) {
-        CATRL_COPY_BYTES(CATRL_ELEMENT_AT(&map->storage, index),
-                         CATRL_ELEMENT_AT(&map->storage, map->storage.count), map->storage.stride);
+        catmm_copy(CATRL_ELEMENT_AT(&map->storage, index),
+                         CATRL_ELEMENT_AT(&map->storage, map->storage.count), map->storage.stride, 0);
     }
     CATRL_RESULT(result, STATUS_CODE_SUCCESS, 0, 0);
 }
@@ -338,8 +327,8 @@ void catrl_map_at(const CATALYST_MAP* map, CATALYST_NUINT index, void* key, void
     if (index >= map->storage.count) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 1); return; }
     if (key == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 2); return; }
     if (value == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 3); return; }
-    CATRL_COPY_BYTES(key, CATRL_ELEMENT_AT(&map->storage, index), map->key_size);
-    CATRL_COPY_BYTES(value, CATRL_ELEMENT_AT(&map->storage, index) + map->key_size, map->storage.stride - map->key_size);
+    catmm_copy(key, CATRL_ELEMENT_AT(&map->storage, index), map->key_size, 0);
+    catmm_copy(value, CATRL_ELEMENT_AT(&map->storage, index) + map->key_size, map->storage.stride - map->key_size, 0);
     CATRL_RESULT(result, STATUS_CODE_SUCCESS, 0, 0);
 }
 
@@ -371,7 +360,7 @@ void catrl_stack_push(CATALYST_STACK* stack, const void* value, CATALYST_RESULT*
     if (stack == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0); return; }
     if (value == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 1); return; }
     if (stack->storage.count == stack->storage.capacity && !grow(&stack->storage, result)) return;
-    CATRL_COPY_BYTES(CATRL_ELEMENT_AT(&stack->storage, stack->storage.count), value, stack->storage.stride);
+    catmm_copy(CATRL_ELEMENT_AT(&stack->storage, stack->storage.count), value, stack->storage.stride, 0);
     stack->storage.count++;
     CATRL_RESULT(result, STATUS_CODE_SUCCESS, 0, 0);
 }
@@ -380,7 +369,7 @@ void catrl_stack_pop(CATALYST_STACK* stack, void* value, CATALYST_RESULT* result
     if (stack == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0); return; }
     if (value == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 1); return; }
     if (stack->storage.count == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_NOT_FOUND, 0, 0); return; }
-    CATRL_COPY_BYTES(value, CATRL_ELEMENT_AT(&stack->storage, stack->storage.count - 1), stack->storage.stride);
+    catmm_copy(value, CATRL_ELEMENT_AT(&stack->storage, stack->storage.count - 1), stack->storage.stride, 0);
     stack->storage.count--;
     CATRL_RESULT(result, STATUS_CODE_SUCCESS, 0, 0);
 }
@@ -389,7 +378,7 @@ void catrl_stack_peek(const CATALYST_STACK* stack, void* value, CATALYST_RESULT*
     if (stack == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0); return; }
     if (value == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 1); return; }
     if (stack->storage.count == 0) { CATRL_RESULT(result, STATUS_CODE_ERROR_NOT_FOUND, 0, 0); return; }
-    CATRL_COPY_BYTES(value, CATRL_ELEMENT_AT(&stack->storage, stack->storage.count - 1), stack->storage.stride);
+    catmm_copy(value, CATRL_ELEMENT_AT(&stack->storage, stack->storage.count - 1), stack->storage.stride, 0);
     CATRL_RESULT(result, STATUS_CODE_SUCCESS, 0, 0);
 }
 
@@ -411,6 +400,5 @@ void catrl_stack_clear(CATALYST_STACK* stack, CATALYST_RESULT* result) {
 }
 
 #undef CATRL_DEPENDENCY_FAILURE
-#undef CATRL_COPY_BYTES
 #undef CATRL_ELEMENT_AT
 #undef CATRL_RESULT
