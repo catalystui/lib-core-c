@@ -1,0 +1,79 @@
+name: Compile
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: C90 / C++98 (x86)
+            c: 90
+            cpp: 98
+            arch: x86
+            flags: -m32
+          - name: C99 / C++11 (x64)
+            c: 99
+            cpp: 11
+            arch: x64
+            flags: -m64
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build dependencies
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m pip install 'cmake>=4.3,<5'
+          if ('${{ matrix.arch }}' -eq 'x86') {
+            sudo apt-get update
+            sudo apt-get install -y gcc-multilib g++-multilib
+          }
+
+      - name: Configure
+        run: |
+          cmake -S . -B target/ci -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ `
+            -DCMAKE_C_STANDARD=${{ matrix.c }} -DCMAKE_CXX_STANDARD=${{ matrix.cpp }} `
+            -DCMAKE_C_STANDARD_REQUIRED=ON -DCMAKE_CXX_STANDARD_REQUIRED=ON `
+            -DCMAKE_C_EXTENSIONS=OFF -DCMAKE_CXX_EXTENSIONS=OFF `
+            -DCMAKE_C_FLAGS=${{ matrix.flags }} -DCMAKE_CXX_FLAGS=${{ matrix.flags }} `
+            -DTARGET_VENDOR=linux -DTARGET_SYSTEM=linux -DTARGET_ARCHITECTURE=${{ matrix.arch }}
+
+      - name: Compile libraries
+        run: cmake --build target/ci --parallel --target catmmlib_static catmmlib_shared cattelib_static cattelib_shared
+
+      - name: Compile public C headers
+        run: |
+          @'
+          #include "catalyst.h"
+          #include "catmmlib.h"
+          #include "cattelib.h"
+          '@ | gcc ${{ matrix.flags }} -std=c${{ matrix.c }} -pedantic-errors -Iinclude -Itarget/ci/generated -x c -c -o target/ci/headers-c.o -
+
+      - name: Compile public C++ headers
+        run: |
+          @'
+          #include "catalyst.hpp"
+          #include "catmmlib.hpp"
+          #include "cattelib.hpp"
+          '@ | g++ ${{ matrix.flags }} -std=c++${{ matrix.cpp }} -pedantic-errors -Iinclude -Itarget/ci/generated -x c++ -c -o target/ci/headers-cpp.o -
