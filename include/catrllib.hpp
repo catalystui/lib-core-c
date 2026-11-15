@@ -2,10 +2,6 @@
 #define CATRLLIB_HPP
 #include "catalyst.hpp"
 #include "catrllib.h"
-/**
- * C++ namespace wrappers for catrllib.h. All storage, equality, ownership,
- * lifetime, and result conventions are inherited from the C API.
- */
 namespace catalyst {
 
 typedef ::CATALYST_ARRAY ARRAY;

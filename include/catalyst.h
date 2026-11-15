@@ -1,14 +1,6 @@
 #ifndef CATALYST_H
 #define CATALYST_H
 
-/**
- * Foundational C representations for CatalystUI (FDEFSPEC).
- * cmakecfg.h supplies target capabilities from the build configuration.
- * TARGET_STDC_VERSION selects the C99 fixed-width types or the C90 fallback;
- * C++ inclusion uses the same configured representation. Optional numeric
- * types exist only when their CATALYST_SUPPORTS_* macro is nonzero.
- * These are value representations, not runtime-validating containers.
- */
 #include "cmakecfg.h"
 #if defined(TARGET_STDC_VERSION) && (TARGET_STDC_VERSION >= 199901L)
 #include "catalyst.c99.h"
@@ -42,10 +34,7 @@
  * C API :: NUMERICS
  * ------------------------------------------------------------------------------------------------- */
 
-/**
- * Bit and nibble use byte storage. Callers supply values in the ranges
- * 0..1 and 0..15 respectively; these aliases do not enforce those ranges.
- */
+/** Byte representations of a bit (0–1) and nibble (0–15). */
 typedef CATALYST_BYTE CATALYST_BIT;
 typedef CATALYST_BYTE CATALYST_NIBBLE;
 
@@ -70,19 +59,11 @@ typedef CATALYST_BYTE CATALYST_NIBBLE;
     #define CATALYST_SUPPORTS_DOUBLE 0
 #endif
 
-/**
- * Boolean values use one byte: 0 is false and 1 is true.
- * The typedef does not restrict other byte values; callers supply 0 or 1.
- */
+/** Boolean byte representation: 0 = false, 1 = true. */
 typedef CATALYST_BYTE CATALYST_BOOL;
 #define CATALYST_TRUE    ((CATALYST_BOOL) 1)
 #define CATALYST_FALSE   ((CATALYST_BOOL) 0)
 
-/**
- * NINT/NUINT select signed/unsigned integer types with the configured pointer
- * width. They represent native-sized counts and sizes; they do not encode or
- * normalize pointers, particularly on segmented targets.
- */
 #ifndef TARGET_SIZEOF_VOID_P
     #error "catalyst.h :: Unsupported Platform :: Unable to determine pointer size, TARGET_SIZEOF_VOID_P was not defined."
 #endif
@@ -148,12 +129,7 @@ enum {
     CATALYST_TEXT_ENCODING_UTF16LE = 0x4
 };
 
-/**
- * Four-byte, most-significant-byte-first codepoint representation, independent
- * of host integer byte order. Unicode codepoints range through U+10FFFF;
- * UTF encoders accept scalar values and reject U+D800..U+DFFF surrogates.
- * The representation itself can hold other values without validating them.
- */
+/** Four-byte codepoint representation in most-significant-byte-first order. */
 typedef struct CATALYST_CODEPOINT {
     CATALYST_BYTE byte0; /* Most significant byte */
     CATALYST_BYTE byte1;
@@ -178,13 +154,6 @@ CATALYST_CORE_INLINE CATALYST_UINT cat_codepoint_to_uint(CATALYST_CODEPOINT code
 }
 #endif
 
-/**
- * Encoded string pointers address null-terminated code-unit sequences.
- * The W suffix denotes writable storage; unsuffixed pointers are read-only.
- * ASCII uses byte storage for 7-bit values. CP1252 and UTF-8 use byte units.
- * UTF-16LE stores each unit explicitly as low byte followed by high byte.
- * The pointer aliases carry no ownership, length, or capacity information.
- */
 typedef CATALYST_BYTE CATALYST_ASCII_CODE_UNIT;
 typedef CATALYST_ASCII_CODE_UNIT* CATALYST_ASCIIW;
 typedef const CATALYST_ASCII_CODE_UNIT* CATALYST_ASCII;
@@ -222,13 +191,7 @@ typedef const CATALYST_UTF16LE_CODE_UNIT* CATALYST_UTF16LE;
  * C API :: OPERATION STATUS
  * ------------------------------------------------------------------------------------------------- */
 
-/**
- * Status is an eight-bit FDEFSPEC code. Its upper two bits select severity:
- * 00 = success, 01 = warning, 10 = recoverable error, 11 = fatal error.
- * Unlisted values are reserved; severity predicates classify those values too.
- * WARNING_PARTIAL means completion with incomplete or substituted output;
- * ERROR_DEPENDENCY_FAILURE identifies a failed dependency through detail.
- */
+/** Eight-bit operation status; the upper two bits identify severity. */
 typedef CATALYST_BYTE CATALYST_STATUS_CODE;
 
 enum {
@@ -297,26 +260,14 @@ enum {
 #define CATALYST_STATUS_CODE_IS_ERROR(status) (CATALYST_STATUS_CODE_GET_LEVEL(status) == CATALYST_STATUS_CODE_LEVEL_ERROR)
 #define CATALYST_STATUS_CODE_IS_FATAL(status) (CATALYST_STATUS_CODE_GET_LEVEL(status) == CATALYST_STATUS_CODE_LEVEL_FATAL)
 
-/**
- * Result metadata uses byte-sized codes. context must be zero on success;
- * otherwise its meaning is operation-defined. operation identifies a
- * function-specific operation or failure stage. detail is interpreted by
- * status first, then context, then operation; undocumented values are unknown.
- * FDEFSPEC uses INVALID_ARGUMENT detail for an argument index and
- * DEPENDENCY_FAILURE detail for the dependency's status. Consult the API's
- * per-function documentation for actual detail values and output behavior.
- */
+/** Operation-defined result context. */
 typedef CATALYST_BYTE CATALYST_CONTEXT_CODE;
+/** Function-specific operation or failure stage. */
 typedef CATALYST_BYTE CATALYST_OPERATION_CODE;
+/** Status-specific result detail. */
 typedef CATALYST_BYTE CATALYST_DETAIL_CODE;
 
-/**
- * Four ordered result bytes: status, context, operation, detail.
- * These field names define the C representation; there is no host-endian
- * integer cast contract. The C and C++ helpers explicitly pack/unpack a
- * numeric 0xSSCCOODD value when a 32-bit unsigned type is available.
- * Automatic C aggregate storage must be initialized by the caller.
- */
+/** Ordered result bytes: status, context, operation, and detail. */
 typedef struct CATALYST_RESULT {
     CATALYST_STATUS_CODE status;
     CATALYST_CONTEXT_CODE context;

@@ -2,10 +2,6 @@
 #define CATMMLIB_HPP
 #include "catalyst.hpp"
 #include "catmmlib.h"
-/**
- * C++ namespace wrappers for catmmlib.h. All ownership, lifetime, byte-count,
- * null-argument, and result conventions are inherited from the C API.
- */
 namespace catalyst {
 
 typedef ::CATALYST_MEMORY_HEADER MEMORY_HEADER;

@@ -2,10 +2,6 @@
 #define CATTELIB_HPP
 #include "catalyst.hpp"
 #include "cattelib.h"
-/**
- * C++ namespace wrappers for cattelib.h. Buffer sizes, code-unit counts,
- * termination, lookahead, replacement, and result behavior match the C API.
- */
 namespace catalyst {
 
 inline void ascii_encode(const CODEPOINT codepoint, ASCIIW asciiw, RESULT* result) {
