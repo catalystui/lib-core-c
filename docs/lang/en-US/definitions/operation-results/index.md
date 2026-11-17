@@ -41,18 +41,10 @@ The C prefix is `CATALYST_STATUS_CODE_`; the C++ prefix is `catalyst::STATUS_COD
 
 ## Severity
 
-`CATALYST_STATUS_CODE_LEVEL` / `STATUS_CODE_LEVEL` is an unsigned byte. The mask `CATALYST_STATUS_CODE_LEVEL_MASK` / `STATUS_CODE_LEVEL_MASK` is 0xC0.
-
-| C constant suffix (after CATALYST_STATUS_CODE_LEVEL_) | C++ constant suffix (after STATUS_CODE_LEVEL_) | Value |
-| --- | --- | --- |
-| SUCCESS | SUCCESS | 0x00 |
-| WARNING | WARNING | 0x40 |
-| ERROR | ERROR | 0x80 |
-| FATAL | FATAL | 0xC0 |
+The upper two bits identify severity. The mask `CATALYST_STATUS_CODE_LEVEL_MASK` / `STATUS_CODE_LEVEL_MASK` is 0xC0.
 
 | C macro | C++ function | Return value |
 | --- | --- | --- |
-| `CATALYST_STATUS_CODE_GET_LEVEL(status)` | `status_code_get_level(status)` | Masked severity |
 | `CATALYST_STATUS_CODE_IS_SUCCESS(status)` | `status_code_is_success(status)` | True for success severity (including NOOP) |
 | `CATALYST_STATUS_CODE_IS_WARNING(status)` | `status_code_is_warning(status)` | True for warning severity |
 | `CATALYST_STATUS_CODE_IS_ERROR(status)` | `status_code_is_error(status)` | True for recoverable error severity |
