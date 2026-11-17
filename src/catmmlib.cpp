@@ -35,8 +35,12 @@ void catmm_realloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result) 
     }
 
     // Copy the data
+    BYTE* newBytes = (BYTE*) newMemory;
     NUINT copySize = oldHeader->requested_size < size ? oldHeader->requested_size : size;
-    catmm_copy(newMemory, oldBytes, copySize, 0);
+    while (copySize != 0) {
+        *newBytes++ = *oldBytes++;
+        copySize--;
+    }
 
     // Free the old block and return
     RESULT freeResult;
@@ -66,9 +70,9 @@ void catmm_copy(void* destination, const void* source, CATALYST_NUINT size, CATA
     }
     BYTE* output = (BYTE*) destination;
     const BYTE* input = (const BYTE*) source;
-    for (NUINT i = 0; i < size; i++) {
-        output[i] = input[i];
-    }
+    do {
+        *output++ = *input++;
+    } while (--size != 0);
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
 }
 
@@ -89,13 +93,15 @@ void catmm_move(void* destination, const void* source, CATALYST_NUINT size, CATA
     const BYTE* input = (const BYTE*) source;
     // Copy backward when the destination follows the source.
     if (output > input) {
-        for (NUINT i = size; i != 0; i--) {
-            output[i - 1] = input[i - 1];
-        }
+        output += size;
+        input += size;
+        do {
+            *--output = *--input;
+        } while (--size != 0);
     } else {
-        for (NUINT i = 0; i < size; i++) {
-            output[i] = input[i];
-        }
+        do {
+            *output++ = *input++;
+        } while (--size != 0);
     }
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
 }
@@ -117,11 +123,14 @@ void catmm_compare(const void* first, const void* second, CATALYST_NUINT size, C
     const BYTE* b = (const BYTE*) second;
     SBYTE order = 0;
     if (first != second) {
-        for (NUINT i = 0; i < size; i++) {
-            if (a[i] != b[i]) {
-                order = a[i] < b[i] ? (SBYTE) -1 : (SBYTE) 1;
+        while (size != 0) {
+            BYTE firstByte = *a++;
+            BYTE secondByte = *b++;
+            if (firstByte != secondByte) {
+                order = firstByte < secondByte ? (SBYTE) -1 : (SBYTE) 1;
                 break;
             }
+            size--;
         }
     }
     *comparison = order;
@@ -138,8 +147,8 @@ void catmm_set(void* memory, CATALYST_BYTE value, CATALYST_NUINT size, CATALYST_
         return;
     }
     BYTE* bytes = (BYTE*) memory;
-    for (NUINT i = 0; i < size; i++) {
-        bytes[i] = value;
-    }
+    do {
+        *bytes++ = value;
+    } while (--size != 0);
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
 }

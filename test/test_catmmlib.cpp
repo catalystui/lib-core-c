@@ -228,7 +228,44 @@ int main() {
         return 17;
     }
 
-    printf("CATMMTEST :: All allocation lifecycle tests passed. 🔥\n");
+    // Exercise the byte operations, including both overlap directions.
+    BYTE source[6] = {0, 1, 2, 3, 4, 5};
+    BYTE destination[6] = {0, 0, 0, 0, 0, 0};
+    SBYTE comparison = 0;
+    catalyst::copy(destination, source, 6, &result);
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0 || result.detail != 0) return 18;
+    for (i = 0; i < 6; i++) {
+        if (destination[i] != source[i]) return 19;
+    }
+    catalyst::move(destination + 1, destination, 5, &result);
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0 || result.detail != 0) return 20;
+    for (i = 1; i < 6; i++) {
+        if (destination[i] != source[i - 1]) return 21;
+    }
+    catalyst::move(destination, destination + 1, 5, &result);
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0 || result.detail != 0) return 22;
+    for (i = 0; i < 5; i++) {
+        if (destination[i] != source[i]) return 23;
+    }
+    catalyst::compare(destination, source, 6, &comparison, &result);
+    if (comparison != -1 || result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0 || result.detail != 0) return 24;
+    catalyst::set(destination, (BYTE) 0xFF, 6, &result);
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0 || result.detail != 0) return 25;
+    for (i = 0; i < 6; i++) {
+        if (destination[i] != (BYTE) 0xFF) return 26;
+    }
+    catalyst::compare(destination, source, 6, &comparison, &result);
+    if (comparison != 1 || result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0 || result.detail != 0) return 27;
+    catalyst::compare(source, source, 6, &comparison, &result);
+    if (comparison != 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0 || result.detail != 0) return 28;
+    catalyst::copy(destination, source, 0, &result);
+    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0 || result.operation != 0 || result.detail != 0) return 29;
+    catalyst::move(destination, destination, 6, &result);
+    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0 || result.operation != 0 || result.detail != 0) return 30;
+    catalyst::set(destination, 0, 0, &result);
+    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0 || result.operation != 0 || result.detail != 0) return 31;
+
+    printf("CATMMTEST :: All allocation lifecycle and byte operation tests passed. 🔥\n");
 
     return 0;
 }
