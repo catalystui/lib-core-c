@@ -4,32 +4,322 @@
 
 using namespace catalyst;
 
+/* Address-sized arithmetic is performed on explicitly ordered bytes, least
+ * significant first. NUINT is materialized only at ABI/address boundaries.
+ */
+struct catrl_size {
+    BYTE bytes[TARGET_SIZEOF_VOID_P];
+};
+
+static catrl_size size_byte(BYTE value) {
+    catrl_size size = {{0}};
+    size.bytes[0] = value;
+    return size;
+}
+
+#if TARGET_SIZEOF_VOID_P != 1
+/* The ABI's unsigned object representation is inspected, not assumed.
+ * These constant probes identify each native value bit by its significance.
+ * The normal byte-permutation path also supports mixed-endian ABIs.
+ */
+#if TARGET_SIZEOF_VOID_P == 2
+static const NUINT size_layout[] = {0xAAAAu, 0xCCCCu, 0xF0F0u, 0xFF00u, 0, 0};
+#elif TARGET_SIZEOF_VOID_P == 4
+static const NUINT size_layout[] = {0xAAAAAAAAu, 0xCCCCCCCCu, 0xF0F0F0F0u, 0xFF00FF00u, 0xFFFF0000u, 0};
+#elif TARGET_SIZEOF_VOID_P == 8
+static const NUINT size_layout[] = {
+    UINT64_C(0xAAAAAAAAAAAAAAAA), UINT64_C(0xCCCCCCCCCCCCCCCC),
+    UINT64_C(0xF0F0F0F0F0F0F0F0), UINT64_C(0xFF00FF00FF00FF00),
+    UINT64_C(0xFFFF0000FFFF0000), UINT64_C(0xFFFFFFFF00000000)
+};
+#endif
+
+static BYTE layout_byte(BYTE probe, BYTE offset) {
+    return (BYTE) ((const unsigned char*) &size_layout[probe])[offset];
+}
+
+static BOOL native_byte_index(BYTE offset, BYTE* index) {
+    if (layout_byte(0, offset) != 0xAA || layout_byte(1, offset) != 0xCC || layout_byte(2, offset) != 0xF0) return FALSE;
+    BYTE digit = 0;
+    BYTE mask = 1;
+    for (BYTE i = 3; i < 6; ++i) {
+        BYTE value = layout_byte(i, offset);
+        if (value == 0xFF) digit = (BYTE) (digit | mask);
+        else if (value != 0) return FALSE;
+        mask = (BYTE) (mask << 1);
+    }
+    *index = digit;
+    return TRUE;
+}
+
+static BYTE native_bit_index(BYTE offset, BYTE mask) {
+    BYTE position = 0;
+    BYTE flag = 1;
+    for (BYTE i = 0; i < 6; ++i) {
+        if ((layout_byte(i, offset) & mask) != 0) position = (BYTE) (position | flag);
+        flag = (BYTE) (flag << 1);
+    }
+    return position;
+}
+#endif
+
+/* The foundational ABI defines NUINT to be exactly pointer-width. */
+typedef char catrl_size_requires_exact_nuint[(sizeof(NUINT) == TARGET_SIZEOF_VOID_P) ? 1 : -1];
+
+static catrl_size size_from_abi(NUINT value) {
+#if TARGET_SIZEOF_VOID_P == 1
+    return size_byte(value);
+#else
+    catrl_size size = {{0}};
+    const unsigned char* native = (const unsigned char*) &value;
+    for (BYTE i = 0; i < TARGET_SIZEOF_VOID_P; ++i) {
+        BYTE digit;
+        if (native_byte_index(i, &digit)) {
+            size.bytes[digit] = (BYTE) native[i];
+        } else {
+            for (BYTE mask = 1; mask != 0; mask = (BYTE) ((mask & 0x7F) << 1)) {
+                if ((native[i] & mask) == 0) continue;
+                BYTE position = native_bit_index(i, mask);
+                BYTE index = (BYTE) (position >> 3);
+                BYTE bit = (BYTE) (1u << (position & 0x07));
+                size.bytes[index] = (BYTE) (size.bytes[index] | bit);
+            }
+        }
+    }
+    return size;
+#endif
+}
+
+static NUINT size_to_abi(const catrl_size* size) {
+#if TARGET_SIZEOF_VOID_P == 1
+    return size->bytes[0];
+#else
+    NUINT value = 0;
+    unsigned char* native = (unsigned char*) &value;
+    for (BYTE i = 0; i < TARGET_SIZEOF_VOID_P; ++i) {
+        BYTE digit;
+        if (native_byte_index(i, &digit)) {
+            native[i] = size->bytes[digit];
+        } else {
+            BYTE octet = 0;
+            for (BYTE mask = 1; mask != 0; mask = (BYTE) ((mask & 0x7F) << 1)) {
+                BYTE position = native_bit_index(i, mask);
+                BYTE index = (BYTE) (position >> 3);
+                BYTE bit = (BYTE) (1u << (position & 0x07));
+                if ((size->bytes[index] & bit) != 0) octet = (BYTE) (octet | mask);
+            }
+            native[i] = octet;
+        }
+    }
+    return value;
+#endif
+}
+
+static BOOL size_zero(const catrl_size* size) {
+    for (BYTE i = 0; i < TARGET_SIZEOF_VOID_P; ++i) {
+        if (size->bytes[i] != 0) return FALSE;
+    }
+    return TRUE;
+}
+
+static SBYTE size_compare(const catrl_size* left, const catrl_size* right) {
+    BYTE i = TARGET_SIZEOF_VOID_P;
+    while (i != 0) {
+        --i;
+        if (left->bytes[i] < right->bytes[i]) return (SBYTE) -1;
+        if (left->bytes[i] > right->bytes[i]) return (SBYTE) 1;
+    }
+    return 0;
+}
+
+/* Add/subtract a digit without an intermediate exceeding one byte.
+ * Output may alias either operand; FALSE indicates carry/borrow out.
+ */
+static BOOL size_add(const catrl_size* left, const catrl_size* right, catrl_size* output) {
+    BOOL carry = FALSE;
+    for (BYTE i = 0; i < TARGET_SIZEOF_VOID_P; ++i) {
+        BYTE a = left->bytes[i];
+        BYTE b = right->bytes[i];
+        BYTE room = (BYTE) (0xFF - a);
+        BOOL next = b > room ? TRUE : FALSE;
+        BYTE digit = next ? (BYTE) (b - room - 1) : (BYTE) (a + b);
+        if (carry) {
+            if (digit == 0xFF) {
+                digit = 0;
+                next = TRUE;
+            } else {
+                ++digit;
+            }
+        }
+        output->bytes[i] = digit;
+        carry = next;
+    }
+    return carry ? FALSE : TRUE;
+}
+
+static BOOL size_subtract(const catrl_size* left, const catrl_size* right, catrl_size* output) {
+    BOOL borrow = FALSE;
+    for (BYTE i = 0; i < TARGET_SIZEOF_VOID_P; ++i) {
+        BYTE a = left->bytes[i];
+        BYTE b = right->bytes[i];
+        BOOL next = a < b ? TRUE : FALSE;
+        BYTE digit = next ? (BYTE) (0xFF - (b - a - 1)) : (BYTE) (a - b);
+        if (borrow) {
+            if (digit == 0) {
+                digit = 0xFF;
+                next = TRUE;
+            } else {
+                --digit;
+            }
+        }
+        output->bytes[i] = digit;
+        borrow = next;
+    }
+    return borrow ? FALSE : TRUE;
+}
+
+static void size_half(catrl_size* size) {
+    BYTE carry = 0;
+    BYTE i = TARGET_SIZEOF_VOID_P;
+    while (i != 0) {
+        --i;
+        BYTE digit = size->bytes[i];
+        size->bytes[i] = (BYTE) ((digit >> 1) | carry);
+        carry = (digit & 1) != 0 ? (BYTE) 0x80 : (BYTE) 0;
+    }
+}
+
+static BOOL size_multiply(const catrl_size* left, const catrl_size* right, catrl_size* output) {
+    // Iterate the smaller factor to keep common small extents inexpensive.
+    BOOL leftSmaller = size_compare(left, right) < 0 ? TRUE : FALSE;
+    catrl_size term = leftSmaller ? *right : *left;
+    catrl_size multiplier = leftSmaller ? *left : *right;
+    *output = size_byte(0);
+    if (size_zero(&term) || size_zero(&multiplier)) return TRUE;
+    while (!size_zero(&multiplier)) {
+        if ((multiplier.bytes[0] & 1) != 0 && !size_add(output, &term, output)) return FALSE;
+        size_half(&multiplier);
+        if (!size_zero(&multiplier) && !size_add(&term, &term, &term)) return FALSE;
+    }
+    return TRUE;
+}
+
+/* Divide the largest representable extent by a nonzero stride. The carry
+ * out of doubling the remainder is retained separately from its digits.
+ */
+static catrl_size size_limit(const catrl_size* stride) {
+    catrl_size quotient = size_byte(0);
+    catrl_size remainder = size_byte(0);
+    BYTE i = TARGET_SIZEOF_VOID_P;
+    while (i != 0) {
+        --i;
+        for (BYTE bit = 0x80; bit != 0; bit = (BYTE) (bit >> 1)) {
+            BOOL carry = size_add(&remainder, &remainder, &remainder) ? FALSE : TRUE;
+            remainder.bytes[0] = (BYTE) (remainder.bytes[0] | 1);
+            if (carry || size_compare(&remainder, stride) >= 0) {
+                // With carry, subtraction modulo the extent restores the exact remainder.
+                size_subtract(&remainder, stride, &remainder);
+                quotient.bytes[i] = (BYTE) (quotient.bytes[i] | bit);
+            }
+        }
+    }
+    return quotient;
+}
+
+static void size_increment(catrl_size* size) {
+    // Callers establish that the count is below the representable capacity.
+    for (BYTE i = 0; i < TARGET_SIZEOF_VOID_P; ++i) {
+        if (size->bytes[i] != 0xFF) {
+            ++size->bytes[i];
+            return;
+        }
+        size->bytes[i] = 0;
+    }
+}
+
+static catrl_size size_previous(const catrl_size* size) {
+    catrl_size previous = *size;
+    // Callers establish that the count is nonzero.
+    for (BYTE i = 0; i < TARGET_SIZEOF_VOID_P; ++i) {
+        if (previous.bytes[i] != 0) {
+            --previous.bytes[i];
+            return previous;
+        }
+        previous.bytes[i] = 0xFF;
+    }
+    return previous;
+}
+
 /* Private storage shared by the four collection implementations. */
 struct catrl_storage {
     BYTE* bytes;
-    NUINT stride;
-    NUINT count;
-    NUINT capacity;
+    catrl_size stride;
+    catrl_size count;
+    catrl_size capacity;
 };
 
 struct CATALYST_ARRAY { catrl_storage storage; };
 struct CATALYST_SET { catrl_storage storage; };
 struct CATALYST_MAP {
     catrl_storage storage;
-    NUINT key_size;
+    catrl_size key_size;
 };
 struct CATALYST_STACK { catrl_storage storage; };
 
-#define CATRL_ELEMENT_AT(storage, index) ((storage)->bytes + (index) * (storage)->stride)
+/* Fault details are scoped to the public method's invariant-check opcode.
+ * 1: zero stride, 2: count exceeds capacity, 3: storage/capacity mismatch,
+ * 4: unrepresentable extent, 5: invalid map key extent, 6: array count differs
+ * from capacity. The checks cannot validate arbitrary foreign pointers.
+ */
+static DETAIL_CODE storage_fault(const catrl_storage* storage) {
+    if (size_zero(&storage->stride)) return 1;
+    if (size_compare(&storage->count, &storage->capacity) > 0) return 2;
+    if ((storage->bytes == 0) != (size_zero(&storage->capacity) != 0)) return 3;
+    catrl_size extent;
+    if (!size_multiply(&storage->capacity, &storage->stride, &extent)) return 4;
+    return 0;
+}
+
+static DETAIL_CODE array_fault(const CATALYST_ARRAY* array) {
+    DETAIL_CODE fault = storage_fault(&array->storage);
+    if (fault != 0) return fault;
+    if (size_compare(&array->storage.count, &array->storage.capacity) != 0) return 6;
+    return 0;
+}
+
+static DETAIL_CODE map_fault(const CATALYST_MAP* map) {
+    DETAIL_CODE fault = storage_fault(&map->storage);
+    if (fault != 0) return fault;
+    if (size_zero(&map->key_size) || size_compare(&map->key_size, &map->storage.stride) >= 0) return 5;
+    return 0;
+}
+
+/* Indices are checked against the validated extent before element access. */
+static BYTE* element_at(const catrl_storage* storage, const catrl_size* index) {
+    catrl_size offset;
+    if (!size_multiply(index, &storage->stride, &offset)) return 0;
+    return storage->bytes != 0 ? storage->bytes + size_to_abi(&offset) : 0;
+}
+
+static BYTE* value_at(const CATALYST_MAP* map, BYTE* entry) {
+    return entry != 0 ? entry + size_to_abi(&map->key_size) : 0;
+}
+
+static NUINT map_value_size(const CATALYST_MAP* map) {
+    catrl_size size;
+    size_subtract(&map->storage.stride, &map->key_size, &size);
+    return size_to_abi(&size);
+}
 
 // Context IDs follow CATRLLIB public declaration order (0x01 through 0x1D).
 // Private helpers use 0x1E through 0x21.
 // A caller reports its own operation and uses the helper opcode as failure detail.
-static void* create_storage(NUINT objectSize, NUINT stride, NUINT count, CATALYST_RESULT* result) {
+static void* create_storage(NUINT objectSize, const catrl_size* stride, const catrl_size* count, CATALYST_RESULT* result) {
     void* object = 0;
     void* bytes = 0;
     RESULT status;
-    if (count > CATALYST_NUINT_MAX / stride) {
+    catrl_size extent;
+    if (!size_multiply(count, stride, &extent)) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x1E, 0x01, 0);
         return 0;
     }
@@ -38,24 +328,25 @@ static void* create_storage(NUINT objectSize, NUINT stride, NUINT count, CATALYS
         if (result != 0) *result = RESULT(status.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : status.status, 0x1E, 0x02, status.operation);
         return 0;
     }
-    if (count != 0) {
-        catmm_alloc(&bytes, count * stride, &status);
+    if (!size_zero(count)) {
+        catmm_alloc(&bytes, size_to_abi(&extent), &status);
         if (!status_code_is_success(status.status)) {
             RESULT cleanup;
             catmm_free(object, &cleanup);
-            if (!status_code_is_success(cleanup.status) && !status_code_is_fatal(status.status)) {
+            STATUS_CODE failure = status.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : status.status;
+            if (!status_code_is_success(cleanup.status) && !status_code_is_fatal(failure)) {
                 if (result != 0) *result = RESULT(cleanup.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : cleanup.status, 0x1E, 0x03, cleanup.operation);
                 return 0;
             }
-            if (result != 0) *result = RESULT(status.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : status.status, 0x1E, 0x04, status.operation);
+            if (result != 0) *result = RESULT(failure, 0x1E, 0x04, status.operation);
             return 0;
         }
     }
     catrl_storage* storage = (catrl_storage*) object;
     storage->bytes = (BYTE*) bytes;
-    storage->stride = stride;
-    storage->count = count;
-    storage->capacity = count;
+    storage->stride = *stride;
+    storage->count = *count;
+    storage->capacity = *count;
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
     return object;
 }
@@ -67,10 +358,12 @@ static void destroy_storage(void* object, catrl_storage* storage, CATALYST_RESUL
         catmm_free(storage->bytes, &bytesStatus);
     }
     catmm_free(object, &objectStatus);
-    if (!status_code_is_success(bytesStatus.status) && (status_code_is_fatal(bytesStatus.status) || !status_code_is_fatal(objectStatus.status))) {
-        if (result != 0) *result = RESULT(bytesStatus.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : bytesStatus.status, 0x1F, 0x01, bytesStatus.operation);
-    } else if (!status_code_is_success(objectStatus.status)) {
-        if (result != 0) *result = RESULT(objectStatus.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : objectStatus.status, 0x1F, 0x02, objectStatus.operation);
+    STATUS_CODE bytesFailure = bytesStatus.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : bytesStatus.status;
+    STATUS_CODE objectFailure = objectStatus.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : objectStatus.status;
+    if (!status_code_is_success(bytesFailure) && (status_code_is_fatal(bytesFailure) || !status_code_is_fatal(objectFailure))) {
+        if (result != 0) *result = RESULT(bytesFailure, 0x1F, 0x01, bytesStatus.operation);
+    } else if (!status_code_is_success(objectFailure)) {
+        if (result != 0) *result = RESULT(objectFailure, 0x1F, 0x02, objectStatus.operation);
     } else {
         if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
     }
@@ -78,22 +371,30 @@ static void destroy_storage(void* object, catrl_storage* storage, CATALYST_RESUL
 
 /* Reserve room for one more element, with bounded geometric growth. */
 static BOOL grow(catrl_storage* storage, CATALYST_RESULT* result) {
-    NUINT limit = CATALYST_NUINT_MAX / storage->stride;
-    if (storage->count == limit) {
+    catrl_size limit = size_limit(&storage->stride);
+    if (size_compare(&storage->count, &limit) == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x20, 0x01, 0);
         return FALSE;
     }
-    NUINT capacity;
-    if (storage->capacity == 0) {
-        capacity = 1;
-    } else if (storage->capacity > limit / 2) {
+    catrl_size capacity;
+    BOOL capacityValid = TRUE;
+    catrl_size half = limit;
+    size_half(&half);
+    if (size_zero(&storage->capacity)) {
+        capacity = size_byte(1);
+    } else if (size_compare(&storage->capacity, &half) > 0) {
         capacity = limit;
     } else {
-        capacity = storage->capacity * 2;
+        capacityValid = size_add(&storage->capacity, &storage->capacity, &capacity);
+    }
+    catrl_size extent;
+    if (!capacityValid || !size_multiply(&capacity, &storage->stride, &extent)) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x20, 0x04, 0);
+        return FALSE;
     }
     void* bytes = storage->bytes;
     RESULT status;
-    catmm_realloc(&bytes, capacity * storage->stride, &status);
+    catmm_realloc(&bytes, size_to_abi(&extent), &status);
     if (!status_code_is_success(status.status)) {
         // A failed old-block release can invalidate the collection's storage.
         if (result != 0) *result = RESULT(status.status == STATUS_CODE_ERROR_INVALID_ARGUMENT || (status.status == STATUS_CODE_ERROR_INVALID_STATE && status.operation == 0x06) ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : status.status, 0x20, 0x02, status.operation);
@@ -106,11 +407,15 @@ static BOOL grow(catrl_storage* storage, CATALYST_RESULT* result) {
 }
 
 /* Return count when the key or element is absent. */
-static inline NUINT find(const catrl_storage* storage, const void* value, NUINT size, CATALYST_RESULT* result) {
-    for (NUINT i = 0; i < storage->count; i++) {
+static inline catrl_size find(const catrl_storage* storage, const void* value, const catrl_size* size, CATALYST_RESULT* result) {
+    catrl_size i = size_byte(0);
+    const BYTE* element = storage->bytes;
+    NUINT stride = size_to_abi(&storage->stride);
+    NUINT length = size_to_abi(size);
+    while (size_compare(&i, &storage->count) < 0) {
         SBYTE comparison;
         RESULT compareResult;
-        catmm_compare(CATRL_ELEMENT_AT(storage, i), value, size, &comparison, &compareResult);
+        catmm_compare(element, value, length, &comparison, &compareResult);
         if (!status_code_is_success(compareResult.status)) {
             if (result != 0) *result = RESULT(compareResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : compareResult.status, 0x21, 0x01, compareResult.operation);
             return storage->count;
@@ -119,6 +424,8 @@ static inline NUINT find(const catrl_storage* storage, const void* value, NUINT 
             if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x02, 0);
             return i;
         }
+        size_increment(&i);
+        if (size_compare(&i, &storage->count) < 0) element += stride;
     }
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
     return storage->count;
@@ -131,12 +438,14 @@ void catrl_array_create(CATALYST_ARRAY** array, CATALYST_NUINT element_size, CAT
         return;
     }
     *array = 0;
-    if (element_size == 0) {
+    catrl_size stride = size_from_abi(element_size);
+    if (size_zero(&stride)) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x01, 0x02, 1);
         return;
     }
     RESULT storageResult;
-    *array = (CATALYST_ARRAY*) create_storage(sizeof(CATALYST_ARRAY), element_size, length, &storageResult);
+    catrl_size count = size_from_abi(length);
+    *array = (CATALYST_ARRAY*) create_storage(sizeof(CATALYST_ARRAY), &stride, &count, &storageResult);
     if (result != 0) *result = RESULT(storageResult.status, status_code_is_success(storageResult.status) ? 0 : 0x01, 0x03, status_code_is_success(storageResult.status) ? 0 : storageResult.operation);
 }
 
@@ -145,8 +454,13 @@ void catrl_array_destroy(CATALYST_ARRAY* array, CATALYST_RESULT* result) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x02, 0x01, 0);
         return;
     }
+    DETAIL_CODE fault = array_fault(array);
     RESULT storageResult;
     destroy_storage(array, &array->storage, &storageResult);
+    if (fault != 0 && !status_code_is_fatal(storageResult.status)) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x02, 0x03, fault);
+        return;
+    }
     if (result != 0) *result = RESULT(storageResult.status, status_code_is_success(storageResult.status) ? 0 : 0x02, 0x02, status_code_is_success(storageResult.status) ? 0 : storageResult.operation);
 }
 
@@ -155,7 +469,13 @@ void catrl_array_get(const CATALYST_ARRAY* array, CATALYST_NUINT index, void* va
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x03, 0x01, 0);
         return;
     }
-    if (index >= array->storage.count) {
+    DETAIL_CODE fault = array_fault(array);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x03, 0x06, fault);
+        return;
+    }
+    catrl_size position = size_from_abi(index);
+    if (size_compare(&position, &array->storage.count) >= 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x03, 0x02, 1);
         return;
     }
@@ -163,13 +483,11 @@ void catrl_array_get(const CATALYST_ARRAY* array, CATALYST_NUINT index, void* va
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x03, 0x03, 2);
         return;
     }
-    {
-        RESULT copyResult;
-        catmm_copy(value, CATRL_ELEMENT_AT(&array->storage, index), array->storage.stride, &copyResult);
-        if (!status_code_is_success(copyResult.status)) {
-            if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x03, 0x04, copyResult.operation);
-            return;
-        }
+    RESULT copyResult;
+    catmm_copy(value, element_at(&array->storage, &position), size_to_abi(&array->storage.stride), &copyResult);
+    if (!status_code_is_success(copyResult.status)) {
+        if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x03, 0x04, copyResult.operation);
+        return;
     }
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
 }
@@ -179,7 +497,13 @@ void catrl_array_set(CATALYST_ARRAY* array, CATALYST_NUINT index, const void* va
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x04, 0x01, 0);
         return;
     }
-    if (index >= array->storage.count) {
+    DETAIL_CODE fault = array_fault(array);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x04, 0x06, fault);
+        return;
+    }
+    catrl_size position = size_from_abi(index);
+    if (size_compare(&position, &array->storage.count) >= 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x04, 0x02, 1);
         return;
     }
@@ -187,13 +511,11 @@ void catrl_array_set(CATALYST_ARRAY* array, CATALYST_NUINT index, const void* va
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x04, 0x03, 2);
         return;
     }
-    {
-        RESULT copyResult;
-        catmm_copy(CATRL_ELEMENT_AT(&array->storage, index), value, array->storage.stride, &copyResult);
-        if (!status_code_is_success(copyResult.status)) {
-            if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x04, 0x04, copyResult.operation);
-            return;
-        }
+    RESULT copyResult;
+    catmm_copy(element_at(&array->storage, &position), value, size_to_abi(&array->storage.stride), &copyResult);
+    if (!status_code_is_success(copyResult.status)) {
+        if (result != 0) *result = RESULT(status_code_is_fatal(copyResult.status) ? copyResult.status : STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x04, 0x04, copyResult.operation);
+        return;
     }
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
 }
@@ -203,11 +525,16 @@ void catrl_array_length(const CATALYST_ARRAY* array, CATALYST_NUINT* length, CAT
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x05, 0x01, 0);
         return;
     }
+    DETAIL_CODE fault = array_fault(array);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x05, 0x04, fault);
+        return;
+    }
     if (length == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x05, 0x02, 1);
         return;
     }
-    *length = array->storage.count;
+    *length = size_to_abi(&array->storage.count);
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
 }
 
@@ -218,12 +545,14 @@ void catrl_set_create(CATALYST_SET** set, CATALYST_NUINT element_size, CATALYST_
         return;
     }
     *set = 0;
-    if (element_size == 0) {
+    catrl_size stride = size_from_abi(element_size);
+    if (size_zero(&stride)) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x06, 0x02, 1);
         return;
     }
     RESULT storageResult;
-    *set = (CATALYST_SET*) create_storage(sizeof(CATALYST_SET), element_size, 0, &storageResult);
+    catrl_size count = size_byte(0);
+    *set = (CATALYST_SET*) create_storage(sizeof(CATALYST_SET), &stride, &count, &storageResult);
     if (result != 0) *result = RESULT(storageResult.status, status_code_is_success(storageResult.status) ? 0 : 0x06, 0x03, status_code_is_success(storageResult.status) ? 0 : storageResult.operation);
 }
 
@@ -232,8 +561,13 @@ void catrl_set_destroy(CATALYST_SET* set, CATALYST_RESULT* result) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x07, 0x01, 0);
         return;
     }
+    DETAIL_CODE fault = storage_fault(&set->storage);
     RESULT storageResult;
     destroy_storage(set, &set->storage, &storageResult);
+    if (fault != 0 && !status_code_is_fatal(storageResult.status)) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x07, 0x03, fault);
+        return;
+    }
     if (result != 0) *result = RESULT(storageResult.status, status_code_is_success(storageResult.status) ? 0 : 0x07, 0x02, status_code_is_success(storageResult.status) ? 0 : storageResult.operation);
 }
 
@@ -242,36 +576,39 @@ void catrl_set_add(CATALYST_SET* set, const void* value, CATALYST_RESULT* result
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x08, 0x01, 0);
         return;
     }
+    DETAIL_CODE fault = storage_fault(&set->storage);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x08, 0x08, fault);
+        return;
+    }
     if (value == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x08, 0x02, 1);
         return;
     }
     RESULT findResult;
-    NUINT index = find(&set->storage, value, set->storage.stride, &findResult);
+    catrl_size index = find(&set->storage, value, &set->storage.stride, &findResult);
     if (!status_code_is_success(findResult.status)) {
         if (result != 0) *result = RESULT(findResult.status, 0x08, 0x03, findResult.operation);
         return;
     }
-    if (index != set->storage.count) {
+    if (size_compare(&index, &set->storage.count) != 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS_NOOP, 0, 0x04, 0);
         return;
     }
-    if (set->storage.count == set->storage.capacity) {
+    if (size_compare(&set->storage.count, &set->storage.capacity) == 0) {
         RESULT growthResult;
         if (!grow(&set->storage, &growthResult)) {
             if (result != 0) *result = RESULT(growthResult.status, 0x08, 0x05, growthResult.operation);
             return;
         }
     }
-    {
-        RESULT copyResult;
-        catmm_copy(CATRL_ELEMENT_AT(&set->storage, set->storage.count), value, set->storage.stride, &copyResult);
-        if (!status_code_is_success(copyResult.status)) {
-            if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x08, 0x06, copyResult.operation);
-            return;
-        }
+    RESULT copyResult;
+    catmm_copy(element_at(&set->storage, &set->storage.count), value, size_to_abi(&set->storage.stride), &copyResult);
+    if (!status_code_is_success(copyResult.status)) {
+        if (result != 0) *result = RESULT(status_code_is_fatal(copyResult.status) ? copyResult.status : STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x08, 0x06, copyResult.operation);
+        return;
     }
-    set->storage.count++;
+    size_increment(&set->storage.count);
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x07, 0);
 }
 
@@ -280,37 +617,46 @@ void catrl_set_remove(CATALYST_SET* set, const void* value, CATALYST_RESULT* res
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x09, 0x01, 0);
         return;
     }
+    DETAIL_CODE fault = storage_fault(&set->storage);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x09, 0x07, fault);
+        return;
+    }
     if (value == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x09, 0x02, 1);
         return;
     }
     RESULT findResult;
-    NUINT index = find(&set->storage, value, set->storage.stride, &findResult);
+    catrl_size index = find(&set->storage, value, &set->storage.stride, &findResult);
     if (!status_code_is_success(findResult.status)) {
         if (result != 0) *result = RESULT(findResult.status, 0x09, 0x03, findResult.operation);
         return;
     }
-    if (index == set->storage.count) {
+    if (size_compare(&index, &set->storage.count) == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS_NOOP, 0, 0x04, 0);
         return;
     }
-    set->storage.count--;
-    if (index != set->storage.count) {
-        {
-            RESULT copyResult;
-            catmm_copy(CATRL_ELEMENT_AT(&set->storage, index), CATRL_ELEMENT_AT(&set->storage, set->storage.count), set->storage.stride, &copyResult);
-            if (!status_code_is_success(copyResult.status)) {
-                if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x09, 0x05, copyResult.operation);
-                return;
-            }
+    catrl_size last = size_previous(&set->storage.count);
+    if (size_compare(&index, &last) != 0) {
+        RESULT copyResult;
+        catmm_copy(element_at(&set->storage, &index), element_at(&set->storage, &last), size_to_abi(&set->storage.stride), &copyResult);
+        if (!status_code_is_success(copyResult.status)) {
+            if (result != 0) *result = RESULT(status_code_is_fatal(copyResult.status) ? copyResult.status : STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x09, 0x05, copyResult.operation);
+            return;
         }
     }
+    set->storage.count = last;
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x06, 0);
 }
 
 void catrl_set_contains(const CATALYST_SET* set, const void* value, CATALYST_BOOL* contains, CATALYST_RESULT* result) {
     if (set == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0A, 0x01, 0);
+        return;
+    }
+    DETAIL_CODE fault = storage_fault(&set->storage);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x0A, 0x06, fault);
         return;
     }
     if (value == 0) {
@@ -322,12 +668,12 @@ void catrl_set_contains(const CATALYST_SET* set, const void* value, CATALYST_BOO
         return;
     }
     RESULT findResult;
-    NUINT index = find(&set->storage, value, set->storage.stride, &findResult);
+    catrl_size index = find(&set->storage, value, &set->storage.stride, &findResult);
     if (!status_code_is_success(findResult.status)) {
         if (result != 0) *result = RESULT(findResult.status, 0x0A, 0x04, findResult.operation);
         return;
     }
-    *contains = index != set->storage.count ? TRUE : FALSE;
+    *contains = size_compare(&index, &set->storage.count) != 0 ? TRUE : FALSE;
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
 }
 
@@ -336,11 +682,16 @@ void catrl_set_count(const CATALYST_SET* set, CATALYST_NUINT* count, CATALYST_RE
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0B, 0x01, 0);
         return;
     }
+    DETAIL_CODE fault = storage_fault(&set->storage);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x0B, 0x04, fault);
+        return;
+    }
     if (count == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0B, 0x02, 1);
         return;
     }
-    *count = set->storage.count;
+    *count = size_to_abi(&set->storage.count);
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
 }
 
@@ -349,7 +700,13 @@ void catrl_set_at(const CATALYST_SET* set, CATALYST_NUINT index, void* value, CA
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0C, 0x01, 0);
         return;
     }
-    if (index >= set->storage.count) {
+    DETAIL_CODE fault = storage_fault(&set->storage);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x0C, 0x06, fault);
+        return;
+    }
+    catrl_size position = size_from_abi(index);
+    if (size_compare(&position, &set->storage.count) >= 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0C, 0x02, 1);
         return;
     }
@@ -357,13 +714,11 @@ void catrl_set_at(const CATALYST_SET* set, CATALYST_NUINT index, void* value, CA
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0C, 0x03, 2);
         return;
     }
-    {
-        RESULT copyResult;
-        catmm_copy(value, CATRL_ELEMENT_AT(&set->storage, index), set->storage.stride, &copyResult);
-        if (!status_code_is_success(copyResult.status)) {
-            if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x0C, 0x04, copyResult.operation);
-            return;
-        }
+    RESULT copyResult;
+    catmm_copy(value, element_at(&set->storage, &position), size_to_abi(&set->storage.stride), &copyResult);
+    if (!status_code_is_success(copyResult.status)) {
+        if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x0C, 0x04, copyResult.operation);
+        return;
     }
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
 }
@@ -373,11 +728,16 @@ void catrl_set_clear(CATALYST_SET* set, CATALYST_RESULT* result) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0D, 0x01, 0);
         return;
     }
-    if (set->storage.count == 0) {
+    DETAIL_CODE fault = storage_fault(&set->storage);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x0D, 0x04, fault);
+        return;
+    }
+    if (size_zero(&set->storage.count)) {
         if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS_NOOP, 0, 0x02, 0);
         return;
     }
-    set->storage.count = 0;
+    set->storage.count = size_byte(0);
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
 }
 
@@ -388,21 +748,25 @@ void catrl_map_create(CATALYST_MAP** map, CATALYST_NUINT key_size, CATALYST_NUIN
         return;
     }
     *map = 0;
-    if (key_size == 0) {
+    catrl_size key = size_from_abi(key_size);
+    catrl_size value = size_from_abi(value_size);
+    if (size_zero(&key)) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0E, 0x02, 1);
         return;
     }
-    if (value_size == 0) {
+    if (size_zero(&value)) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0E, 0x03, 2);
         return;
     }
-    if (key_size > CATALYST_NUINT_MAX - value_size) {
+    catrl_size stride;
+    if (!size_add(&key, &value, &stride)) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x0E, 0x04, 0);
         return;
     }
     RESULT storageResult;
-    *map = (CATALYST_MAP*) create_storage(sizeof(CATALYST_MAP), key_size + value_size, 0, &storageResult);
-    if (*map != 0) (*map)->key_size = key_size;
+    catrl_size count = size_byte(0);
+    *map = (CATALYST_MAP*) create_storage(sizeof(CATALYST_MAP), &stride, &count, &storageResult);
+    if (*map != 0) (*map)->key_size = key;
     if (result != 0) *result = RESULT(storageResult.status, status_code_is_success(storageResult.status) ? 0 : 0x0E, 0x05, status_code_is_success(storageResult.status) ? 0 : storageResult.operation);
 }
 
@@ -411,14 +775,24 @@ void catrl_map_destroy(CATALYST_MAP* map, CATALYST_RESULT* result) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0F, 0x01, 0);
         return;
     }
+    DETAIL_CODE fault = map_fault(map);
     RESULT storageResult;
     destroy_storage(map, &map->storage, &storageResult);
+    if (fault != 0 && !status_code_is_fatal(storageResult.status)) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x0F, 0x03, fault);
+        return;
+    }
     if (result != 0) *result = RESULT(storageResult.status, status_code_is_success(storageResult.status) ? 0 : 0x0F, 0x02, status_code_is_success(storageResult.status) ? 0 : storageResult.operation);
 }
 
 void catrl_map_get(const CATALYST_MAP* map, const void* key, void* value, CATALYST_RESULT* result) {
     if (map == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x10, 0x01, 0);
+        return;
+    }
+    DETAIL_CODE fault = map_fault(map);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x10, 0x08, fault);
         return;
     }
     if (key == 0) {
@@ -430,22 +804,20 @@ void catrl_map_get(const CATALYST_MAP* map, const void* key, void* value, CATALY
         return;
     }
     RESULT findResult;
-    NUINT index = find(&map->storage, key, map->key_size, &findResult);
+    catrl_size index = find(&map->storage, key, &map->key_size, &findResult);
     if (!status_code_is_success(findResult.status)) {
         if (result != 0) *result = RESULT(findResult.status, 0x10, 0x04, findResult.operation);
         return;
     }
-    if (index == map->storage.count) {
+    if (size_compare(&index, &map->storage.count) == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_NOT_FOUND, 0x10, 0x05, 0);
         return;
     }
-    {
-        RESULT copyResult;
-        catmm_copy(value, CATRL_ELEMENT_AT(&map->storage, index) + map->key_size, map->storage.stride - map->key_size, &copyResult);
-        if (!status_code_is_success(copyResult.status)) {
-            if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x10, 0x06, copyResult.operation);
-            return;
-        }
+    RESULT copyResult;
+    catmm_copy(value, value_at(map, element_at(&map->storage, &index)), map_value_size(map), &copyResult);
+    if (!status_code_is_success(copyResult.status)) {
+        if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x10, 0x06, copyResult.operation);
+        return;
     }
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x07, 0);
 }
@@ -453,6 +825,11 @@ void catrl_map_get(const CATALYST_MAP* map, const void* key, void* value, CATALY
 void catrl_map_set(CATALYST_MAP* map, const void* key, const void* value, CATALYST_RESULT* result) {
     if (map == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x11, 0x01, 0);
+        return;
+    }
+    DETAIL_CODE fault = map_fault(map);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x11, 0x09, fault);
         return;
     }
     if (key == 0) {
@@ -465,40 +842,41 @@ void catrl_map_set(CATALYST_MAP* map, const void* key, const void* value, CATALY
     }
     BYTE* entry;
     RESULT findResult;
-    NUINT index = find(&map->storage, key, map->key_size, &findResult);
+    catrl_size index = find(&map->storage, key, &map->key_size, &findResult);
     if (!status_code_is_success(findResult.status)) {
         if (result != 0) *result = RESULT(findResult.status, 0x11, 0x04, findResult.operation);
         return;
     }
-    if (index == map->storage.count) {
-        if (map->storage.count == map->storage.capacity) {
+    BOOL insert = size_compare(&index, &map->storage.count) == 0 ? TRUE : FALSE;
+    if (insert) {
+        if (size_compare(&map->storage.count, &map->storage.capacity) == 0) {
             RESULT growthResult;
             if (!grow(&map->storage, &growthResult)) {
                 if (result != 0) *result = RESULT(growthResult.status, 0x11, 0x05, growthResult.operation);
                 return;
             }
         }
-        entry = CATRL_ELEMENT_AT(&map->storage, index);
+        entry = element_at(&map->storage, &index);
         {
             RESULT copyResult;
-            catmm_copy(entry, key, map->key_size, &copyResult);
+            catmm_copy(entry, key, size_to_abi(&map->key_size), &copyResult);
             if (!status_code_is_success(copyResult.status)) {
-                if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x11, 0x06, copyResult.operation);
+                if (result != 0) *result = RESULT(status_code_is_fatal(copyResult.status) ? copyResult.status : STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x11, 0x06, copyResult.operation);
                 return;
             }
         }
-        map->storage.count++;
     } else {
-        entry = CATRL_ELEMENT_AT(&map->storage, index);
+        entry = element_at(&map->storage, &index);
     }
     {
         RESULT copyResult;
-        catmm_copy(entry + map->key_size, value, map->storage.stride - map->key_size, &copyResult);
+        catmm_copy(value_at(map, entry), value, map_value_size(map), &copyResult);
         if (!status_code_is_success(copyResult.status)) {
-            if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x11, 0x07, copyResult.operation);
+            if (result != 0) *result = RESULT(status_code_is_fatal(copyResult.status) ? copyResult.status : STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x11, 0x07, copyResult.operation);
             return;
         }
     }
+    if (insert) size_increment(&map->storage.count);
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x08, 0);
 }
 
@@ -507,37 +885,46 @@ void catrl_map_remove(CATALYST_MAP* map, const void* key, CATALYST_RESULT* resul
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x12, 0x01, 0);
         return;
     }
+    DETAIL_CODE fault = map_fault(map);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x12, 0x07, fault);
+        return;
+    }
     if (key == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x12, 0x02, 1);
         return;
     }
     RESULT findResult;
-    NUINT index = find(&map->storage, key, map->key_size, &findResult);
+    catrl_size index = find(&map->storage, key, &map->key_size, &findResult);
     if (!status_code_is_success(findResult.status)) {
         if (result != 0) *result = RESULT(findResult.status, 0x12, 0x03, findResult.operation);
         return;
     }
-    if (index == map->storage.count) {
+    if (size_compare(&index, &map->storage.count) == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS_NOOP, 0, 0x04, 0);
         return;
     }
-    map->storage.count--;
-    if (index != map->storage.count) {
-        {
-            RESULT copyResult;
-            catmm_copy(CATRL_ELEMENT_AT(&map->storage, index), CATRL_ELEMENT_AT(&map->storage, map->storage.count), map->storage.stride, &copyResult);
-            if (!status_code_is_success(copyResult.status)) {
-                if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x12, 0x05, copyResult.operation);
-                return;
-            }
+    catrl_size last = size_previous(&map->storage.count);
+    if (size_compare(&index, &last) != 0) {
+        RESULT copyResult;
+        catmm_copy(element_at(&map->storage, &index), element_at(&map->storage, &last), size_to_abi(&map->storage.stride), &copyResult);
+        if (!status_code_is_success(copyResult.status)) {
+            if (result != 0) *result = RESULT(status_code_is_fatal(copyResult.status) ? copyResult.status : STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x12, 0x05, copyResult.operation);
+            return;
         }
     }
+    map->storage.count = last;
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x06, 0);
 }
 
 void catrl_map_contains(const CATALYST_MAP* map, const void* key, CATALYST_BOOL* contains, CATALYST_RESULT* result) {
     if (map == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x13, 0x01, 0);
+        return;
+    }
+    DETAIL_CODE fault = map_fault(map);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x13, 0x06, fault);
         return;
     }
     if (key == 0) {
@@ -549,12 +936,12 @@ void catrl_map_contains(const CATALYST_MAP* map, const void* key, CATALYST_BOOL*
         return;
     }
     RESULT findResult;
-    NUINT index = find(&map->storage, key, map->key_size, &findResult);
+    catrl_size index = find(&map->storage, key, &map->key_size, &findResult);
     if (!status_code_is_success(findResult.status)) {
         if (result != 0) *result = RESULT(findResult.status, 0x13, 0x04, findResult.operation);
         return;
     }
-    *contains = index != map->storage.count ? TRUE : FALSE;
+    *contains = size_compare(&index, &map->storage.count) != 0 ? TRUE : FALSE;
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
 }
 
@@ -563,11 +950,16 @@ void catrl_map_count(const CATALYST_MAP* map, CATALYST_NUINT* count, CATALYST_RE
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x14, 0x01, 0);
         return;
     }
+    DETAIL_CODE fault = map_fault(map);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x14, 0x04, fault);
+        return;
+    }
     if (count == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x14, 0x02, 1);
         return;
     }
-    *count = map->storage.count;
+    *count = size_to_abi(&map->storage.count);
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
 }
 
@@ -576,7 +968,13 @@ void catrl_map_at(const CATALYST_MAP* map, CATALYST_NUINT index, void* key, void
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x15, 0x01, 0);
         return;
     }
-    if (index >= map->storage.count) {
+    DETAIL_CODE fault = map_fault(map);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x15, 0x08, fault);
+        return;
+    }
+    catrl_size position = size_from_abi(index);
+    if (size_compare(&position, &map->storage.count) >= 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x15, 0x02, 1);
         return;
     }
@@ -588,9 +986,11 @@ void catrl_map_at(const CATALYST_MAP* map, CATALYST_NUINT index, void* key, void
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x15, 0x04, 3);
         return;
     }
+    BYTE* entry = element_at(&map->storage, &position);
+    BYTE* entryValue = value_at(map, entry);
     {
         RESULT copyResult;
-        catmm_copy(key, CATRL_ELEMENT_AT(&map->storage, index), map->key_size, &copyResult);
+        catmm_copy(key, entry, size_to_abi(&map->key_size), &copyResult);
         if (!status_code_is_success(copyResult.status)) {
             if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x15, 0x05, copyResult.operation);
             return;
@@ -598,9 +998,9 @@ void catrl_map_at(const CATALYST_MAP* map, CATALYST_NUINT index, void* key, void
     }
     {
         RESULT copyResult;
-        catmm_copy(value, CATRL_ELEMENT_AT(&map->storage, index) + map->key_size, map->storage.stride - map->key_size, &copyResult);
+        catmm_copy(value, entryValue, map_value_size(map), &copyResult);
         if (!status_code_is_success(copyResult.status)) {
-            if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x15, 0x06, copyResult.operation);
+            if (result != 0) *result = RESULT(status_code_is_fatal(copyResult.status) ? copyResult.status : STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x15, 0x06, copyResult.operation);
             return;
         }
     }
@@ -612,11 +1012,16 @@ void catrl_map_clear(CATALYST_MAP* map, CATALYST_RESULT* result) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x16, 0x01, 0);
         return;
     }
-    if (map->storage.count == 0) {
+    DETAIL_CODE fault = map_fault(map);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x16, 0x04, fault);
+        return;
+    }
+    if (size_zero(&map->storage.count)) {
         if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS_NOOP, 0, 0x02, 0);
         return;
     }
-    map->storage.count = 0;
+    map->storage.count = size_byte(0);
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
 }
 
@@ -627,12 +1032,14 @@ void catrl_stack_create(CATALYST_STACK** stack, CATALYST_NUINT element_size, CAT
         return;
     }
     *stack = 0;
-    if (element_size == 0) {
+    catrl_size stride = size_from_abi(element_size);
+    if (size_zero(&stride)) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x17, 0x02, 1);
         return;
     }
     RESULT storageResult;
-    *stack = (CATALYST_STACK*) create_storage(sizeof(CATALYST_STACK), element_size, 0, &storageResult);
+    catrl_size count = size_byte(0);
+    *stack = (CATALYST_STACK*) create_storage(sizeof(CATALYST_STACK), &stride, &count, &storageResult);
     if (result != 0) *result = RESULT(storageResult.status, status_code_is_success(storageResult.status) ? 0 : 0x17, 0x03, status_code_is_success(storageResult.status) ? 0 : storageResult.operation);
 }
 
@@ -641,8 +1048,13 @@ void catrl_stack_destroy(CATALYST_STACK* stack, CATALYST_RESULT* result) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x18, 0x01, 0);
         return;
     }
+    DETAIL_CODE fault = storage_fault(&stack->storage);
     RESULT storageResult;
     destroy_storage(stack, &stack->storage, &storageResult);
+    if (fault != 0 && !status_code_is_fatal(storageResult.status)) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x18, 0x03, fault);
+        return;
+    }
     if (result != 0) *result = RESULT(storageResult.status, status_code_is_success(storageResult.status) ? 0 : 0x18, 0x02, status_code_is_success(storageResult.status) ? 0 : storageResult.operation);
 }
 
@@ -651,26 +1063,29 @@ void catrl_stack_push(CATALYST_STACK* stack, const void* value, CATALYST_RESULT*
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x19, 0x01, 0);
         return;
     }
+    DETAIL_CODE fault = storage_fault(&stack->storage);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x19, 0x06, fault);
+        return;
+    }
     if (value == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x19, 0x02, 1);
         return;
     }
-    if (stack->storage.count == stack->storage.capacity) {
+    if (size_compare(&stack->storage.count, &stack->storage.capacity) == 0) {
         RESULT growthResult;
         if (!grow(&stack->storage, &growthResult)) {
             if (result != 0) *result = RESULT(growthResult.status, 0x19, 0x03, growthResult.operation);
             return;
         }
     }
-    {
-        RESULT copyResult;
-        catmm_copy(CATRL_ELEMENT_AT(&stack->storage, stack->storage.count), value, stack->storage.stride, &copyResult);
-        if (!status_code_is_success(copyResult.status)) {
-            if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x19, 0x04, copyResult.operation);
-            return;
-        }
+    RESULT copyResult;
+    catmm_copy(element_at(&stack->storage, &stack->storage.count), value, size_to_abi(&stack->storage.stride), &copyResult);
+    if (!status_code_is_success(copyResult.status)) {
+        if (result != 0) *result = RESULT(status_code_is_fatal(copyResult.status) ? copyResult.status : STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x19, 0x04, copyResult.operation);
+        return;
     }
-    stack->storage.count++;
+    size_increment(&stack->storage.count);
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
 }
 
@@ -679,23 +1094,27 @@ void catrl_stack_pop(CATALYST_STACK* stack, void* value, CATALYST_RESULT* result
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x1A, 0x01, 0);
         return;
     }
+    DETAIL_CODE fault = storage_fault(&stack->storage);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x1A, 0x06, fault);
+        return;
+    }
     if (value == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x1A, 0x02, 1);
         return;
     }
-    if (stack->storage.count == 0) {
+    if (size_zero(&stack->storage.count)) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_NOT_FOUND, 0x1A, 0x03, 0);
         return;
     }
-    {
-        RESULT copyResult;
-        catmm_copy(value, CATRL_ELEMENT_AT(&stack->storage, stack->storage.count - 1), stack->storage.stride, &copyResult);
-        if (!status_code_is_success(copyResult.status)) {
-            if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x1A, 0x04, copyResult.operation);
-            return;
-        }
+    catrl_size last = size_previous(&stack->storage.count);
+    RESULT copyResult;
+    catmm_copy(value, element_at(&stack->storage, &last), size_to_abi(&stack->storage.stride), &copyResult);
+    if (!status_code_is_success(copyResult.status)) {
+        if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x1A, 0x04, copyResult.operation);
+        return;
     }
-    stack->storage.count--;
+    stack->storage.count = last;
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
 }
 
@@ -704,21 +1123,25 @@ void catrl_stack_peek(const CATALYST_STACK* stack, void* value, CATALYST_RESULT*
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x1B, 0x01, 0);
         return;
     }
+    DETAIL_CODE fault = storage_fault(&stack->storage);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x1B, 0x06, fault);
+        return;
+    }
     if (value == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x1B, 0x02, 1);
         return;
     }
-    if (stack->storage.count == 0) {
+    if (size_zero(&stack->storage.count)) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_NOT_FOUND, 0x1B, 0x03, 0);
         return;
     }
-    {
-        RESULT copyResult;
-        catmm_copy(value, CATRL_ELEMENT_AT(&stack->storage, stack->storage.count - 1), stack->storage.stride, &copyResult);
-        if (!status_code_is_success(copyResult.status)) {
-            if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x1B, 0x04, copyResult.operation);
-            return;
-        }
+    catrl_size last = size_previous(&stack->storage.count);
+    RESULT copyResult;
+    catmm_copy(value, element_at(&stack->storage, &last), size_to_abi(&stack->storage.stride), &copyResult);
+    if (!status_code_is_success(copyResult.status)) {
+        if (result != 0) *result = RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x1B, 0x04, copyResult.operation);
+        return;
     }
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
 }
@@ -728,11 +1151,16 @@ void catrl_stack_count(const CATALYST_STACK* stack, CATALYST_NUINT* count, CATAL
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x1C, 0x01, 0);
         return;
     }
+    DETAIL_CODE fault = storage_fault(&stack->storage);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x1C, 0x04, fault);
+        return;
+    }
     if (count == 0) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x1C, 0x02, 1);
         return;
     }
-    *count = stack->storage.count;
+    *count = size_to_abi(&stack->storage.count);
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
 }
 
@@ -741,12 +1169,16 @@ void catrl_stack_clear(CATALYST_STACK* stack, CATALYST_RESULT* result) {
         if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x1D, 0x01, 0);
         return;
     }
-    if (stack->storage.count == 0) {
+    DETAIL_CODE fault = storage_fault(&stack->storage);
+    if (fault != 0) {
+        if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x1D, 0x04, fault);
+        return;
+    }
+    if (size_zero(&stack->storage.count)) {
         if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS_NOOP, 0, 0x02, 0);
         return;
     }
-    stack->storage.count = 0;
+    stack->storage.count = size_byte(0);
     if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
 }
 
-#undef CATRL_ELEMENT_AT

@@ -20,29 +20,22 @@ All four are opaque structures. Create returns a handle through a pointer-to-poi
 - Collections copy exactly the configured number of bytes. Pointers embedded in stored values are shallow copies; referenced resources remain caller-owned. Set and map key equality compares every byte, including padding. Supply consistent byte representations.
 - Inputs and outputs must not overlap. Provide buffers of the configured sizes; no typed alignment of internal bytes is promised.
 - Creation clears a non-null output handle before validating sizes or allocating. Any existing handle is replaced, not destroyed.
-- Query outputs are assigned only on success. Recoverable mutation failures leave logical contents unchanged. Set/map enumeration order is unspecified and can change on mutation.
+- Query outputs are assigned only on success or may be unspecified after a fatal failure. Recoverable mutation failures leave logical contents unchanged. Set/map enumeration order is unspecified and can change on mutation.
 - Clear retains capacity and does not securely erase bytes. Destroy consumes a valid handle even on cleanup failure. Foreign, stale or incorrectly typed handles are outside the contract. Concurrent access involving mutation or destruction requires external synchronization.
 
-## Storage results
+## Storage and results
 
-Context is always zero; operation and detail are zero unless specified. The following results apply to allocation, growth and release in addition to the function-specific results.
+CATRLLIB uses contiguous byte storage. Sizes, counts, indices and offsets are calculated byte-by-byte, with the pointer-width ABI preserved at public interfaces and address boundaries.
 
-| Status | Operation | Detail | Meaning |
-| --- | --- | --- | --- |
-| `ERROR_BUFFER_OVERFLOW` | 0 | 0 | Requested size or growth exceeds representable storage or CATMMLIB allocation limits. |
-| `ERROR_DEPENDENCY_FAILURE` | 1 | Dependency status | CATMMLIB allocation failed during creation. |
-| `ERROR_DEPENDENCY_FAILURE` | 2 | Dependency status | CATMMLIB reallocation failed during growth. |
-| `ERROR_DEPENDENCY_FAILURE` | 3 | Dependency status | CATMMLIB release failed during destruction or creation cleanup. |
-| `FATAL_INVARIANT_VIOLATION` | 2 | 0x81 (ERROR_INVALID_ARGUMENT) | Growth failed during a release; storage may no longer be usable. |
+Creation allocates a handle and, for nonempty arrays, element storage. Set, map and stack capacity grows as needed. Recoverable allocation or extent failures do not change logical contents. Detected invalid internal storage invariants produce fatal results; these checks do not validate arbitrary foreign pointers.
 
-Creation uses allocation and may need cleanup on failure; destruction releases both data and handle, reporting the first failed release. Growth errors apply to set insertion, new map associations and stack push. Underlying allocator overflow is reported directly as ERROR_BUFFER_OVERFLOW. A fatal growth failure is not a recoverable mutation error.
-
+Each reporting method has its own context ID, and each reporting site has its own operation ID. Success-level results have zero context. The [CATRLLIB API Reference](../api-reference/catrllib/index.md) defines the exact result values, including allocation, growth and cleanup failures.
 
 ## API export definitions
 
-`CATRLLIB_API` expands to `__declspec(dllexport)` on Windows/Cygwin when `CATRLLIB_EXPORTS` is defined, or `__declspec(dllimport)` when `CATRLLIB_USE_DLL` is defined. Otherwise it is empty.
+See [`CATRLLIB_API`](../api-reference/catrllib/index.md#catrllib_api) in the API reference.
 
-## Reference
+## Collection guides
 
 - [Array](array/index.md)
 - [Set](set/index.md)

@@ -18,7 +18,7 @@ static void print_result(const char* label, const RESULT& result) {
 int main() {
     RESULT result;
     NUINT count = 0;
-    NUINT value = 0;
+    BYTE value = 0;
     BOOL contains = FALSE;
 
     printf("CATRLTEST :: Starting relational collection tests...\n");
@@ -28,7 +28,7 @@ int main() {
      * --------------------------------------------------------------------------------------------- */
 
     ARRAY* array = 0;
-    array_create(&array, sizeof(NUINT), 8, &result);
+    array_create(&array, sizeof(BYTE), 8, &result);
     print_result("array create", result);
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x00 || result.operation != 0x03 || result.detail != 0x00 || array == 0) {
         printf("FAIL: array create\n");
@@ -40,7 +40,7 @@ int main() {
         printf("FAIL: array length\n");
         return 2;
     }
-    for (NUINT i = 0; i < 8; i++) {
+    for (BYTE i = 0; i < 8; i++) {
         value = 99;
         array_get(array, i, &value, &result);
         print_result("array initial value", result);
@@ -56,7 +56,7 @@ int main() {
             return 4;
         }
     }
-    for (NUINT i = 0; i < 8; i++) {
+    for (BYTE i = 0; i < 8; i++) {
         array_get(array, i, &value, &result);
         print_result("array get", result);
         if (result.status != STATUS_CODE_SUCCESS || result.context != 0x00 || result.operation != 0x05 || result.detail != 0x00 || value != i + 10) {
@@ -78,7 +78,7 @@ int main() {
         return 7;
     }
     array = 0;
-    array_create(&array, sizeof(NUINT), 0, &result);
+    array_create(&array, sizeof(BYTE), 0, &result);
     print_result("empty array create", result);
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x00 || result.operation != 0x03 || result.detail != 0x00 || array == 0) {
         printf("FAIL: empty array create\n");
@@ -103,13 +103,13 @@ int main() {
      * --------------------------------------------------------------------------------------------- */
 
     SET* set = 0;
-    set_create(&set, sizeof(NUINT), &result);
+    set_create(&set, sizeof(BYTE), &result);
     print_result("set create", result);
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x00 || result.operation != 0x03 || result.detail != 0x00 || set == 0) {
         printf("FAIL: set create\n");
         return 11;
     }
-    for (NUINT i = 0; i < 8; i++) {
+    for (BYTE i = 0; i < 8; i++) {
         set_add(set, &i, &result);
         print_result("set add", result);
         if (result.status != STATUS_CODE_SUCCESS || result.context != 0x00 || result.operation != 0x07 || result.detail != 0x00) {
@@ -136,15 +136,15 @@ int main() {
         printf("FAIL: set contains\n");
         return 15;
     }
-    NUINT seen = 0;
-    for (NUINT i = 0; i < count; i++) {
+    BYTE seen = 0;
+    for (BYTE i = 0; i < count; i++) {
         set_at(set, i, &value, &result);
         print_result("set enumerate", result);
-        if (result.status != STATUS_CODE_SUCCESS || result.context != 0x00 || result.operation != 0x05 || result.detail != 0x00 || value >= 8 || (seen & ((NUINT) 1 << value)) != 0) {
+        if (result.status != STATUS_CODE_SUCCESS || result.context != 0x00 || result.operation != 0x05 || result.detail != 0x00 || value >= 8 || (seen & ((BYTE) 1 << value)) != 0) {
             printf("FAIL: set enumerate\n");
             return 16;
         }
-        seen |= (NUINT) 1 << value;
+        seen |= (BYTE) 1 << value;
     }
     value = 3;
     set_remove(set, &value, &result);
@@ -215,7 +215,7 @@ int main() {
 
     MAP* map = 0;
     BYTE key = 0;
-    map_create(&map, sizeof(BYTE), sizeof(NUINT), &result);
+    map_create(&map, sizeof(BYTE), sizeof(BYTE), &result);
     print_result("map create", result);
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x00 || result.operation != 0x05 || result.detail != 0x00 || map == 0) {
         printf("FAIL: map create\n");
@@ -231,7 +231,7 @@ int main() {
         }
     }
     key = 3;
-    value = 999;
+    value = 199;
     map_set(map, &key, &value, &result);
     print_result("map replace", result);
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x00 || result.operation != 0x08 || result.detail != 0x00) {
@@ -241,7 +241,7 @@ int main() {
     value = 0;
     map_get(map, &key, &value, &result);
     print_result("map get replaced", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x00 || result.operation != 0x07 || result.detail != 0x00 || value != 999) {
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x00 || result.operation != 0x07 || result.detail != 0x00 || value != 199) {
         printf("FAIL: map get replaced\n");
         return 30;
     }
@@ -258,14 +258,14 @@ int main() {
         return 32;
     }
     seen = 0;
-    for (NUINT i = 0; i < count; i++) {
+    for (BYTE i = 0; i < count; i++) {
         map_at(map, i, &key, &value, &result);
         print_result("map enumerate", result);
-        if (result.status != STATUS_CODE_SUCCESS || result.context != 0x00 || result.operation != 0x07 || result.detail != 0x00 || key >= 8 || (seen & ((NUINT) 1 << key)) != 0 || value != (key == 3 ? 999 : (NUINT) key + 100)) {
+        if (result.status != STATUS_CODE_SUCCESS || result.context != 0x00 || result.operation != 0x07 || result.detail != 0x00 || key >= 8 || (seen & ((BYTE) 1 << key)) != 0 || value != (key == 3 ? 199 : (BYTE) (key + 100))) {
             printf("FAIL: map enumerate\n");
             return 33;
         }
-        seen |= (NUINT) 1 << key;
+        seen |= (BYTE) 1 << key;
     }
     key = 3;
     map_remove(map, &key, &result);
@@ -343,7 +343,7 @@ int main() {
      * --------------------------------------------------------------------------------------------- */
 
     STACK* stack = 0;
-    stack_create(&stack, sizeof(NUINT), &result);
+    stack_create(&stack, sizeof(BYTE), &result);
     print_result("stack create", result);
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x00 || result.operation != 0x03 || result.detail != 0x00 || stack == 0) {
         printf("FAIL: stack create\n");
@@ -362,7 +362,7 @@ int main() {
         printf("FAIL: stack empty peek\n");
         return 47;
     }
-    for (NUINT i = 0; i < 8; i++) {
+    for (BYTE i = 0; i < 8; i++) {
         stack_push(stack, &i, &result);
         print_result("stack push", result);
         if (result.status != STATUS_CODE_SUCCESS || result.context != 0x00 || result.operation != 0x05 || result.detail != 0x00) {
@@ -388,7 +388,7 @@ int main() {
         printf("FAIL: stack count after peek\n");
         return 51;
     }
-    for (NUINT i = 8; i != 0; i--) {
+    for (BYTE i = 8; i != 0; i--) {
         stack_pop(stack, &value, &result);
         print_result("stack pop", result);
         if (result.status != STATUS_CODE_SUCCESS || result.context != 0x00 || result.operation != 0x05 || result.detail != 0x00 || value != i - 1) {
@@ -480,6 +480,7 @@ int main() {
     }
 
     // Growth fails before touching the element when allocator extent overflows.
+    // This deliberately probes the failure path before a maximum-size payload could be read.
     set = 0;
     set_create(&set, CATALYST_NUINT_MAX, &result);
     if (set == 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x03 || result.detail != 0) return 65;
@@ -489,6 +490,77 @@ int main() {
     if (count != 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x03 || result.detail != 0) return 67;
     set_destroy(set, &result);
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x02 || result.detail != 0) return 68;
+
+    // Null results discard diagnostics without changing the operation.
+    BYTE item = 0xA5;
+    array_create(&array, 1, 1, 0);
+    if (array == 0) return 69;
+    array_set(array, 0, &item, 0);
+    value = 0;
+    array_get(array, 0, &value, 0);
+    if (value != item) return 70;
+    array_destroy(array, 0);
+
+    // Validate remaining argument positions and leave output values unchanged.
+    array_create(&array, 1, 1, &result);
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x03 || result.detail != 0) return 71;
+    array_get(array, 0, 0, &result);
+    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x03 || result.operation != 0x03 || result.detail != 2) return 72;
+    array_set(array, 1, &item, &result);
+    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x04 || result.operation != 0x02 || result.detail != 1) return 73;
+    array_destroy(array, &result);
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x02 || result.detail != 0) return 74;
+
+    map_create(&map, 1, 0, &result);
+    if (map != 0 || result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0E || result.operation != 0x03 || result.detail != 2) return 75;
+
+#if TARGET_SIZEOF_VOID_P > 1
+    // The 17th 17-byte element crosses an eight-bit offset boundary.
+    BYTE wide[17] = {0};
+    BYTE readback[17] = {0};
+    wide[0] = 0x12;
+    wide[16] = 0x34;
+    array_create(&array, 17, 17, &result);
+    if (array == 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x03 || result.detail != 0) return 76;
+    array_set(array, 16, wide, &result);
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x05 || result.detail != 0) return 77;
+    array_get(array, 16, readback, &result);
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x05 || result.detail != 0 || readback[0] != 0x12 || readback[16] != 0x34) return 78;
+    array_destroy(array, &result);
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x02 || result.detail != 0) return 79;
+
+    // A map's combined key/value extent crosses an eight-bit carry boundary.
+    BYTE largeKey[255] = {0};
+    BYTE largeValue[2] = {0x56, 0x78};
+    BYTE largeReadback[2] = {0};
+    largeKey[254] = 0x9A;
+    map_create(&map, 255, 2, &result);
+    if (map == 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x05 || result.detail != 0) return 80;
+    map_set(map, largeKey, largeValue, &result);
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x08 || result.detail != 0) return 81;
+    map_get(map, largeKey, largeReadback, &result);
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x07 || result.detail != 0 || largeReadback[0] != 0x56 || largeReadback[1] != 0x78) return 82;
+    map_destroy(map, &result);
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x02 || result.detail != 0) return 83;
+
+    // Exercise count carry/borrow and growth over 255 elements.
+    stack_create(&stack, 1, &result);
+    if (stack == 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x03 || result.detail != 0) return 84;
+    for (BYTE pass = 0; pass < 2; ++pass) {
+        for (BYTE i = 0; i < 128; ++i) {
+            stack_push(stack, &item, &result);
+            if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x05 || result.detail != 0) return 85;
+        }
+    }
+    stack_count(stack, &count, &result);
+    if (count != 256 || result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x03 || result.detail != 0) return 86;
+    stack_pop(stack, &value, &result);
+    if (value != item || result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x05 || result.detail != 0) return 87;
+    stack_count(stack, &count, &result);
+    if (count != 255 || result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x03 || result.detail != 0) return 88;
+    stack_destroy(stack, &result);
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x02 || result.detail != 0) return 89;
+#endif
 
     printf("CATRLTEST :: All relational collection tests passed. 🔥\n");
 
