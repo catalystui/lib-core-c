@@ -71,7 +71,7 @@ jobs:
           $patch = [regex]::Match($header, '#define METADATA_VERSION_PATCH (\d+)').Groups[1].Value
           $abi = "$major.$minor"
           $version = "$abi.$patch"
-          $output = 'build/linux/linux/${{ matrix.arch }}'
+          $output = 'build/linux/linux/${{ matrix.arch }}/release/lib'
           foreach ($name in 'catmm', 'catte', 'catrl') {
             $base = "lib$name"
             $linker = "$base.so"
@@ -91,8 +91,14 @@ jobs:
       - name: Run memory tests
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          cmake --build target/ci --parallel --target test_catmmlib
-          & 'build/linux/linux/${{ matrix.arch }}/test/test_catmmlib'
+          cmake --build target/ci --parallel --target test_catmmlib test_cattelib test_catrllib
+          $output = 'build/linux/linux/${{ matrix.arch }}/release'
+          foreach ($name in 'test_catmmlib', 'test_cattelib', 'test_catrllib') {
+            if (!(Test-Path "$output/$name" -PathType Leaf)) {
+              throw "Missing top-level test executable $name"
+            }
+          }
+          & "$output/test_catmmlib"
 
       - name: Compile public C headers
         run: |
