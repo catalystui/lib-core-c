@@ -98,17 +98,19 @@ Allocates `size` zero-filled bytes and stores the address in `*memory`. The outp
 
 `result` — Optional result output.
 
+**Context:** `0x01`
+
 **Results:**
 
-| Result | Status | Context | Operation | Detail |
-| --- | --- | --- | --- | --- |
-| `0x00000700` | `SUCCESS` | — | Allocate payload | — |
-| `0x81010100` | `ERROR_INVALID_ARGUMENT` | `0x01` (catmm_alloc) | Validate `memory` | Argument 0 (`memory`) |
-| `0x81010201` | `ERROR_INVALID_ARGUMENT` | `0x01` (catmm_alloc) | Validate `size` | Argument 1 (`size`) |
-| `0x820103DD` | `ERROR_INVALID_STATE` | `0x01` (catmm_alloc) | Query page size (Linux) | Linux `errno` if 1–255, otherwise zero. |
-| `0x90010400` | `ERROR_BUFFER_OVERFLOW` | `0x01` (catmm_alloc) | Check header plus payload extent | — |
-| `0x90010500` | `ERROR_BUFFER_OVERFLOW` | `0x01` (catmm_alloc) | Check page rounding (Linux) | — |
-| `0x910106DD` | `ERROR_ALLOCATION_FAILED` | `0x01` (catmm_alloc) | Allocate native memory | Linux `errno` if 1–255, otherwise zero; zero on Windows/Darwin. |
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x00000700` | `SUCCESS` | Allocate payload | — |
+| `0x81010100` | `ERROR_INVALID_ARGUMENT` | Validate `memory` | Argument 0 (`memory`) |
+| `0x81010201` | `ERROR_INVALID_ARGUMENT` | Validate `size` | Argument 1 (`size`) |
+| `0x820103DD` | `ERROR_INVALID_STATE` | Query page size (Linux) | Linux `errno` if 1–255, otherwise zero. |
+| `0x90010400` | `ERROR_BUFFER_OVERFLOW` | Check header plus payload extent | — |
+| `0x90010500` | `ERROR_BUFFER_OVERFLOW` | Check page rounding (Linux) | — |
+| `0x910106DD` | `ERROR_ALLOCATION_FAILED` | Allocate native memory | Linux `errno` if 1–255, otherwise zero; zero on Windows/Darwin. |
 
 **C++:** `catalyst::alloc(void** memory, NUINT size, RESULT* result)`.
 
@@ -135,26 +137,28 @@ On replacement allocation or old-block release failure, the pointer value is unc
 
 `result` — Optional result output.
 
+**Context:** `0x02`
+
 **Results:**
 
-| Result | Status | Context | Operation | Detail |
-| --- | --- | --- | --- | --- |
-| `0x00000200` | `SUCCESS` | — | Allocate when `*memory` is null | — |
-| `0x00000300` | `SUCCESS` | — | Release when `size` is zero | — |
-| `0x00000700` | `SUCCESS` | — | Replace allocation | — |
-| `0x81020100` | `ERROR_INVALID_ARGUMENT` | `0x02` (catmm_realloc) | Validate `memory` | Argument 0 (`memory`) |
-| `0x81020201` | `ERROR_INVALID_ARGUMENT` | `0x02` (catmm_realloc) | Allocate when `*memory` is null | Argument 1 (`size`) |
-| `0x82020203` | `ERROR_INVALID_STATE` | `0x02` (catmm_realloc) | Allocate when `*memory` is null | `catmm_alloc` operation `0x03`: Query page size (Linux) |
-| `0x82020302` | `ERROR_INVALID_STATE` | `0x02` (catmm_realloc) | Release when `size` is zero | `catmm_free` operation `0x02`: native release failed. |
-| `0x82020403` | `ERROR_INVALID_STATE` | `0x02` (catmm_realloc) | Allocate replacement | `catmm_alloc` operation `0x03`: Query page size (Linux) |
-| `0x82020602` | `ERROR_INVALID_STATE` | `0x02` (catmm_realloc) | Release old allocation | `catmm_free` operation `0x02`: native release failed; replacement released. |
-| `0x90020204` | `ERROR_BUFFER_OVERFLOW` | `0x02` (catmm_realloc) | Allocate when `*memory` is null | `catmm_alloc` operation `0x04`: Check header plus payload extent |
-| `0x90020205` | `ERROR_BUFFER_OVERFLOW` | `0x02` (catmm_realloc) | Allocate when `*memory` is null | `catmm_alloc` operation `0x05`: Check page rounding (Linux) |
-| `0x90020404` | `ERROR_BUFFER_OVERFLOW` | `0x02` (catmm_realloc) | Allocate replacement | `catmm_alloc` operation `0x04`: Check header plus payload extent |
-| `0x90020405` | `ERROR_BUFFER_OVERFLOW` | `0x02` (catmm_realloc) | Allocate replacement | `catmm_alloc` operation `0x05`: Check page rounding (Linux) |
-| `0x91020206` | `ERROR_ALLOCATION_FAILED` | `0x02` (catmm_realloc) | Allocate when `*memory` is null | `catmm_alloc` operation `0x06`: Allocate native memory |
-| `0x91020406` | `ERROR_ALLOCATION_FAILED` | `0x02` (catmm_realloc) | Allocate replacement | `catmm_alloc` operation `0x06`: Allocate native memory |
-| `0xC1020502` | `FATAL_INVARIANT_VIOLATION` | `0x02` (catmm_realloc) | Release replacement after old-block release failed | `catmm_free` operation `0x02`: cleanup failed. |
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x00000200` | `SUCCESS` | Allocate when `*memory` is null | — |
+| `0x00000300` | `SUCCESS` | Release when `size` is zero | — |
+| `0x00000700` | `SUCCESS` | Replace allocation | — |
+| `0x81020100` | `ERROR_INVALID_ARGUMENT` | Validate `memory` | Argument 0 (`memory`) |
+| `0x81020201` | `ERROR_INVALID_ARGUMENT` | Allocate when `*memory` is null | Argument 1 (`size`) |
+| `0x82020203` | `ERROR_INVALID_STATE` | Allocate when `*memory` is null | `catmm_alloc` operation `0x03`: Query page size (Linux) |
+| `0x82020302` | `ERROR_INVALID_STATE` | Release when `size` is zero | `catmm_free` operation `0x02`: native release failed. |
+| `0x82020403` | `ERROR_INVALID_STATE` | Allocate replacement | `catmm_alloc` operation `0x03`: Query page size (Linux) |
+| `0x82020602` | `ERROR_INVALID_STATE` | Release old allocation | `catmm_free` operation `0x02`: native release failed; replacement released. |
+| `0x90020204` | `ERROR_BUFFER_OVERFLOW` | Allocate when `*memory` is null | `catmm_alloc` operation `0x04`: Check header plus payload extent |
+| `0x90020205` | `ERROR_BUFFER_OVERFLOW` | Allocate when `*memory` is null | `catmm_alloc` operation `0x05`: Check page rounding (Linux) |
+| `0x90020404` | `ERROR_BUFFER_OVERFLOW` | Allocate replacement | `catmm_alloc` operation `0x04`: Check header plus payload extent |
+| `0x90020405` | `ERROR_BUFFER_OVERFLOW` | Allocate replacement | `catmm_alloc` operation `0x05`: Check page rounding (Linux) |
+| `0x91020206` | `ERROR_ALLOCATION_FAILED` | Allocate when `*memory` is null | `catmm_alloc` operation `0x06`: Allocate native memory |
+| `0x91020406` | `ERROR_ALLOCATION_FAILED` | Allocate replacement | `catmm_alloc` operation `0x06`: Allocate native memory |
+| `0xC1020502` | `FATAL_INVARIANT_VIOLATION` | Release replacement after old-block release failed | `catmm_free` operation `0x02`: cleanup failed. |
 
 If the allocation pointer is null and the requested size is zero, the delegated allocation reports argument 1 as invalid.
 
@@ -178,13 +182,15 @@ Releases a live CATMMLIB allocation at its original payload address. The caller'
 
 `result` — Optional result output.
 
+**Context:** `0x03`
+
 **Results:**
 
-| Result | Status | Context | Operation | Detail |
-| --- | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | — | Release allocation | — |
-| `0x81030100` | `ERROR_INVALID_ARGUMENT` | `0x03` (catmm_free) | Validate `memory` | Argument 0 (`memory`) |
-| `0x820302DD` | `ERROR_INVALID_STATE` | `0x03` (catmm_free) | Release native memory | Linux `errno` if 1–255, otherwise zero; zero on Windows/Darwin. |
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x00000300` | `SUCCESS` | Release allocation | — |
+| `0x81030100` | `ERROR_INVALID_ARGUMENT` | Validate `memory` | Argument 0 (`memory`) |
+| `0x820302DD` | `ERROR_INVALID_STATE` | Release native memory | Linux `errno` if 1–255, otherwise zero; zero on Windows/Darwin. |
 
 No payload access guarantee after release failure.
 
@@ -216,14 +222,16 @@ Copies `size` bytes from `source` to `destination`. The regions must not overlap
 
 `result` — Optional result output.
 
+**Context:** `0x04`
+
 **Results:**
 
-| Result | Status | Context | Operation | Detail |
-| --- | --- | --- | --- | --- |
-| `0x00000400` | `SUCCESS` | — | Copy bytes | — |
-| `0x01000300` | `SUCCESS_NOOP` | — | Skip zero-size operation or identical addresses | — |
-| `0x81040100` | `ERROR_INVALID_ARGUMENT` | `0x04` (catmm_copy) | Validate `destination` | Argument 0 (`destination`) |
-| `0x81040201` | `ERROR_INVALID_ARGUMENT` | `0x04` (catmm_copy) | Validate `source` | Argument 1 (`source`) |
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x00000400` | `SUCCESS` | Copy bytes | — |
+| `0x01000300` | `SUCCESS_NOOP` | Skip zero-size operation or identical addresses | — |
+| `0x81040100` | `ERROR_INVALID_ARGUMENT` | Validate `destination` | Argument 0 (`destination`) |
+| `0x81040201` | `ERROR_INVALID_ARGUMENT` | Validate `source` | Argument 1 (`source`) |
 
 **C++:** `catalyst::copy(void* destination, const void* source, NUINT size, RESULT* result)`.
 
@@ -251,14 +259,16 @@ Copies `size` bytes from `source` to `destination`, preserving the original sour
 
 `result` — Optional result output.
 
+**Context:** `0x05`
+
 **Results:**
 
-| Result | Status | Context | Operation | Detail |
-| --- | --- | --- | --- | --- |
-| `0x00000400` | `SUCCESS` | — | Move bytes | — |
-| `0x01000300` | `SUCCESS_NOOP` | — | Skip zero-size operation or identical addresses | — |
-| `0x81050100` | `ERROR_INVALID_ARGUMENT` | `0x05` (catmm_move) | Validate `destination` | Argument 0 (`destination`) |
-| `0x81050201` | `ERROR_INVALID_ARGUMENT` | `0x05` (catmm_move) | Validate `source` | Argument 1 (`source`) |
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x00000400` | `SUCCESS` | Move bytes | — |
+| `0x01000300` | `SUCCESS_NOOP` | Skip zero-size operation or identical addresses | — |
+| `0x81050100` | `ERROR_INVALID_ARGUMENT` | Validate `destination` | Argument 0 (`destination`) |
+| `0x81050201` | `ERROR_INVALID_ARGUMENT` | Validate `source` | Argument 1 (`source`) |
 
 **C++:** `catalyst::move(void* destination, const void* source, NUINT size, RESULT* result)`.
 
@@ -289,14 +299,16 @@ Compares `size` unsigned bytes lexicographically and writes −1, 0, or 1 to `*c
 
 `result` — Optional result output.
 
+**Context:** `0x06`
+
 **Results:**
 
-| Result | Status | Context | Operation | Detail |
-| --- | --- | --- | --- | --- |
-| `0x00000400` | `SUCCESS` | — | Write comparison | — |
-| `0x81060100` | `ERROR_INVALID_ARGUMENT` | `0x06` (catmm_compare) | Validate `first` | Argument 0 (`first`) |
-| `0x81060201` | `ERROR_INVALID_ARGUMENT` | `0x06` (catmm_compare) | Validate `second` | Argument 1 (`second`) |
-| `0x81060303` | `ERROR_INVALID_ARGUMENT` | `0x06` (catmm_compare) | Validate `comparison` | Argument 3 (`comparison`) |
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x00000400` | `SUCCESS` | Write comparison | — |
+| `0x81060100` | `ERROR_INVALID_ARGUMENT` | Validate `first` | Argument 0 (`first`) |
+| `0x81060201` | `ERROR_INVALID_ARGUMENT` | Validate `second` | Argument 1 (`second`) |
+| `0x81060303` | `ERROR_INVALID_ARGUMENT` | Validate `comparison` | Argument 3 (`comparison`) |
 
 Invalid arguments leave the comparison output unchanged.
 
@@ -326,13 +338,15 @@ Fills the `size`-byte region at `memory` with `value`.
 
 `result` — Optional result output.
 
+**Context:** `0x07`
+
 **Results:**
 
-| Result | Status | Context | Operation | Detail |
-| --- | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | — | Fill bytes | — |
-| `0x01000200` | `SUCCESS_NOOP` | — | Skip zero-size fill | — |
-| `0x81070100` | `ERROR_INVALID_ARGUMENT` | `0x07` (catmm_set) | Validate `memory` | Argument 0 (`memory`) |
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x00000300` | `SUCCESS` | Fill bytes | — |
+| `0x01000200` | `SUCCESS_NOOP` | Skip zero-size fill | — |
+| `0x81070100` | `ERROR_INVALID_ARGUMENT` | Validate `memory` | Argument 0 (`memory`) |
 
 **C++:** `catalyst::set(void* memory, BYTE value, NUINT size, RESULT* result)`.
 
