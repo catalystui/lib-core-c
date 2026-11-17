@@ -75,7 +75,7 @@ Every Core library MUST be implementable and usable on an 8-bit system.
 ## Build and verification
 
 - Preserve shared CMake infrastructure, `cmakecfg.h`, and static/shared targets. Initialize `cmake` submodule recursively; use existing presets. Do not change submodule, build configuration, or CI to work around code issues without approval.
-- Executables/tests go directly in `debug/` or `release/`; all library artifacts and symlinks go in its flat `lib/` directory. No separate test/import-library directory. Preserve formal library names, headers, and CMake targets; artifact bases: `catmm`, `catte`, `catrl`. Shared `build-cmake` owns naming/versioning, derived from project metadata.
+- Runtime binaries (executables/tests, Windows DLLs, Unix versioned shared libraries and ABI aliases) go directly in `debug/` or `release/`; development linker inputs (static archives, Windows import libraries and unversioned Unix linker aliases) go in its flat `lib/` directory. Unix runtime dependencies resolve relative to the binary; development aliases point to the runtime ABI aliases. No separate test/import-library directory. Preserve formal library names, headers, and CMake targets; artifact bases: `catmm`, `catte`, `catrl`. Shared `build-cmake` owns naming/versioning, derived from project metadata.
 - Example v1.5.2 (`catmm`):
   - MSVC: `libcatmm.lib`, `catmm.lib`, `catmm15.dll` (full version in DLL resource).
   - Linux: `libcatmm.a`, `libcatmm.so`, `libcatmm.so.1.5`, `libcatmm.so.1.5.2`.

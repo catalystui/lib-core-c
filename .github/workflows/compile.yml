@@ -71,20 +71,26 @@ jobs:
           $patch = [regex]::Match($header, '#define METADATA_VERSION_PATCH (\d+)').Groups[1].Value
           $abi = "$major.$minor"
           $version = "$abi.$patch"
-          $output = 'build/linux/linux/${{ matrix.arch }}/release/lib'
+          $output = 'build/linux/linux/${{ matrix.arch }}/release'
           foreach ($name in 'catmm', 'catte', 'catrl') {
             $base = "lib$name"
             $linker = "$base.so"
             $soname = "$linker.$abi"
             $binary = "$linker.$version"
-            if (!(Test-Path "$output/$base.a" -PathType Leaf) -or !(Test-Path "$output/$binary" -PathType Leaf)) {
+            if (!(Test-Path "$output/lib/$base.a" -PathType Leaf) -or !(Test-Path "$output/$binary" -PathType Leaf)) {
               throw "Missing static or shared artifact for $name"
             }
-            if ((readlink "$output/$linker") -ne $soname -or (readlink "$output/$soname") -ne $binary) {
+            if ((readlink "$output/lib/$linker") -ne "../$soname" -or (readlink "$output/$soname") -ne $binary) {
               throw "Incorrect symbolic links for $name"
             }
             if (!(readelf -d "$output/$binary" | Select-String -SimpleMatch "[$soname]")) {
               throw "Incorrect embedded SONAME for $name"
+            }
+            if (!(readelf -d "$output/$binary" | Select-String -SimpleMatch '[$ORIGIN]')) {
+              throw "Incorrect runtime search path for $name"
+            }
+            if (Test-Path "$output/$linker") {
+              throw "Unexpected top-level development linker alias for $name"
             }
           }
 
@@ -99,6 +105,17 @@ jobs:
             }
           }
           & "$output/test_catmmlib"
+
+      - name: Verify relocatable shared-library runtime
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $output = 'build/linux/linux/${{ matrix.arch }}/release'
+          g++ ${{ matrix.flags }} -std=c++${{ matrix.cpp }} -Iinclude -Itarget/ci/generated test/test_catrllib.cpp "-L$output/lib" -lcatrl -lcatmm '-Wl,-rpath,$ORIGIN' -o "$output/test_catrllib_dynamic"
+          $runtime = 'target/ci/runtime-check'
+          New-Item -ItemType Directory -Path $runtime -Force | Out-Null
+          Get-ChildItem "$output/lib*.so.*" | ForEach-Object { /bin/cp -P $_.FullName "$runtime/" }
+          Copy-Item "$output/test_catrllib_dynamic" "$runtime/"
+          & "$runtime/test_catrllib_dynamic"
 
       - name: Compile public C headers
         run: |
