@@ -1,96 +1,92 @@
 # AGENTS.md
 
-These instructions apply to the entire repository and establish the architectural requirements for CatalystUI Core. Follow them for all development, including tests, documentation, and build changes.
+Repository-wide requirements for CatalystUI Core, including implementation, documentation, tests, and builds.
 
 ## Authority and scope
 
-- CatalystUI Core provides foundational, language-independent C ABI libraries based on the Foundational Definitions Specification (FDEFSPEC). It is not tied to any particular CatalystUI layer, domain, operating system, or programming language.
-- The project owner defines the architecture, specifications, and requirements. Implement them faithfully; do not invent new contracts or reinterpret existing ones for convenience.
-- Before modifying any existing foundational implementation, API, data representation, or behavior, explain the proposed change, its necessity, and its consequences to the owner and obtain explicit approval. This includes bug fixes, refactors, signature changes, and adding utility or conversion functions to existing code. An approved task authorizes only the changes explicitly covered by that task.
-- In particular, do not change the numeric definitions, Codepoint, Text Encoding, or Operation Status systems, or add helpers to them, merely to make a new implementation easier. Stop and ask first. Do not silently bypass this rule with a different wrapper or helper.
-- Prefer simple, direct, explicit implementations. Avoid speculative abstractions, unnecessary dependencies, convenience APIs, duplicated algorithms, or unrelated cleanup. Keep changes narrowly scoped.
-- `README.md` is for human readers only. Do not use it as development context or modify it unless explicitly requested. Use the specifications, headers, implementation, API reference, and tests instead.
+- Core provides foundational, language-independent C ABI libraries based on FDEFSPEC (Foundational Definitions Specification), independent of CatalystUI layers, domains, operating systems, and languages.
+- The owner defines architecture and contracts. Do not invent or reinterpret them. Before changing existing foundational code, APIs, representations, or behavior (including fixes, refactors, signatures, and new helpers), explain the change, necessity, and consequences and obtain explicit approval. Approval covers only the requested scope.
+- Never modify or bypass Numeric Definitions, Codepoint, Text Encoding, or Operation Status to simplify another implementation without approval.
+- Prefer simple, direct, explicit code; avoid speculative abstractions, unnecessary dependencies, convenience APIs, duplicated algorithms, and unrelated cleanup.
+- `README.md` is for humans only; neither use it as development context nor edit it without explicit request. Consult specifications, headers, implementations, references, and tests.
 
 ## Mandatory 8-bit compatibility
 
-Every Core library MUST be implementable and usable on an 8-bit system. This is a foundational invariant, not an optimization preference.
+Every Core library MUST be implementable and usable on an 8-bit system.
 
-- No operation may require a native integer wider than eight bits. Perform all arithmetic exclusively using bytes; this applies to intermediate values as well as inputs and outputs.
-- Use `CATALYST_BYTE` / `BYTE` (or `CATALYST_SBYTE` / `SBYTE` where signed byte semantics are required). Represent wider logical values using explicitly ordered bytes. Implement carry, borrow, shifts, comparisons, multiplication, division, and overflow detection byte-by-byte as needed. Mask before shifting and do not depend on a widened intermediate to preserve a carry.
-- Never pack bytes into a native 16-, 32-, or 64-bit integer to calculate, compare, shift, encode, decode, or otherwise manipulate a value. Do not hide wider arithmetic behind casts, unions, pointer reinterpretation, intrinsic functions, library calls, or conditional fast paths. No native floating-point arithmetic is required for a Core algorithm.
-- C and C++ integer promotions are a language detail, not permission to rely on a wider mathematical range. Write byte operations whose correctness requires no arithmetic capability beyond eight bits.
-- Preserve explicit byte order. Do not assume host endianness, alignment, pointer width, or the layout of native integers. Do not serialize a native struct or integer as a substitute for a specified byte representation.
-- The byte-oriented Codepoint and Text Encoding algorithms in `src/cattelib.cpp` are the reference: `CATALYST_CODEPOINT` has four most-significant-byte-first fields (`byte0` through `byte3`), and `CATALYST_UTF16LE_CODE_UNIT` has `lsb` followed by `msb`. A four-byte codepoint does not require 32-bit arithmetic.
-- Existing native-width types `CATALYST_NINT` and `CATALYST_NUINT` follow configured pointer width (including one-byte pointers). Preserve their existing ABI for addresses, addressable sizes, counts, and indices; never assume a minimum width greater than eight bits or use them to circumvent byte-only arithmetic. Where existing size/address calculations use native arithmetic, flag the conflict and seek approval before changing the established contract or implementation.
-- Optional wider numeric representations already defined by the specification are not prerequisites for Core operations. Respect the existing `CATALYST_SUPPORTS_*` guards; do not expand their use or introduce new native-width conversion utilities.
-- The original guarded C++ native-integer constructors, assignments, and conversions are optional language conveniences, not precedent for new Core algorithms. Do not use them in Core implementations or expand them without approval.
-- Native platform API types may be unavoidable at a platform boundary; keep such types confined to the platform-specific backend and do not make them a requirement of portable Core code. Ask the owner before introducing a new exception or resolving a conflict with byte-only arithmetic.
+- All arithmetic, including intermediates, must require at most eight bits. Use `CATALYST_BYTE` / `BYTE` or `CATALYST_SBYTE` / `SBYTE`; represent larger logical values as ordered bytes. Implement carry, borrow, shifts, comparisons, multiplication, division, and overflow checks byte-by-byte; mask before shifting. Never rely on widened intermediates, including implicit C/C++ integer promotions.
+- Never pack bytes into native wider integers for computation, comparison, shifts, encoding, or decoding, even through casts, unions, reinterpretation, intrinsics, library calls, or conditional fast paths. Core algorithms must not require native floating-point arithmetic.
+- Preserve explicit byte order; assume no host endianness, alignment, pointer width, or native integer layout. Never serialize native structs/integers in place of specified byte representations.
+- Reference: `src/cattelib.cpp` implements Codepoint and Text Encoding byte-wise. `CATALYST_CODEPOINT` uses MSB-first `byte0`–`byte3`; `CATALYST_UTF16LE_CODE_UNIT` uses `lsb`, then `msb`.
+- Preserve the pointer-width ABI of `CATALYST_NINT` / `CATALYST_NUINT` for addresses, addressable sizes, counts, and indices, including one-byte pointers. Never use them to bypass byte arithmetic or assume a wider minimum. Report existing native-width arithmetic conflicts and obtain approval before changing them.
+- Wider numeric types and existing guarded C++ native-integer constructors, assignments, and conversions are optional conveniences, not algorithm prerequisites. Preserve `CATALYST_SUPPORTS_*` guards; do not use these conveniences in Core algorithms, extend them, or add native conversion helpers without approval.
+- Confine unavoidable native platform API types to platform backends. Obtain approval for new exceptions or resolutions of byte-arithmetic conflicts.
 
 ## Language and ABI
 
-- Maintain C90-compatible public C headers and C++98-compatible implementations and wrappers. Newer standards may be supported through the existing feature guards; do not require them.
-- Preserve the C ABI: public declarations in `include/<library>.h`, matching implementations in `src/<library>.cpp`, and thin inline C++ wrappers in `include/<library>.hpp`. Use the existing include guards, `extern "C"` guards, and library-specific export macros.
-- Use Catalyst's defined types in public signatures, not language-specific containers, exceptions, references, native booleans, or unguarded fixed-width types. Use `CATALYST_BOOL` / `BOOL`, `TRUE` and `FALSE` for Catalyst boolean values.
-- Public library operations return `void`. Return operation data through explicit output parameters and status through the final `CATALYST_RESULT* result` parameter. C++ wrappers use `RESULT* result` and forward to the C function without duplicating logic.
-- Preserve the distinction between readable and writable pointers; use `const` for read-only input. Follow the existing text pointer naming convention (e.g. `CATALYST_UTF8` versus `CATALYST_UTF8W`).
-- Keep opaque handles opaque. Define private storage in implementation files. Preserve ownership, lifetime, allocation, alignment, and buffer contracts.
-- Use CATMMLIB for shared allocation and byte operations where appropriate. Keep operating-system calls in platform-specific source files (`*.win32.cpp`, `*.linux.cpp`, `*.darwin.mm`). Do not introduce STL containers, heap abstractions, or external dependencies in portable Core implementations without approval.
+- Public C headers: C90. Implementations/wrappers: C++98. Newer standards are optional through existing guards.
+- Preserve C ABI: `include/<library>.h`, `src/<library>.cpp`, thin inline `include/<library>.hpp` wrappers; retain include guards, `extern "C"`, and export macros.
+- Use Catalyst types, not language-specific containers, exceptions, references, native booleans, or unguarded fixed-width types. Use `CATALYST_BOOL` / `BOOL` and `TRUE` / `FALSE`.
+- Public operations return `void`, data via output parameters, status via final `CATALYST_RESULT* result`. C++ wrappers use `RESULT* result` and forward without duplicating logic.
+- Preserve read/write pointer distinctions (`const`, e.g. `CATALYST_UTF8` vs. `CATALYST_UTF8W`), opaque handles with private implementation storage, ownership, lifetime, alignment, allocation, and buffer contracts.
+- Use CATMMLIB for shared allocation/byte operations where appropriate. OS calls belong in `*.win32.cpp`, `*.linux.cpp`, or `*.darwin.mm`. No STL containers, heap abstractions, or external dependencies in portable Core without approval.
 
-## Naming and code style
+## Naming and style
 
-- C types and public constants: uppercase snake case with `CATALYST_` (e.g. `CATALYST_CODEPOINT`, `CATALYST_STATUS_CODE_ERROR_INVALID_ARGUMENT`).
-- C functions: lowercase snake case with the owning library's prefix, then the subject and operation (e.g. `catmm_copy`, `catte_utf8_encode`, `catrl_array_create`). Use `cat_` for existing foundational naming patterns only; new foundational functions require approval.
-- C++ types and constants: the corresponding uppercase names without `CATALYST_`, in `namespace catalyst` (e.g. `CODEPOINT`, `STATUS_CODE_SUCCESS`). C++ function names omit the C library prefix (e.g. `utf8_encode`, `array_create`).
-- Use lowercase snake case for public parameters and structured fields (e.g. `element_size`, `requested_size`). Private functions generally use lowercase snake case; local variables may use the existing descriptive lower-camel-case style (e.g. `copySize`, `codepoint0`). Match the surrounding code; do not rename unrelated symbols.
-- Use four spaces for indentation, opening braces on the same line, and the existing `if (...) {` / `} else {` style. Use `0` for null pointers, `typedef` for C-compatible declarations, and the existing explicit cast style (e.g. `(BYTE) 0x80`).
-- Use early returns for validation and failure. Prefer direct control flow, named byte values and straightforward loops over clever expressions or generic abstractions. Use `static` for implementation-only helpers when needed; do not export them accidentally.
-- Follow existing section-divider comments and concise `//` implementation comments. Explain intent, bit layouts, nonobvious conditions, invariants, or failure stages rather than narrating obvious assignments.
-- Follow `.editorconfig` and `.gitattributes`: UTF-8, CRLF working-tree line endings, final newline, no trailing whitespace.
+- C types/constants: uppercase snake case, `CATALYST_` prefix. C functions: lowercase snake case, library prefix + subject + operation (e.g. `catmm_copy`, `catte_utf8_encode`, `catrl_array_create`). Reserve `cat_` for existing foundational patterns; new foundational functions require approval.
+- C++ types/constants omit `CATALYST_`; functions omit library prefix, all in `namespace catalyst`. Public parameters/fields and generally private functions use lowercase snake case; existing descriptive lower-camel-case locals are acceptable. Match surrounding code; avoid unrelated renames.
+- Four-space indent, same-line braces, `if (...) {` / `} else {`, null pointer `0`, C-compatible `typedef`, existing explicit casts (e.g. `(BYTE) 0x80`).
+- Use early returns, direct control flow, named byte values, simple loops, and `static` for private helpers. Follow section dividers and concise `//` comments explaining intent, bit layouts, nonobvious conditions, invariants, and failure stages—not obvious assignments.
+- Follow `.editorconfig` and `.gitattributes`: UTF-8, CRLF working-tree endings, final newline, no trailing whitespace.
 
-## Operation results and correctness
+## Operation results
 
-`CATALYST_RESULT` / `RESULT` is a structured representation of an operation's outcome, not a status byte with three optional or interchangeable metadata bytes. Its four ordered bytes are status, context, operation, and detail, each with a distinct responsibility. Do not replace it with a native packed integer, exception, or ad hoc error convention.
+`CATALYST_RESULT` / `RESULT` is four ordered bytes with distinct responsibilities, not a status plus interchangeable metadata. Never replace it with a packed native integer, exception, or ad hoc convention.
 
-- **Status:** What happened? Use the most specific applicable FDEFSPEC status. Distinguish success, no-op, warning, recoverable error, and fatal invariant violation. Do not invent new status meanings or codes without approval.
-- **Context:** Under what circumstances did it happen? Identify the meaningful context of the outcome, such as argument validation, storage-size calculation, handle allocation, element storage allocation, or resource cleanup. Populate it meaningfully for warnings, errors, and fatal results; do not routinely default it to zero. FDEFSPEC requires context to be zero for all success-level statuses (including no-op).
-- **Operation:** What operation was being performed? Identify the associated public operation with a stable, documented operation code on every result path, including success and no-op. The operation code identifies the operation itself, not its internal execution stage or failure location; those belong in context. Do not default operation to zero or reuse one operation code for unrelated operations within its documented scope.
-- **Detail:** What additional information is needed? The meaning is defined by status first, then context, then operation, in that order. A lower-priority definition must never override a higher-priority definition. For `ERROR_INVALID_ARGUMENT`, detail MUST be the zero-based argument index in the associated public function's signature, including arguments that precede output pointers. Do not use it for an unrelated native error number, dependency status, or internal argument index. Where no higher-priority meaning is defined, use context- or operation-defined detail if it conveys useful additional information; otherwise zero is appropriate.
+| Byte | Responsibility | Rule |
+| --- | --- | --- |
+| Status | What happened? | Most specific applicable FDEFSPEC status: success, no-op, warning, recoverable error, or fatal invariant violation. No new meanings/codes without approval. |
+| Context | Under what circumstances? | Meaningful for warnings/errors/fatal results (validation, size calculation, handle/element allocation, cleanup, etc.). Do not routinely use zero. MUST be zero for success-level statuses, including no-op. |
+| Operation | What public operation? | Stable, documented, nonzero operation identity on every path, including success/no-op. Never an internal stage or failure location; that belongs in context. No reuse for unrelated operations within the documented scope. |
+| Detail | What additional information? | Meaning precedence: status > context > operation. Never override a higher-priority definition. Use meaningful extra information, otherwise zero; do not duplicate other bytes. |
 
-Define and document the operation and context code assignments and applicable detail meanings consistently within their intended scope before implementing them. Reuse consistent meanings where appropriate. New foundational definitions and changes to existing result contracts require owner approval. Zero is not inherently wrong: success context is necessarily zero, argument zero is meaningful detail, and detail need not duplicate information already conveyed by the other bytes.
+- `ERROR_INVALID_ARGUMENT` detail MUST identify the zero-based parameter index in the public signature, including preceding input parameters. Never substitute native error numbers, dependency status, or internal argument indices. Zero can be meaningful.
+- Define/document consistent scoped operation/context assignments and detail meanings before implementation; reuse meanings where appropriate. New foundational definitions and changes to existing contracts require approval.
+- Dependency failures: report the actual applicable status, context of the failed stage, public operation identity, and public status-defined detail. Do not blindly copy dependency results or default to `ERROR_DEPENDENCY_FAILURE` (legacy behavior is not precedent). If the dependency status misrepresents the public outcome, use an appropriate existing status, including fatal invariant violation when warranted.
+- Null `result` discards status. Otherwise write all four fields on every path using `if (result != 0) *result = RESULT(...);`, defined constants, and severity helpers.
 
-- Report dependency failures using the actual applicable status rather than introducing or defaulting to a generic dependency-failure status. Use context to describe the affected stage and retain the identity of the public operation in the operation byte. Preserve status-defined detail semantics for the public operation; do not blindly copy a dependency result or its detail. Where a dependency status does not accurately describe the public operation's outcome, select an appropriate existing status, including fatal invariant violation when warranted. Existing `ERROR_DEPENDENCY_FAILURE` behavior is not precedent for new code; changes to existing behavior remain subject to owner approval.
-- A null result pointer is valid and discards status information. When it is non-null, populate all four fields on every return path. Use the established `if (result != 0) *result = RESULT(...);` pattern and the defined status constants and severity helpers as appropriate.
-- Validate required pointers and parameters before accessing them or writing outputs. Honor the documented order of validation and the specific output-state contract on failure. Do not assume all APIs have identical failure-output behavior.
-- Check overflow, capacity, bounds, allocation failures, malformed input, and dependency results. Preserve logical state on recoverable mutation failures when promised by the API. Clean up owned resources on failure, and accurately report the outcome of the public operation, including cleanup failures, according to the four-byte semantics above.
-- Text APIs distinguish bytes, code units, codepoints, terminators, and BOMs. Preserve these distinctions and documented buffer requirements, substitution behavior, and invalid-input handling.
+## Correctness
 
-Existing implementations and references may conflict with these requirements. Identify and report conflicts; do not silently preserve them as precedent or modify existing behavior outside an explicitly approved fix.
+- Validate required pointers/parameters before access or output writes. Preserve documented validation order, failure-output behavior, and other per-function guarantees.
+- Check overflow, capacity, bounds, allocation failures, malformed input, and dependency results. Preserve logical state on recoverable mutation failure where promised; clean up resources and report cleanup failures accurately.
+- Distinguish bytes, code units, codepoints, terminators, and BOMs; preserve text buffer, substitution, and invalid-input contracts.
+- Report existing implementation/reference conflicts with these requirements; do not treat them as precedent or fix them outside an approved task.
 
 ## Documentation
 
-- Keep public headers, C++ wrappers, implementation, reference documentation, and tests consistent with the approved contract.
-- Distinguish specifications (what a concept is), explanatory documentation (how concepts work and are used), and API reference (the precise contract of each operation). Keep the reference focused on lookup rather than tutorials or implementation narration.
-- Add a short `/** ... */` documentation comment above each public declaration, matching the existing header style. State what the operation does and essential preconditions or output behavior. Do not duplicate the entire reference page in the header.
-- Detailed API reference lives in `docs/lang/en-US/<library>/<topic>/index.md`. Keep the existing nested navigation structure, and update `docs/manifest.json` when adding or moving pages.
-- Library overview pages describe headers, linking, types, common conventions, exports, and links to reference topics. Document shared behavior once and link to it.
-- Use a Javadoc-inspired reference structure. Introduce the topic and its relevant header/type, then provide a **Function Summary** table linking each exact C function name to its entry with a short description. Follow with **Function Details**.
-- For each operation, use a heading with its exact C function name, its exact C declaration in a fenced `c` block (format long declarations across multiple lines), a natural description of its behavior, and a **Parameters:** section with individual parameter names and descriptions rather than a parameter table. Use **See Also:** links where useful.
-- Each operation has a **Results:** table with exactly five columns: `Result | Status | Context | Operation | Detail`. Use one row for each distinct possible result, including each distinct fixed detail value. The first column displays the complete four-byte hexadecimal code in uppercase digits as `0xSSCCOODD`, in status–context–operation–detail order, independent of native endianness. The remaining columns explain the meaning of each corresponding byte in that result. Use an em dash only for genuinely unused fields, not for a meaningful zero value such as argument index zero. Do not combine multiple fixed results in one cell or row.
-- If a field is genuinely variable (rather than a finite set of defined outcomes), document its byte range or pattern and exact meaning explicitly; do not invent a fixed hexadecimal result or omit possible values. The reference notation does not imply that the implementation packs a result into a native integer.
-- Explicitly document units, required buffer capacity, nullability, ownership, failure-output behavior, and other observable guarantees wherever applicable. Do not promise behavior not supported by the implementation or omit a documented edge case.
-- Use exact Catalyst terminology and identifiers. Keep documentation concise, factual, readable, and focused on the API contract. Use tables where they aid lookup or express relationships, not as the default for all content. Do not change FDEFSPEC or silently reconcile specification discrepancies.
+- Specifications define concepts; explanatory docs teach them; API references describe precise contracts for lookup. Keep headers, wrappers, implementations, references, and tests consistent with approved contracts.
+- Each public declaration gets a short `/** ... */` comment describing behavior and essential preconditions/output behavior, not a duplicate reference.
+- Reference pages: `docs/lang/en-US/<library>/<topic>/index.md`; preserve nested navigation and update `docs/manifest.json` for additions/moves. Library overviews cover headers, linking, types, conventions, exports, and topic links. Define shared behavior once and link to it.
+- Javadoc-inspired topic structure: introduction with relevant header/type; **Function Summary** table of linked exact C function names and brief descriptions; **Function Details** with each exact function name as a heading, exact C signature in a fenced `c` block (multiline when long), natural description, **Parameters:** with individual names/descriptions (no parameter table), **Results:** table, and **See Also:** links when useful.
+- Results tables have exactly five columns: `Result | Status | Context | Operation | Detail`. One row per distinct result, including each fixed detail value. First column: complete hexadecimal `0xSSCCOODD` (uppercase digits, status–context–operation–detail order regardless of host endianness). Remaining columns explain each byte. Use an em dash only for truly unused fields, not meaningful zero values. Never group distinct fixed results in one row/cell.
+- For genuinely variable fields, document exact byte ranges/patterns and meanings instead of inventing fixed codes or omitting values. Hex notation does not imply native integer packing.
+- Explicitly document units, capacities, nullability, ownership, failure outputs, edge cases, and observable guarantees. Use exact Catalyst terms/identifiers, concise readable prose, and tables for lookup or relationships—not implementation narration. No unsupported promises, FDEFSPEC changes, or silent reconciliation of discrepancies.
 
 ## Build and verification
 
-- Preserve the existing shared CMake infrastructure, `cmakecfg.h` target configuration, and static/shared build targets. Initialize the `cmake` submodule recursively and use existing presets where available; do not modify the submodule, build configuration, or CI to work around a code issue without approval.
-- Executables (including tests) are placed directly in the configuration output directory (`debug/` or `release/`); all library artifacts, including Windows DLLs, import libraries, static libraries, Unix shared libraries, and symbolic links, share its flat `lib/` subdirectory. Do not create a separate test output directory. Keep formal library names, headers, and CMake target identifiers unchanged; artifact base names are `catmm`, `catte`, and `catrl`. The shared `build-cmake` module owns naming and versioning. For release 1.5.2, Windows (MSVC) produces `libcatmm.lib`, `catmm.lib`, and `catmm15.dll` (full version in the DLL resource); Linux produces `libcatmm.a`, `libcatmm.so`, `libcatmm.so.1.5`, and `libcatmm.so.1.5.2`; macOS produces `libcatmm.a`, `libcatmm.dylib`, `libcatmm.1.5.dylib`, and `libcatmm.1.5.2.dylib`. Unix linker and ABI aliases are symbolic links. Derive versions from project metadata; do not add a separate import-library directory.
-- Follow the existing standalone C++ test programs in `test/test_<library>.cpp`. Exercise the C++ wrapper and verify operation output and all four result fields. Cover normal cases, boundary values, no-ops, invalid arguments, overflow, and failure-state behavior as applicable. Use simple checks and nonzero exit codes; no additional testing framework is needed.
-- Verify public C and C++ headers and library builds under the existing C90/C++98 and C99/C++11 configurations when possible. The current x86/x64 compile matrix does not prove 8-bit compatibility; independently review every operation for byte-only arithmetic and width assumptions. Do not claim 8-bit target support has been tested unless it actually has.
-- Report what was tested, what could not be tested, and any discovered invariant conflicts. Do not silently fix pre-existing issues outside the approved scope.
+- Preserve shared CMake infrastructure, `cmakecfg.h`, and static/shared targets. Initialize `cmake` submodule recursively; use existing presets. Do not change submodule, build configuration, or CI to work around code issues without approval.
+- Executables/tests go directly in `debug/` or `release/`; all library artifacts and symlinks go in its flat `lib/` directory. No separate test/import-library directory. Preserve formal library names, headers, and CMake targets; artifact bases: `catmm`, `catte`, `catrl`. Shared `build-cmake` owns naming/versioning, derived from project metadata.
+- Example v1.5.2 (`catmm`):
+  - MSVC: `libcatmm.lib`, `catmm.lib`, `catmm15.dll` (full version in DLL resource).
+  - Linux: `libcatmm.a`, `libcatmm.so`, `libcatmm.so.1.5`, `libcatmm.so.1.5.2`.
+  - macOS: `libcatmm.a`, `libcatmm.dylib`, `libcatmm.1.5.dylib`, `libcatmm.1.5.2.dylib`.
+  - Unix linker/ABI aliases are symlinks.
+- Use existing standalone `test/test_<library>.cpp` programs, exercising C++ wrappers and checking outputs and all four result bytes. Cover normal, boundary, no-op, invalid, overflow, and failure-state cases as applicable; simple checks/nonzero exits, no new test framework.
+- Verify public headers/builds with C90/C++98 and C99/C++11 when possible. Independently review byte arithmetic and width assumptions; x86/x64 builds do not establish 8-bit compatibility. Never claim actual 8-bit testing unless performed.
+- Report tests performed, limitations, and invariant conflicts.
 
 ## Commits
 
-- Keep commits focused on the authorized task. Use concise imperative commit subjects, matching repository history.
-- Include the existing AI co-author trailer on AI-assisted commits:
+Keep commits focused on authorized changes, with concise imperative subjects matching history. AI-assisted commits include:
 
-  `Co-authored-by: Codex <noreply@openai.com>`
+`Co-authored-by: Codex <noreply@openai.com>`
