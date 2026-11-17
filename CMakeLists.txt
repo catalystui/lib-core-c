@@ -17,7 +17,7 @@ endif()
 add_library(catmmlib_shared SHARED)
 add_library(catmmlib_static STATIC)
 configure_target(
-    NAME catmmlib
+    NAME catmm
     TARGETS catmmlib_shared catmmlib_static
     SOURCES
         src/catmmlib.cpp
@@ -48,7 +48,7 @@ endif()
 add_library(cattelib_shared SHARED)
 add_library(cattelib_static STATIC)
 configure_target(
-    NAME cattelib
+    NAME catte
     TARGETS cattelib_shared cattelib_static
     SOURCES
         src/cattelib.cpp
@@ -58,7 +58,7 @@ configure_target(
 add_library(catrllib_shared SHARED)
 add_library(catrllib_static STATIC)
 configure_target(
-    NAME catrllib
+    NAME catrl
     TARGETS catrllib_shared catrllib_static
     SOURCES
         src/catrllib.cpp
@@ -66,14 +66,10 @@ configure_target(
 target_link_libraries(catrllib_shared PRIVATE catmmlib_shared)
 target_link_libraries(catrllib_static PRIVATE catmmlib_static)
 
-# Export C ABI symbols and separate Windows import libraries from static archives.
+# Export each shared library's C ABI and propagate its import definition.
 target_compile_definitions(catmmlib_shared PRIVATE CATMMLIB_EXPORTS INTERFACE CATMMLIB_USE_DLL)
+target_compile_definitions(cattelib_shared PRIVATE CATTELIB_EXPORTS INTERFACE CATTELIB_USE_DLL)
 target_compile_definitions(catrllib_shared PRIVATE CATRLLIB_EXPORTS INTERFACE CATRLLIB_USE_DLL)
-if(TARGET_PLATFORM_WIN32)
-    set_target_properties(catmmlib_shared catrllib_shared PROPERTIES
-        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/import"
-    )
-endif()
 
 # Define test executables
 define_test_executables(

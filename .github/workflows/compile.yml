@@ -62,6 +62,38 @@ jobs:
       - name: Compile libraries
         run: cmake --build target/ci --parallel --target catmmlib_static catmmlib_shared cattelib_static cattelib_shared catrllib_static catrllib_shared
 
+      - name: Verify library artifacts and ABI names
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $header = Get-Content target/ci/generated/cmakecfg.h -Raw
+          $major = [regex]::Match($header, '#define METADATA_VERSION_MAJOR (\d+)').Groups[1].Value
+          $minor = [regex]::Match($header, '#define METADATA_VERSION_MINOR (\d+)').Groups[1].Value
+          $patch = [regex]::Match($header, '#define METADATA_VERSION_PATCH (\d+)').Groups[1].Value
+          $abi = "$major.$minor"
+          $version = "$abi.$patch"
+          $output = 'build/linux/linux/${{ matrix.arch }}'
+          foreach ($name in 'catmm', 'catte', 'catrl') {
+            $base = "lib$name"
+            $linker = "$base.so"
+            $soname = "$linker.$abi"
+            $binary = "$linker.$version"
+            if (!(Test-Path "$output/$base.a" -PathType Leaf) -or !(Test-Path "$output/$binary" -PathType Leaf)) {
+              throw "Missing static or shared artifact for $name"
+            }
+            if ((readlink "$output/$linker") -ne $soname -or (readlink "$output/$soname") -ne $binary) {
+              throw "Incorrect symbolic links for $name"
+            }
+            if (!(readelf -d "$output/$binary" | Select-String -SimpleMatch "[$soname]")) {
+              throw "Incorrect embedded SONAME for $name"
+            }
+          }
+
+      - name: Run memory tests
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          cmake --build target/ci --parallel --target test_catmmlib
+          & 'build/linux/linux/${{ matrix.arch }}/test/test_catmmlib'
+
       - name: Compile public C headers
         run: |
           @'
