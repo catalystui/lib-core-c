@@ -5,6 +5,28 @@
             "path": "/"
         },
         {
+            "title": "API Reference",
+            "path": "/api-reference",
+            "children": [
+                {
+                    "title": "CATALYST",
+                    "path": "/api-reference/catalyst"
+                },
+                {
+                    "title": "CATMMLIB",
+                    "path": "/api-reference/catmmlib"
+                },
+                {
+                    "title": "CATTELIB",
+                    "path": "/api-reference/cattelib"
+                },
+                {
+                    "title": "CATRLLIB",
+                    "path": "/api-reference/catrllib"
+                }
+            ]
+        },
+        {
             "title": "Foundational definitions",
             "path": "/definitions",
             "children": [

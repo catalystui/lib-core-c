@@ -2,6 +2,8 @@
 
 Core provides foundational value representations and native C ABI libraries with C++ namespace wrappers.
 
+See the [API Reference](api-reference/index.md) for the consolidated, current reference by module. The topic-based references below are retained for now; their result tables may describe earlier assignments.
+
 | Reference | Headers | Purpose |
 | --- | --- | --- |
 | [Foundational definitions](definitions/index.md) | `catalyst.h`, `catalyst.hpp`, `catalyst.c90.h`, `catalyst.c99.h` | Numeric and text types, encoding identifiers, status codes and result values. |
