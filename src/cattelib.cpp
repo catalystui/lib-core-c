@@ -1,6 +1,6 @@
-/* Encoding implementations for the public contract in cattelib.h.
- * Operation-code comments below identify function-local failure stages;
- * numeric codes are interpreted together with the returned status.
+/* Context IDs follow the public CATTELIB declaration order, starting at 0x01.
+ * Operation IDs identify individual result assignments in each method.
+ * Dependency failure detail identifies the dependency's reporting site.
  */
 #include "catalyst.hpp"
 #include "cattelib.h"
@@ -10,7 +10,7 @@ using namespace catalyst;
 void catte_ascii_encode(const CATALYST_CODEPOINT codepoint, CATALYST_ASCIIW asciiw, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (asciiw == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x01, 0x01, 1);
         return;
     }
     BYTE codepoint0 = codepoint.byte0;
@@ -20,17 +20,17 @@ void catte_ascii_encode(const CATALYST_CODEPOINT codepoint, CATALYST_ASCIIW asci
     if (codepoint0 != 0 || codepoint1 != 0 || codepoint2 != 0 || codepoint3 >= (BYTE) 0x80) {
         // Not a valid ASCII character
         asciiw[0] = (BYTE) '?';
-        if (result != 0) *result = RESULT(STATUS_CODE_WARNING_PARTIAL, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_WARNING_PARTIAL, 0x01, 0x02, 0);
         return;
     } else if (codepoint3 == 0) {
         // Handle U+0000 (NUL)
         asciiw[0] = (BYTE) '\0';
-        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
         return;
     } else {
         // Maps directly to ASCII
         asciiw[0] = codepoint3;
-        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0);
         return;
     }
 }
@@ -38,11 +38,11 @@ void catte_ascii_encode(const CATALYST_CODEPOINT codepoint, CATALYST_ASCIIW asci
 void catte_ascii_decode(CATALYST_ASCII ascii, CATALYST_CODEPOINT* codepoint, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (ascii == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x02, 0x01, 0);
         return;
     }
     if (codepoint == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x02, 0x02, 1);
         return;
     }
 
@@ -52,34 +52,34 @@ void catte_ascii_decode(CATALYST_ASCII ascii, CATALYST_CODEPOINT* codepoint, CAT
     codepoint->byte1 = 0;
     codepoint->byte2 = 0;
     codepoint->byte3 = codeunit0;
-    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
 }
 
 void catte_ascii_length(CATALYST_ASCII ascii, CATALYST_NUINT* length, CATALYST_RESULT* result) {
     if (ascii == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x03, 0x01, 0);
         return;
     }
     if (length == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x03, 0x02, 1);
         return;
     }
     NUINT count = 0;
     while (ascii[count] != (BYTE) '\0') {
         if (++count == (NUINT) -1) {
             // Overflow, no null terminator found
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x03, 0x03, 0);
             return;
         }
     }
     *length = count;
-    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0);
 }
 
 void catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp1252w, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (cp1252w == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x04, 0x01, 1);
         return;
     }
 
@@ -92,7 +92,7 @@ void catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp
         if (codepoint3 <= (BYTE) 0x7F || codepoint3 >= (BYTE) 0xA0) {
             // U+0000 through U+007F and U+00A0 through U+00FF map directly to CP1252
             cp1252w[0] = codepoint3;
-            if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x02, 0);
             return;
         }
     }
@@ -101,48 +101,48 @@ void catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp
         switch (codepoint2) {
             case (BYTE) 0x01:
                 switch (codepoint3) {
-                    case (BYTE) 0x52: cp1252w[0] = (BYTE) 0x8C; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+0152
-                    case (BYTE) 0x53: cp1252w[0] = (BYTE) 0x9C; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+0153
-                    case (BYTE) 0x60: cp1252w[0] = (BYTE) 0x8A; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+0160
-                    case (BYTE) 0x61: cp1252w[0] = (BYTE) 0x9A; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+0161
-                    case (BYTE) 0x78: cp1252w[0] = (BYTE) 0x9F; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+0178
-                    case (BYTE) 0x7D: cp1252w[0] = (BYTE) 0x8E; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+017D
-                    case (BYTE) 0x7E: cp1252w[0] = (BYTE) 0x9E; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+017E
-                    case (BYTE) 0x92: cp1252w[0] = (BYTE) 0x83; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+0192
+                    case (BYTE) 0x52: cp1252w[0] = (BYTE) 0x8C; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0); return; // U+0152
+                    case (BYTE) 0x53: cp1252w[0] = (BYTE) 0x9C; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0); return; // U+0153
+                    case (BYTE) 0x60: cp1252w[0] = (BYTE) 0x8A; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0); return; // U+0160
+                    case (BYTE) 0x61: cp1252w[0] = (BYTE) 0x9A; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x06, 0); return; // U+0161
+                    case (BYTE) 0x78: cp1252w[0] = (BYTE) 0x9F; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x07, 0); return; // U+0178
+                    case (BYTE) 0x7D: cp1252w[0] = (BYTE) 0x8E; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x08, 0); return; // U+017D
+                    case (BYTE) 0x7E: cp1252w[0] = (BYTE) 0x9E; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x09, 0); return; // U+017E
+                    case (BYTE) 0x92: cp1252w[0] = (BYTE) 0x83; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x0A, 0); return; // U+0192
                 }
                 break;
 
             case (BYTE) 0x02:
                 switch (codepoint3) {
-                    case (BYTE) 0xC6: cp1252w[0] = (BYTE) 0x88; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+02C6
-                    case (BYTE) 0xDC: cp1252w[0] = (BYTE) 0x98; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+02DC
+                    case (BYTE) 0xC6: cp1252w[0] = (BYTE) 0x88; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x0B, 0); return; // U+02C6
+                    case (BYTE) 0xDC: cp1252w[0] = (BYTE) 0x98; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x0C, 0); return; // U+02DC
                 }
                 break;
 
             case (BYTE) 0x20:
                 switch (codepoint3) {
-                    case (BYTE) 0x13: cp1252w[0] = (BYTE) 0x96; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2013
-                    case (BYTE) 0x14: cp1252w[0] = (BYTE) 0x97; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2014
-                    case (BYTE) 0x18: cp1252w[0] = (BYTE) 0x91; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2018
-                    case (BYTE) 0x19: cp1252w[0] = (BYTE) 0x92; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2019
-                    case (BYTE) 0x1A: cp1252w[0] = (BYTE) 0x82; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+201A
-                    case (BYTE) 0x1C: cp1252w[0] = (BYTE) 0x93; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+201C
-                    case (BYTE) 0x1D: cp1252w[0] = (BYTE) 0x94; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+201D
-                    case (BYTE) 0x1E: cp1252w[0] = (BYTE) 0x84; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+201E
-                    case (BYTE) 0x20: cp1252w[0] = (BYTE) 0x86; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2020
-                    case (BYTE) 0x21: cp1252w[0] = (BYTE) 0x87; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2021
-                    case (BYTE) 0x22: cp1252w[0] = (BYTE) 0x95; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2022
-                    case (BYTE) 0x26: cp1252w[0] = (BYTE) 0x85; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2026
-                    case (BYTE) 0x30: cp1252w[0] = (BYTE) 0x89; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2030
-                    case (BYTE) 0x39: cp1252w[0] = (BYTE) 0x8B; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2039
-                    case (BYTE) 0x3A: cp1252w[0] = (BYTE) 0x9B; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+203A
-                    case (BYTE) 0xAC: cp1252w[0] = (BYTE) 0x80; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+20AC
+                    case (BYTE) 0x13: cp1252w[0] = (BYTE) 0x96; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x0D, 0); return; // U+2013
+                    case (BYTE) 0x14: cp1252w[0] = (BYTE) 0x97; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x0E, 0); return; // U+2014
+                    case (BYTE) 0x18: cp1252w[0] = (BYTE) 0x91; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x0F, 0); return; // U+2018
+                    case (BYTE) 0x19: cp1252w[0] = (BYTE) 0x92; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x10, 0); return; // U+2019
+                    case (BYTE) 0x1A: cp1252w[0] = (BYTE) 0x82; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x11, 0); return; // U+201A
+                    case (BYTE) 0x1C: cp1252w[0] = (BYTE) 0x93; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x12, 0); return; // U+201C
+                    case (BYTE) 0x1D: cp1252w[0] = (BYTE) 0x94; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x13, 0); return; // U+201D
+                    case (BYTE) 0x1E: cp1252w[0] = (BYTE) 0x84; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x14, 0); return; // U+201E
+                    case (BYTE) 0x20: cp1252w[0] = (BYTE) 0x86; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x15, 0); return; // U+2020
+                    case (BYTE) 0x21: cp1252w[0] = (BYTE) 0x87; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x16, 0); return; // U+2021
+                    case (BYTE) 0x22: cp1252w[0] = (BYTE) 0x95; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x17, 0); return; // U+2022
+                    case (BYTE) 0x26: cp1252w[0] = (BYTE) 0x85; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x18, 0); return; // U+2026
+                    case (BYTE) 0x30: cp1252w[0] = (BYTE) 0x89; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x19, 0); return; // U+2030
+                    case (BYTE) 0x39: cp1252w[0] = (BYTE) 0x8B; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x1A, 0); return; // U+2039
+                    case (BYTE) 0x3A: cp1252w[0] = (BYTE) 0x9B; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x1B, 0); return; // U+203A
+                    case (BYTE) 0xAC: cp1252w[0] = (BYTE) 0x80; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x1C, 0); return; // U+20AC
                 }
                 break;
 
             case (BYTE) 0x21:
                 switch (codepoint3) {
-                    case (BYTE) 0x22: cp1252w[0] = (BYTE) 0x99; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2122
+                    case (BYTE) 0x22: cp1252w[0] = (BYTE) 0x99; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x1D, 0); return; // U+2122
                 }
                 break;
         }
@@ -150,18 +150,18 @@ void catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp
 
     // Not a valid CP1252 character
     cp1252w[0] = (BYTE) '?';
-    if (result != 0) *result = RESULT(STATUS_CODE_WARNING_PARTIAL, 0, 0, 0);
+    if (result != 0) *result = RESULT(STATUS_CODE_WARNING_PARTIAL, 0x04, 0x1E, 0);
     return;
 }
 
 void catte_cp1252_decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* codepoint, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (cp1252 == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x05, 0x01, 0);
         return;
     }
     if (codepoint == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x05, 0x02, 1);
         return;
     }
 
@@ -173,38 +173,38 @@ void catte_cp1252_decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* codepoint, 
 
     if (codeunit0 <= (BYTE) 0x7F || codeunit0 >= (BYTE) 0xA0) {
         // U+0000 through U+007F and U+00A0 through U+00FF map directly from CP1252
-        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
         return;
     }
 
     switch (codeunit0) {
-        case (BYTE) 0x80: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0xAC; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+20AC
-        case (BYTE) 0x82: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x1A; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+201A
-        case (BYTE) 0x83: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x92; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+0192
-        case (BYTE) 0x84: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x1E; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+201E
-        case (BYTE) 0x85: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x26; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2026
-        case (BYTE) 0x86: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x20; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2020
-        case (BYTE) 0x87: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x21; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2021
-        case (BYTE) 0x88: codepoint->byte2 = (BYTE) 0x02; codepoint->byte3 = (BYTE) 0xC6; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+02C6
-        case (BYTE) 0x89: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x30; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2030
-        case (BYTE) 0x8A: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x60; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+0160
-        case (BYTE) 0x8B: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x39; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2039
-        case (BYTE) 0x8C: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x52; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+0152
-        case (BYTE) 0x8E: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x7D; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+017D
-        case (BYTE) 0x91: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x18; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2018
-        case (BYTE) 0x92: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x19; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2019
-        case (BYTE) 0x93: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x1C; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+201C
-        case (BYTE) 0x94: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x1D; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+201D
-        case (BYTE) 0x95: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x22; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2022
-        case (BYTE) 0x96: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x13; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2013
-        case (BYTE) 0x97: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x14; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2014
-        case (BYTE) 0x98: codepoint->byte2 = (BYTE) 0x02; codepoint->byte3 = (BYTE) 0xDC; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+02DC
-        case (BYTE) 0x99: codepoint->byte2 = (BYTE) 0x21; codepoint->byte3 = (BYTE) 0x22; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+2122
-        case (BYTE) 0x9A: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x61; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+0161
-        case (BYTE) 0x9B: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x3A; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+203A
-        case (BYTE) 0x9C: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x53; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+0153
-        case (BYTE) 0x9E: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x7E; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+017E
-        case (BYTE) 0x9F: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x78; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0); return; // U+0178
+        case (BYTE) 0x80: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0xAC; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0); return; // U+20AC
+        case (BYTE) 0x82: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x1A; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0); return; // U+201A
+        case (BYTE) 0x83: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x92; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x06, 0); return; // U+0192
+        case (BYTE) 0x84: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x1E; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x07, 0); return; // U+201E
+        case (BYTE) 0x85: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x26; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x08, 0); return; // U+2026
+        case (BYTE) 0x86: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x20; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x09, 0); return; // U+2020
+        case (BYTE) 0x87: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x21; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x0A, 0); return; // U+2021
+        case (BYTE) 0x88: codepoint->byte2 = (BYTE) 0x02; codepoint->byte3 = (BYTE) 0xC6; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x0B, 0); return; // U+02C6
+        case (BYTE) 0x89: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x30; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x0C, 0); return; // U+2030
+        case (BYTE) 0x8A: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x60; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x0D, 0); return; // U+0160
+        case (BYTE) 0x8B: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x39; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x0E, 0); return; // U+2039
+        case (BYTE) 0x8C: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x52; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x0F, 0); return; // U+0152
+        case (BYTE) 0x8E: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x7D; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x10, 0); return; // U+017D
+        case (BYTE) 0x91: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x18; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x11, 0); return; // U+2018
+        case (BYTE) 0x92: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x19; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x12, 0); return; // U+2019
+        case (BYTE) 0x93: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x1C; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x13, 0); return; // U+201C
+        case (BYTE) 0x94: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x1D; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x14, 0); return; // U+201D
+        case (BYTE) 0x95: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x22; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x15, 0); return; // U+2022
+        case (BYTE) 0x96: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x13; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x16, 0); return; // U+2013
+        case (BYTE) 0x97: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x14; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x17, 0); return; // U+2014
+        case (BYTE) 0x98: codepoint->byte2 = (BYTE) 0x02; codepoint->byte3 = (BYTE) 0xDC; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x18, 0); return; // U+02DC
+        case (BYTE) 0x99: codepoint->byte2 = (BYTE) 0x21; codepoint->byte3 = (BYTE) 0x22; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x19, 0); return; // U+2122
+        case (BYTE) 0x9A: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x61; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x1A, 0); return; // U+0161
+        case (BYTE) 0x9B: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x3A; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x1B, 0); return; // U+203A
+        case (BYTE) 0x9C: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x53; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x1C, 0); return; // U+0153
+        case (BYTE) 0x9E: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x7E; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x1D, 0); return; // U+017E
+        case (BYTE) 0x9F: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x78; if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x1E, 0); return; // U+0178
     }
 
     // Undefined CP1252 code unit
@@ -212,17 +212,17 @@ void catte_cp1252_decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* codepoint, 
     codepoint->byte1 = 0;
     codepoint->byte2 = 0;
     codepoint->byte3 = (BYTE) '?';
-    if (result != 0) *result = RESULT(STATUS_CODE_WARNING_PARTIAL, 0, 0, 0);
+    if (result != 0) *result = RESULT(STATUS_CODE_WARNING_PARTIAL, 0x05, 0x1F, 0);
     return;
 }
 
 void catte_cp1252_length(CATALYST_CP1252 cp1252, CATALYST_NUINT* length, CATALYST_RESULT* result) {
     if (cp1252 == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x06, 0x01, 0);
         return;
     }
     if (length == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x06, 0x02, 1);
         return;
     }
 
@@ -230,30 +230,24 @@ void catte_cp1252_length(CATALYST_CP1252 cp1252, CATALYST_NUINT* length, CATALYS
     while (cp1252[count] != (BYTE) '\0') {
         if (++count == (NUINT) -1) {
             // Overflow, no null terminator found
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x06, 0x03, 0);
             return;
         }
     }
 
     *length = count;
-    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0);
 }
 
-/**
- * ERROR result: context = 0, detail = 0.
- * operation 1 = overlong encoding.
- * operation 2 = invalid surrogate codepoint.
- * operation 3 = invalid codepoint.
- * See cattelib.h for buffer, output, and argument-result contracts.
- */
+
 void catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, CATALYST_NUINT* produced, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8w == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x07, 0x01, 1);
         return;
     }
     if (produced == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x07, 0x02, 2);
         return;
     }
     *produced = 0;
@@ -268,7 +262,7 @@ void catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w,
     if (codepoint0 == 0 && codepoint1 == 0 && codepoint2 == 0 && codepoint3 < (BYTE) 0x80u) {
         utf8w[0] = codepoint3;
         *produced = 1;
-        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
         return;
     }
 
@@ -276,7 +270,7 @@ void catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w,
     if (codepoint0 == 0 && codepoint1 == 0 && codepoint2 <= (BYTE) 0x07u) {
         if (codepoint2 == 0 && codepoint3 < (BYTE) 0x80u) {
             // Overlong encoding
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 1, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x07, 0x04, 0);
             return;
         }
         BYTE t0 = (BYTE) (((codepoint2 & (BYTE) 0x07u) << 2) | (codepoint3 >> 6));
@@ -284,7 +278,7 @@ void catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w,
         utf8w[0] = (BYTE) ((BYTE) 0xC0u | t0);
         utf8w[1] = (BYTE) ((BYTE) 0x80u | t1);
         *produced = 2;
-        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
         return;
     }
 
@@ -292,12 +286,12 @@ void catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w,
     if (codepoint0 == 0 && codepoint1 == 0) {
         if (codepoint2 < (BYTE) 0x08u) {
             // Overlong encoding
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 1, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x07, 0x06, 0);
             return;
         }
         if (codepoint2 >= (BYTE) 0xD8u && codepoint2 <= (BYTE) 0xDFu) {
             // Invalid surrogate codepoint
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 2, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x07, 0x07, 0);
             return;
         }
         BYTE t0 = (BYTE) (codepoint2 >> 4);
@@ -307,7 +301,7 @@ void catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w,
         utf8w[1] = (BYTE) ((BYTE) 0x80u | t1);
         utf8w[2] = (BYTE) ((BYTE) 0x80u | t2);
         *produced = 3;
-        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x08, 0);
         return;
     }
 
@@ -322,37 +316,28 @@ void catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w,
         utf8w[2] = (BYTE) ((BYTE) 0x80u | t2);
         utf8w[3] = (BYTE) ((BYTE) 0x80u | t3);
         *produced = 4;
-        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x09, 0);
         return;
     }
 
     // Invalid codepoint
-    if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 3, 0);
+    if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x07, 0x0A, 0);
     return;
 }
 
-/**
- * ERROR result: context = 0, detail = 0.
- * operation 1 = unexpected end of input.
- * operation 2 = invalid continuation byte.
- * operation 3 = overlong encoding.
- * operation 4 = invalid surrogate codepoint.
- * operation 5 = invalid codepoint.
- * operation 6 = invalid leading code unit.
- * See cattelib.h for buffer, output, and argument-result contracts.
- */
+
 void catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8 == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x08, 0x01, 0);
         return;
     }
     if (codepoint == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x08, 0x02, 1);
         return;
     }
     if (consumed == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 2);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x08, 0x03, 2);
         return;
     }
     *consumed = 0;
@@ -367,7 +352,7 @@ void catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALY
     // NUL '\0' character
     if (codeunit0 == (BYTE) '\0') {
         *consumed = 1;
-        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0);
         return;
     }
 
@@ -375,7 +360,7 @@ void catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALY
     if (codeunit0 < (BYTE) 0x80) {
         codepoint->byte3 = codeunit0;
         *consumed = 1;
-        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
         return;
     }
 
@@ -384,12 +369,12 @@ void catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALY
         BYTE codeunit1 = utf8[1];
         if (codeunit1 == 0) {
             // Unexpected end of input
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 1, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x06, 0);
             return;
         }
         if (codeunit1 < (BYTE) 0x80u || codeunit1 > (BYTE) 0xBFu) {
             // Invalid continuation byte
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 2, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x07, 0);
             return;
         }
         BYTE t0 = (BYTE) (codeunit0 & (BYTE) 0x1Fu);
@@ -397,7 +382,7 @@ void catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALY
         codepoint->byte2 = (BYTE) (t0 >> 2);
         codepoint->byte3 = (BYTE) (((t0 & (BYTE) 0x03u) << 6) | t1);
         *consumed = 2;
-        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x08, 0);
         return;
     }
 
@@ -407,27 +392,27 @@ void catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALY
         BYTE codeunit2 = utf8[2];
         if (codeunit1 == 0 || codeunit2 == 0) {
             // Unexpected end of input
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 1, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x09, codeunit1 == 0 ? 1 : 2);
             return;
         }
         if (codeunit1 < (BYTE) 0x80u || codeunit1 > (BYTE) 0xBFu) {
             // Invalid continuation byte
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 2, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x0A, 0);
             return;
         }
         if (codeunit2 < (BYTE) 0x80u || codeunit2 > (BYTE) 0xBFu) {
             // Invalid continuation byte
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 2, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x0B, 0);
             return;
         }
         if (codeunit0 == (BYTE) 0xE0u && codeunit1 < (BYTE) 0xA0u) {
             // Overlong encoding
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 3, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x0C, 0);
             return;
         }
         if (codeunit0 == (BYTE) 0xEDu && codeunit1 >= (BYTE) 0xA0u) {
             // Invalid surrogate codepoint
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 4, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x0D, 0);
             return;
         }
         BYTE t0 = (BYTE) (codeunit0 & 0x0Fu);
@@ -436,7 +421,7 @@ void catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALY
         codepoint->byte2 = (BYTE) ((t0 << 4) | (t1 >> 2));
         codepoint->byte3 = (BYTE) (((t1 & 0x03u) << 6) | t2);
         *consumed = 3;
-        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x0E, 0);
         return;
     }
 
@@ -447,32 +432,32 @@ void catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALY
         BYTE codeunit3 = utf8[3];
         if (codeunit1 == 0 || codeunit2 == 0 || codeunit3 == 0) {
             // Unexpected end of input
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 1, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x0F, codeunit1 == 0 ? 1 : (codeunit2 == 0 ? 2 : 3));
             return;
         }
         if (codeunit1 < 0x80u || codeunit1 > 0xBFu) {
             // Invalid continuation byte
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 2, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x10, 0);
             return;
         }
         if (codeunit2 < 0x80u || codeunit2 > 0xBFu) {
             // Invalid continuation byte
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 2, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x11, 0);
             return;
         }
         if (codeunit3 < 0x80u || codeunit3 > 0xBFu) {
             // Invalid continuation byte
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 2, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x12, 0);
             return;
         }
         if (codeunit0 == 0xF0u && codeunit1 < 0x90u) {
             // Overlong encoding
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 3, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x13, 0);
             return;
         }
         if (codeunit0 == 0xF4u && codeunit1 > 0x8Fu) {
             // Codepoints above U+10FFFF
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 5, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x14, 0);
             return;
         }
         BYTE t0 = (BYTE) (codeunit0 & (BYTE) 0x07u);
@@ -484,28 +469,24 @@ void catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALY
         codepoint->byte2 = (BYTE) (((t1 & (BYTE) 0x0Fu) << 4) | (t2 >> 2));
         codepoint->byte3 = (BYTE) (((t2 & (BYTE) 0x03u) << 6) | t3);
         *consumed = 4;
-        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x15, 0);
         return; // Valid 4-byte sequence
     }
 
     // Invalid leading code unit
-    if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 6, 0);
+    if (result != 0) *result = RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x16, 0);
     return;
 }
 
-/**
- * ERROR result: context = 0, detail = 0.
- * operation 1 = invalid UTF-8 sequence.
- * See cattelib.h for buffer, output, and argument-result contracts.
- */
+
 void catte_utf8_length(CATALYST_UTF8 utf8, CATALYST_NUINT* length, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8 == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x09, 0x01, 0);
         return;
     }
     if (length == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x09, 0x02, 1);
         return;
     }
     *length = 0;
@@ -522,34 +503,29 @@ void catte_utf8_length(CATALYST_UTF8 utf8, CATALYST_NUINT* length, CATALYST_RESU
         RESULT decodeResult;
         catte_utf8_decode(utf8, &codepoint, &consumed, &decodeResult);
         if (!status_code_is_success(decodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 1, 0);
+            if (result != 0) *result = RESULT(decodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : decodeResult.status, 0x09, 0x03, decodeResult.operation);
             return;
         }
         if (++count == (NUINT) -1) {
             // Overflow, no null terminator found
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x09, 0x04, 0);
             return;
         }
         utf8 += consumed;
     }
     *length = count;
-    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
 }
 
-/**
- * ERROR result: context = 0, detail = 0.
- * operation 1 = invalid codepoint above U+10FFFF.
- * operation 2 = invalid surrogate codepoint.
- * See cattelib.h for buffer, output, and argument-result contracts.
- */
+
 void catte_utf16le_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT* produced, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16lew == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0A, 0x01, 1);
         return;
     }
     if (produced == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0A, 0x02, 2);
         return;
     }
     *produced = 0;
@@ -562,20 +538,20 @@ void catte_utf16le_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW 
 
     // Validate codepoint is within Unicode range U+0000 to U+10FFFF
     if (codepoint0 != 0 || codepoint1 > (BYTE) 0x10u) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 1, 0); // Invalid codepoint above U+10FFFF
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0A, 0x03, 0); // Invalid codepoint above U+10FFFF
         return;
     }
 
     // Single UTF-16 code unit
     if (codepoint1 == 0) {
         if (codepoint2 >= (BYTE) 0xD8u && codepoint2 <= (BYTE) 0xDFu) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 2, 0); // Invalid surrogate codepoint
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0A, 0x04, 0); // Invalid surrogate codepoint
             return;
         }
         utf16lew[0].msb = codepoint2;
         utf16lew[0].lsb = codepoint3;
         *produced = 1;
-        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
         return;
     }
 
@@ -597,28 +573,23 @@ void catte_utf16le_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW 
     utf16lew[1].msb = (BYTE) ((BYTE) 0xDCu | ls_hi2);
     utf16lew[1].lsb = ls_lo8;
     *produced = 2;
-    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x06, 0);
     return;
 }
 
-/**
- * ERROR result: context = 0, detail = 0.
- * operation 1 = low surrogate without preceding high surrogate.
- * operation 2 = invalid low surrogate.
- * See cattelib.h for buffer, output, and argument-result contracts.
- */
+
 void catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16le == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0B, 0x01, 0);
         return;
     }
     if (codepoint == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0B, 0x02, 1);
         return;
     }
     if (consumed == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 2);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0B, 0x03, 2);
         return;
     }
     *consumed = 0;
@@ -634,13 +605,13 @@ void catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoin
     // NUL '\0' character
     if (codeunit0 == 0 && codeunit1 == 0) {
         *consumed = 1;
-        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0);
         return;
     }
 
     // Low surrogate without preceding high surrogate
     if (codeunit0 >= (BYTE) 0xDCu && codeunit0 <= (BYTE) 0xDFu) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 1, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x0B, 0x05, 0);
         return;
     }
 
@@ -649,7 +620,7 @@ void catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoin
         codepoint->byte2 = codeunit0;
         codepoint->byte3 = codeunit1;
         *consumed = 1;
-        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x06, 0);
         return;
     }
 
@@ -658,7 +629,7 @@ void catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoin
     BYTE codeunit3 = utf16le[1].lsb;
 
     if (!(codeunit2 >= (BYTE) 0xDCu && codeunit2 <= (BYTE) 0xDFu)) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 2, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x0B, 0x07, 0);
         return;
     }
 
@@ -677,23 +648,19 @@ void catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoin
     codepoint->byte2 = p1;
     codepoint->byte3 = p0;
     *consumed = 2;
-    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x08, 0);
     return;
 }
 
-/**
- * ERROR result: context = 0, detail = 0.
- * operation 1 = invalid UTF-16LE sequence.
- * See cattelib.h for buffer, output, and argument-result contracts.
- */
+
 void catte_utf16le_length(CATALYST_UTF16LE utf16le, CATALYST_NUINT* length, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16le == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0C, 0x01, 0);
         return;
     }
     if (length == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0C, 0x02, 1);
         return;
     }
     *length = 0;
@@ -710,28 +677,28 @@ void catte_utf16le_length(CATALYST_UTF16LE utf16le, CATALYST_NUINT* length, CATA
         RESULT decodeResult;
         catte_utf16le_decode(utf16le, &codepoint, &consumed, &decodeResult);
         if (!status_code_is_success(decodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR, 0, 1, 0); // Invalid UTF-16LE sequence
+            if (result != 0) *result = RESULT(decodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : decodeResult.status, 0x0C, 0x03, decodeResult.operation); // Invalid UTF-16LE sequence
             return;
         }
         if (++count == (NUINT) -1) {
             // Overflow, no null terminator found
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x0C, 0x04, 0);
             return;
         }
         utf16le += consumed;
     }
     *length = count;
-    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
+    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
 }
 
 void catte_ascii_to_cp1252(CATALYST_ASCII ascii, CATALYST_CP1252W cp1252w, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (ascii == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0D, 0x01, 0);
         return;
     }
     if (cp1252w == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0D, 0x02, 1);
         return;
     }
 
@@ -747,27 +714,27 @@ void catte_ascii_to_cp1252(CATALYST_ASCII ascii, CATALYST_CP1252W cp1252w, CATAL
         }
 
         if (++index == (NUINT) -1) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x0D, 0x03, 0);
             return;
         }
     }
 
     cp1252w[index] = (BYTE) '\0';
-    if (result != 0) *result = RESULT(status, 0, 0, 0);
+    if (result != 0) *result = RESULT(status, status_code_is_success(status) ? 0 : 0x0D, 0x04, 0);
 }
 
 void catte_ascii_to_utf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (ascii == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0E, 0x01, 0);
         return;
     }
     if (utf8w == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0E, 0x02, 1);
         return;
     }
     if (capacity == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x0E, 0x03, 0);
         return;
     }
 
@@ -777,7 +744,7 @@ void catte_ascii_to_utf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, CATALYST_NU
 
     while (ascii[read] != (BYTE) '\0') {
         if (write >= capacity || (capacity - write) <= 1) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x0E, 0x04, 0);
             return;
         }
 
@@ -793,21 +760,21 @@ void catte_ascii_to_utf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, CATALYST_NU
     }
 
     utf8w[write] = (BYTE) '\0';
-    if (result != 0) *result = RESULT(status, 0, 0, 0);
+    if (result != 0) *result = RESULT(status, status_code_is_success(status) ? 0 : 0x0E, 0x05, 0);
 }
 
 void catte_ascii_to_utf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (ascii == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0F, 0x01, 0);
         return;
     }
     if (utf16lew == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0F, 0x02, 1);
         return;
     }
     if (capacity == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x0F, 0x03, 0);
         return;
     }
 
@@ -817,7 +784,7 @@ void catte_ascii_to_utf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW utf16lew, CA
 
     while (ascii[read] != (BYTE) '\0') {
         if (write >= capacity || (capacity - write) <= 1) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x0F, 0x04, 0);
             return;
         }
 
@@ -836,24 +803,18 @@ void catte_ascii_to_utf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW utf16lew, CA
 
     utf16lew[write].msb = 0;
     utf16lew[write].lsb = 0;
-    if (result != 0) *result = RESULT(status, 0, 0, 0);
+    if (result != 0) *result = RESULT(status, status_code_is_success(status) ? 0 : 0x0F, 0x05, 0);
 }
 
-/**
- * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
- * dependency status byte. Its context/operation/detail are not propagated.
- * operation 1 = failed CP1252 decode.
- * operation 2 = failed ASCII encode.
- * See cattelib.h for buffer, output, and argument-result contracts.
- */
+
 void catte_cp1252_to_ascii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW asciiw, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (cp1252 == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x10, 0x01, 0);
         return;
     }
     if (asciiw == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x10, 0x02, 1);
         return;
     }
 
@@ -868,7 +829,7 @@ void catte_cp1252_to_ascii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW asciiw, CATAL
 
         catte_cp1252_decode(cp1252 + index, &codepoint, &decodeResult);
         if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
+            if (result != 0) *result = RESULT(decodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : decodeResult.status, 0x10, 0x03, decodeResult.operation);
             return;
         }
         if (status_code_is_warning(decodeResult.status)) {
@@ -877,7 +838,7 @@ void catte_cp1252_to_ascii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW asciiw, CATAL
 
         catte_ascii_encode(codepoint, output, &encodeResult);
         if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
+            if (result != 0) *result = RESULT(encodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : encodeResult.status, 0x10, 0x04, encodeResult.operation);
             return;
         }
         if (status_code_is_warning(encodeResult.status)) {
@@ -887,34 +848,28 @@ void catte_cp1252_to_ascii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW asciiw, CATAL
         asciiw[index] = output[0];
 
         if (++index == (NUINT) -1) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x10, 0x05, 0);
             return;
         }
     }
 
     asciiw[index] = (BYTE) '\0';
-    if (result != 0) *result = RESULT(status, 0, 0, 0);
+    if (result != 0) *result = RESULT(status, status_code_is_success(status) ? 0 : 0x10, 0x06, 0);
 }
 
-/**
- * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
- * dependency status byte. Its context/operation/detail are not propagated.
- * operation 1 = failed CP1252 decode.
- * operation 2 = failed UTF-8 encode.
- * See cattelib.h for buffer, output, and argument-result contracts.
- */
+
 void catte_cp1252_to_utf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (cp1252 == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x11, 0x01, 0);
         return;
     }
     if (utf8w == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x11, 0x02, 1);
         return;
     }
     if (capacity == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x11, 0x03, 0);
         return;
     }
 
@@ -937,7 +892,7 @@ void catte_cp1252_to_utf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST
 
         catte_cp1252_decode(cp1252 + read, &codepoint, &decodeResult);
         if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
+            if (result != 0) *result = RESULT(decodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : decodeResult.status, 0x11, 0x04, decodeResult.operation);
             return;
         }
         if (status_code_is_warning(decodeResult.status)) {
@@ -946,7 +901,7 @@ void catte_cp1252_to_utf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST
 
         catte_utf8_encode(codepoint, output, &produced, &encodeResult);
         if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
+            if (result != 0) *result = RESULT(encodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : encodeResult.status, 0x11, 0x05, encodeResult.operation);
             return;
         }
         if (status_code_is_warning(encodeResult.status)) {
@@ -954,7 +909,7 @@ void catte_cp1252_to_utf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST
         }
 
         if (write >= capacity || produced >= (capacity - write)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x11, 0x06, 0);
             return;
         }
 
@@ -967,28 +922,22 @@ void catte_cp1252_to_utf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST
     }
 
     utf8w[write] = (BYTE) '\0';
-    if (result != 0) *result = RESULT(status, 0, 0, 0);
+    if (result != 0) *result = RESULT(status, status_code_is_success(status) ? 0 : 0x11, 0x07, 0);
 }
 
-/**
- * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
- * dependency status byte. Its context/operation/detail are not propagated.
- * operation 1 = failed CP1252 decode.
- * operation 2 = failed UTF-16LE encode.
- * See cattelib.h for buffer, output, and argument-result contracts.
- */
+
 void catte_cp1252_to_utf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (cp1252 == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x12, 0x01, 0);
         return;
     }
     if (utf16lew == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x12, 0x02, 1);
         return;
     }
     if (capacity == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x12, 0x03, 0);
         return;
     }
 
@@ -1011,7 +960,7 @@ void catte_cp1252_to_utf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew,
 
         catte_cp1252_decode(cp1252 + read, &codepoint, &decodeResult);
         if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
+            if (result != 0) *result = RESULT(decodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : decodeResult.status, 0x12, 0x04, decodeResult.operation);
             return;
         }
         if (status_code_is_warning(decodeResult.status)) {
@@ -1020,7 +969,7 @@ void catte_cp1252_to_utf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew,
 
         catte_utf16le_encode(codepoint, output, &produced, &encodeResult);
         if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
+            if (result != 0) *result = RESULT(encodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : encodeResult.status, 0x12, 0x05, encodeResult.operation);
             return;
         }
         if (status_code_is_warning(encodeResult.status)) {
@@ -1028,7 +977,7 @@ void catte_cp1252_to_utf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew,
         }
 
         if (write >= capacity || produced >= (capacity - write)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x12, 0x06, 0);
             return;
         }
 
@@ -1042,28 +991,22 @@ void catte_cp1252_to_utf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew,
 
     utf16lew[write].msb = 0;
     utf16lew[write].lsb = 0;
-    if (result != 0) *result = RESULT(status, 0, 0, 0);
+    if (result != 0) *result = RESULT(status, status_code_is_success(status) ? 0 : 0x12, 0x07, 0);
 }
 
-/**
- * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
- * dependency status byte. Its context/operation/detail are not propagated.
- * operation 1 = failed UTF-8 decode.
- * operation 2 = failed ASCII encode.
- * See cattelib.h for buffer, output, and argument-result contracts.
- */
+
 void catte_utf8_to_ascii(CATALYST_UTF8 utf8, CATALYST_ASCIIW asciiw, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8 == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x13, 0x01, 0);
         return;
     }
     if (asciiw == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x13, 0x02, 1);
         return;
     }
     if (capacity == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x13, 0x03, 0);
         return;
     }
 
@@ -1084,7 +1027,7 @@ void catte_utf8_to_ascii(CATALYST_UTF8 utf8, CATALYST_ASCIIW asciiw, CATALYST_NU
 
         catte_utf8_decode(utf8, &codepoint, &consumed, &decodeResult);
         if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
+            if (result != 0) *result = RESULT(decodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : decodeResult.status, 0x13, 0x04, decodeResult.operation);
             return;
         }
         if (status_code_is_warning(decodeResult.status)) {
@@ -1093,7 +1036,7 @@ void catte_utf8_to_ascii(CATALYST_UTF8 utf8, CATALYST_ASCIIW asciiw, CATALYST_NU
 
         catte_ascii_encode(codepoint, output, &encodeResult);
         if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
+            if (result != 0) *result = RESULT(encodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : encodeResult.status, 0x13, 0x05, encodeResult.operation);
             return;
         }
         if (status_code_is_warning(encodeResult.status)) {
@@ -1101,7 +1044,7 @@ void catte_utf8_to_ascii(CATALYST_UTF8 utf8, CATALYST_ASCIIW asciiw, CATALYST_NU
         }
 
         if (write >= capacity || (capacity - write) <= 1) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x13, 0x06, 0);
             return;
         }
 
@@ -1111,28 +1054,22 @@ void catte_utf8_to_ascii(CATALYST_UTF8 utf8, CATALYST_ASCIIW asciiw, CATALYST_NU
     }
 
     asciiw[write] = (BYTE) '\0';
-    if (result != 0) *result = RESULT(status, 0, 0, 0);
+    if (result != 0) *result = RESULT(status, status_code_is_success(status) ? 0 : 0x13, 0x07, 0);
 }
 
-/**
- * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
- * dependency status byte. Its context/operation/detail are not propagated.
- * operation 1 = failed UTF-8 decode.
- * operation 2 = failed CP1252 encode.
- * See cattelib.h for buffer, output, and argument-result contracts.
- */
+
 void catte_utf8_to_cp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8 == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x14, 0x01, 0);
         return;
     }
     if (cp1252w == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x14, 0x02, 1);
         return;
     }
     if (capacity == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x14, 0x03, 0);
         return;
     }
 
@@ -1153,7 +1090,7 @@ void catte_utf8_to_cp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST
 
         catte_utf8_decode(utf8, &codepoint, &consumed, &decodeResult);
         if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
+            if (result != 0) *result = RESULT(decodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : decodeResult.status, 0x14, 0x04, decodeResult.operation);
             return;
         }
         if (status_code_is_warning(decodeResult.status)) {
@@ -1162,7 +1099,7 @@ void catte_utf8_to_cp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST
 
         catte_cp1252_encode(codepoint, output, &encodeResult);
         if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
+            if (result != 0) *result = RESULT(encodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : encodeResult.status, 0x14, 0x05, encodeResult.operation);
             return;
         }
         if (status_code_is_warning(encodeResult.status)) {
@@ -1170,7 +1107,7 @@ void catte_utf8_to_cp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST
         }
 
         if (write >= capacity || (capacity - write) <= 1) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x14, 0x06, 0);
             return;
         }
 
@@ -1180,28 +1117,22 @@ void catte_utf8_to_cp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST
     }
 
     cp1252w[write] = (BYTE) '\0';
-    if (result != 0) *result = RESULT(status, 0, 0, 0);
+    if (result != 0) *result = RESULT(status, status_code_is_success(status) ? 0 : 0x14, 0x07, 0);
 }
 
-/**
- * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
- * dependency status byte. Its context/operation/detail are not propagated.
- * operation 1 = failed UTF-8 decode.
- * operation 2 = failed UTF-16LE encode.
- * See cattelib.h for buffer, output, and argument-result contracts.
- */
+
 void catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf8 == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x15, 0x01, 0);
         return;
     }
     if (utf16lew == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x15, 0x02, 1);
         return;
     }
     if (capacity == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x15, 0x03, 0);
         return;
     }
 
@@ -1229,7 +1160,7 @@ void catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATAL
 
         catte_utf8_decode(utf8, &codepoint, &consumed, &decodeResult);
         if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
+            if (result != 0) *result = RESULT(decodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : decodeResult.status, 0x15, 0x04, decodeResult.operation);
             return;
         }
         if (status_code_is_warning(decodeResult.status)) {
@@ -1238,7 +1169,7 @@ void catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATAL
 
         catte_utf16le_encode(codepoint, output, &produced, &encodeResult);
         if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
+            if (result != 0) *result = RESULT(encodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : encodeResult.status, 0x15, 0x05, encodeResult.operation);
             return;
         }
         if (status_code_is_warning(encodeResult.status)) {
@@ -1246,7 +1177,7 @@ void catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATAL
         }
 
         if (write >= capacity || produced >= (capacity - write)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x15, 0x06, 0);
             return;
         }
 
@@ -1260,28 +1191,22 @@ void catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATAL
 
     utf16lew[write].msb = 0;
     utf16lew[write].lsb = 0;
-    if (result != 0) *result = RESULT(status, 0, 0, 0);
+    if (result != 0) *result = RESULT(status, status_code_is_success(status) ? 0 : 0x15, 0x07, 0);
 }
 
-/**
- * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
- * dependency status byte. Its context/operation/detail are not propagated.
- * operation 1 = failed UTF-16LE decode.
- * operation 2 = failed ASCII encode.
- * See cattelib.h for buffer, output, and argument-result contracts.
- */
+
 void catte_utf16le_to_ascii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW asciiw, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16le == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x16, 0x01, 0);
         return;
     }
     if (asciiw == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x16, 0x02, 1);
         return;
     }
     if (capacity == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x16, 0x03, 0);
         return;
     }
 
@@ -1302,7 +1227,7 @@ void catte_utf16le_to_ascii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW asciiw, CA
 
         catte_utf16le_decode(utf16le, &codepoint, &consumed, &decodeResult);
         if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
+            if (result != 0) *result = RESULT(decodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : decodeResult.status, 0x16, 0x04, decodeResult.operation);
             return;
         }
         if (status_code_is_warning(decodeResult.status)) {
@@ -1311,7 +1236,7 @@ void catte_utf16le_to_ascii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW asciiw, CA
 
         catte_ascii_encode(codepoint, output, &encodeResult);
         if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
+            if (result != 0) *result = RESULT(encodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : encodeResult.status, 0x16, 0x05, encodeResult.operation);
             return;
         }
         if (status_code_is_warning(encodeResult.status)) {
@@ -1319,7 +1244,7 @@ void catte_utf16le_to_ascii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW asciiw, CA
         }
 
         if (write >= capacity || (capacity - write) <= 1) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x16, 0x06, 0);
             return;
         }
 
@@ -1329,28 +1254,22 @@ void catte_utf16le_to_ascii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW asciiw, CA
     }
 
     asciiw[write] = (BYTE) '\0';
-    if (result != 0) *result = RESULT(status, 0, 0, 0);
+    if (result != 0) *result = RESULT(status, status_code_is_success(status) ? 0 : 0x16, 0x07, 0);
 }
 
-/**
- * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
- * dependency status byte. Its context/operation/detail are not propagated.
- * operation 1 = failed UTF-16LE decode.
- * operation 2 = failed CP1252 encode.
- * See cattelib.h for buffer, output, and argument-result contracts.
- */
+
 void catte_utf16le_to_cp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16le == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x17, 0x01, 0);
         return;
     }
     if (cp1252w == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x17, 0x02, 1);
         return;
     }
     if (capacity == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x17, 0x03, 0);
         return;
     }
 
@@ -1371,7 +1290,7 @@ void catte_utf16le_to_cp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w,
 
         catte_utf16le_decode(utf16le, &codepoint, &consumed, &decodeResult);
         if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
+            if (result != 0) *result = RESULT(decodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : decodeResult.status, 0x17, 0x04, decodeResult.operation);
             return;
         }
         if (status_code_is_warning(decodeResult.status)) {
@@ -1380,7 +1299,7 @@ void catte_utf16le_to_cp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w,
 
         catte_cp1252_encode(codepoint, output, &encodeResult);
         if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
+            if (result != 0) *result = RESULT(encodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : encodeResult.status, 0x17, 0x05, encodeResult.operation);
             return;
         }
         if (status_code_is_warning(encodeResult.status)) {
@@ -1388,7 +1307,7 @@ void catte_utf16le_to_cp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w,
         }
 
         if (write >= capacity || (capacity - write) <= 1) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x17, 0x06, 0);
             return;
         }
 
@@ -1398,28 +1317,22 @@ void catte_utf16le_to_cp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w,
     }
 
     cp1252w[write] = (BYTE) '\0';
-    if (result != 0) *result = RESULT(status, 0, 0, 0);
+    if (result != 0) *result = RESULT(status, status_code_is_success(status) ? 0 : 0x17, 0x07, 0);
 }
 
-/**
- * ERROR_DEPENDENCY_FAILURE result: context = 0; detail is the failing
- * dependency status byte. Its context/operation/detail are not propagated.
- * operation 1 = failed UTF-16LE decode.
- * operation 2 = failed UTF-8 encode.
- * See cattelib.h for buffer, output, and argument-result contracts.
- */
+
 void catte_utf16le_to_utf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result) {
     // Validate, initialize parameters
     if (utf16le == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x18, 0x01, 0);
         return;
     }
     if (utf8w == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0, 0, 1);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x18, 0x02, 1);
         return;
     }
     if (capacity == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x18, 0x03, 0);
         return;
     }
 
@@ -1447,7 +1360,7 @@ void catte_utf16le_to_utf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W utf8w, CATAL
 
         catte_utf16le_decode(utf16le, &codepoint, &consumed, &decodeResult);
         if (status_code_is_error(decodeResult.status) || status_code_is_fatal(decodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 1, (BYTE) decodeResult.status);
+            if (result != 0) *result = RESULT(decodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : decodeResult.status, 0x18, 0x04, decodeResult.operation);
             return;
         }
         if (status_code_is_warning(decodeResult.status)) {
@@ -1456,7 +1369,7 @@ void catte_utf16le_to_utf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W utf8w, CATAL
 
         catte_utf8_encode(codepoint, output, &produced, &encodeResult);
         if (status_code_is_error(encodeResult.status) || status_code_is_fatal(encodeResult.status)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0, 2, (BYTE) encodeResult.status);
+            if (result != 0) *result = RESULT(encodeResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : encodeResult.status, 0x18, 0x05, encodeResult.operation);
             return;
         }
         if (status_code_is_warning(encodeResult.status)) {
@@ -1464,7 +1377,7 @@ void catte_utf16le_to_utf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W utf8w, CATAL
         }
 
         if (write >= capacity || produced >= (capacity - write)) {
-            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0, 0, 0);
+            if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x18, 0x06, 0);
             return;
         }
 
@@ -1477,5 +1390,5 @@ void catte_utf16le_to_utf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W utf8w, CATAL
     }
 
     utf8w[write] = (BYTE) '\0';
-    if (result != 0) *result = RESULT(status, 0, 0, 0);
+    if (result != 0) *result = RESULT(status, status_code_is_success(status) ? 0 : 0x18, 0x07, 0);
 }
