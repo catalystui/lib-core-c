@@ -153,12 +153,9 @@ Creates a fixed-length array of length elements, each `element_size` bytes. All 
 
 **Parameters:**
 
-`array` — Receives the new array handle; cleared on failure.
-
-`element_size` — Element size in bytes. Must be nonzero.
-
-`length` — Number of elements; may be zero.
-
+`array` — Receives the new array handle; cleared on failure.  
+`element_size` — Element size in bytes. Must be nonzero.  
+`length` — Number of elements; may be zero.  
 `result` — Optional result output.
 
 **Context:** `0x01`
@@ -198,8 +195,7 @@ Releases array storage and handle.
 
 **Parameters:**
 
-`array` — Array handle.
-
+`array` — Array handle.  
 `result` — Optional result output.
 
 **Context:** `0x02`
@@ -238,12 +234,9 @@ Copies the element at index into value, which must hold `element_size` bytes.
 
 **Parameters:**
 
-`array` — Array handle.
-
-`index` — Zero-based element index.
-
-`value` — Writable buffer receiving the value.
-
+`array` — Array handle.  
+`index` — Zero-based element index.  
+`value` — Writable buffer receiving the value.  
 `result` — Optional result output.
 
 **Context:** `0x03`
@@ -282,12 +275,9 @@ Replaces the element at index with a copy of `element_size` bytes from value.
 
 **Parameters:**
 
-`array` — Array handle.
-
-`index` — Zero-based element index.
-
-`value` — Readable value to copy or match.
-
+`array` — Array handle.  
+`index` — Zero-based element index.  
+`value` — Readable value to copy or match.  
 `result` — Optional result output.
 
 **Context:** `0x04`
@@ -325,10 +315,8 @@ Writes the fixed element count to length.
 
 **Parameters:**
 
-`array` — Array handle.
-
-`length` — Receives the fixed element count.
-
+`array` — Array handle.  
+`length` — Receives the fixed element count.  
 `result` — Optional result output.
 
 **Context:** `0x05`
@@ -365,10 +353,8 @@ Creates an empty set of `element_size`-byte elements.
 
 **Parameters:**
 
-`set` — Receives the new set handle; cleared on failure.
-
-`element_size` — Element size in bytes. Must be nonzero.
-
+`set` — Receives the new set handle; cleared on failure.  
+`element_size` — Element size in bytes. Must be nonzero.  
 `result` — Optional result output.
 
 **Context:** `0x06`
@@ -401,8 +387,7 @@ Releases set storage and handle.
 
 **Parameters:**
 
-`set` — Set handle.
-
+`set` — Set handle.  
 `result` — Optional result output.
 
 **Context:** `0x07`
@@ -439,10 +424,8 @@ Copies value into the set if no byte-identical element exists. Grows storage as 
 
 **Parameters:**
 
-`set` — Set handle.
-
-`value` — Readable value to copy or match.
-
+`set` — Set handle.  
+`value` — Readable value to copy or match.  
 `result` — Optional result output.
 
 **Context:** `0x08`
@@ -486,10 +469,8 @@ Removes a byte-identical element. Enumeration order may change.
 
 **Parameters:**
 
-`set` — Set handle.
-
-`value` — Readable value to copy or match.
-
+`set` — Set handle.  
+`value` — Readable value to copy or match.  
 `result` — Optional result output.
 
 **Context:** `0x09`
@@ -528,12 +509,9 @@ Reports whether the set contains the specified value.
 
 **Parameters:**
 
-`set` — Set handle.
-
-`value` — Readable value to copy or match.
-
-`contains` — Receives `CATALYST_TRUE` or `CATALYST_FALSE`.
-
+`set` — Set handle.  
+`value` — Readable value to copy or match.  
+`contains` — Receives `CATALYST_TRUE` or `CATALYST_FALSE`.  
 `result` — Optional result output.
 
 **Context:** `0x0A`
@@ -569,10 +547,8 @@ Writes the number of distinct elements to count.
 
 **Parameters:**
 
-`set` — Set handle.
-
-`count` — Receives the number of elements.
-
+`set` — Set handle.  
+`count` — Receives the number of elements.  
 `result` — Optional result output.
 
 **Context:** `0x0B`
@@ -607,12 +583,9 @@ Copies the element at an unordered enumeration index into value.
 
 **Parameters:**
 
-`set` — Set handle.
-
-`index` — Zero-based enumeration index.
-
-`value` — Writable buffer receiving the value.
-
+`set` — Set handle.  
+`index` — Zero-based enumeration index.  
+`value` — Writable buffer receiving the value.  
 `result` — Optional result output.
 
 **Context:** `0x0C`
@@ -648,8 +621,7 @@ Removes all elements without releasing `capacity` or zeroing the stored bytes.
 
 **Parameters:**
 
-`set` — Set handle.
-
+`set` — Set handle.  
 `result` — Optional result output.
 
 **Context:** `0x0D`
@@ -686,12 +658,9 @@ Creates an empty map with fixed `key_size` and `value_size` bytes per associatio
 
 **Parameters:**
 
-`map` — Receives the new map handle; cleared on failure.
-
-`key_size` — Key size in bytes. Must be nonzero.
-
-`value_size` — Value size in bytes. Must be nonzero.
-
+`map` — Receives the new map handle; cleared on failure.  
+`key_size` — Key size in bytes. Must be nonzero.  
+`value_size` — Value size in bytes. Must be nonzero.  
 `result` — Optional result output.
 
 **Context:** `0x0E`
@@ -726,8 +695,7 @@ Releases map storage and handle.
 
 **Parameters:**
 
-`map` — Map handle.
-
+`map` — Map handle.  
 `result` — Optional result output.
 
 **Context:** `0x0F`
@@ -766,12 +734,9 @@ Retrieves the value associated with a byte-identical key.
 
 **Parameters:**
 
-`map` — Map handle.
-
-`key` — Readable key of the configured key size.
-
-`value` — Writable buffer receiving the value.
-
+`map` — Map handle.  
+`key` — Readable key of the configured key size.  
+`value` — Writable buffer receiving the value.  
 `result` — Optional result output.
 
 **Context:** `0x10`
@@ -812,12 +777,9 @@ Inserts a key/value association or updates an existing key without increasing th
 
 **Parameters:**
 
-`map` — Map handle.
-
-`key` — Readable key of the configured key size.
-
-`value` — Readable value to copy or match.
-
+`map` — Map handle.  
+`key` — Readable key of the configured key size.  
+`value` — Readable value to copy or match.  
 `result` — Optional result output.
 
 **Context:** `0x11`
@@ -864,10 +826,8 @@ Removes an association with a byte-identical key. Enumeration order may change.
 
 **Parameters:**
 
-`map` — Map handle.
-
-`key` — Readable key of the configured key size.
-
+`map` — Map handle.  
+`key` — Readable key of the configured key size.  
 `result` — Optional result output.
 
 **Context:** `0x12`
@@ -907,12 +867,9 @@ Reports whether the map contains the specified key.
 
 **Parameters:**
 
-`map` — Map handle.
-
-`key` — Readable key of the configured key size.
-
-`contains` — Receives `CATALYST_TRUE` or `CATALYST_FALSE`.
-
+`map` — Map handle.  
+`key` — Readable key of the configured key size.  
+`contains` — Receives `CATALYST_TRUE` or `CATALYST_FALSE`.  
 `result` — Optional result output.
 
 **Context:** `0x13`
@@ -949,10 +906,8 @@ Writes the number of key/value associations to count.
 
 **Parameters:**
 
-`map` — Map handle.
-
-`count` — Receives the number of elements.
-
+`map` — Map handle.  
+`count` — Receives the number of elements.  
 `result` — Optional result output.
 
 **Context:** `0x14`
@@ -989,14 +944,10 @@ Copies the key and value at an unordered enumeration index to their respective o
 
 **Parameters:**
 
-`map` — Map handle.
-
-`index` — Zero-based enumeration index.
-
-`key` — Writable buffer receiving the key.
-
-`value` — Writable buffer receiving the value.
-
+`map` — Map handle.  
+`index` — Zero-based enumeration index.  
+`key` — Writable buffer receiving the key.  
+`value` — Writable buffer receiving the value.  
 `result` — Optional result output.
 
 **Context:** `0x15`
@@ -1036,8 +987,7 @@ Removes all associations without releasing `capacity` or zeroing stored bytes.
 
 **Parameters:**
 
-`map` — Map handle.
-
+`map` — Map handle.  
 `result` — Optional result output.
 
 **Context:** `0x16`
@@ -1074,10 +1024,8 @@ Creates an empty stack with `element_size` bytes per element.
 
 **Parameters:**
 
-`stack` — Receives the new stack handle; cleared on failure.
-
-`element_size` — Element size in bytes. Must be nonzero.
-
+`stack` — Receives the new stack handle; cleared on failure.  
+`element_size` — Element size in bytes. Must be nonzero.  
 `result` — Optional result output.
 
 **Context:** `0x17`
@@ -1110,8 +1058,7 @@ Releases stack storage and handle.
 
 **Parameters:**
 
-`stack` — Stack handle.
-
+`stack` — Stack handle.  
 `result` — Optional result output.
 
 **Context:** `0x18`
@@ -1148,10 +1095,8 @@ Copies value to the top of the stack. Grows storage as needed.
 
 **Parameters:**
 
-`stack` — Stack handle.
-
-`value` — Readable value to copy or match.
-
+`stack` — Stack handle.  
+`value` — Readable value to copy or match.  
 `result` — Optional result output.
 
 **Context:** `0x19`
@@ -1193,10 +1138,8 @@ Copies the top element into value and removes it.
 
 **Parameters:**
 
-`stack` — Stack handle.
-
-`value` — Writable buffer receiving the value.
-
+`stack` — Stack handle.  
+`value` — Writable buffer receiving the value.  
 `result` — Optional result output.
 
 **Context:** `0x1A`
@@ -1233,10 +1176,8 @@ Copies the top element into value without removing it.
 
 **Parameters:**
 
-`stack` — Stack handle.
-
-`value` — Writable buffer receiving the value.
-
+`stack` — Stack handle.  
+`value` — Writable buffer receiving the value.  
 `result` — Optional result output.
 
 **Context:** `0x1B`
@@ -1273,10 +1214,8 @@ Writes the number of elements to count.
 
 **Parameters:**
 
-`stack` — Stack handle.
-
-`count` — Receives the number of elements.
-
+`stack` — Stack handle.  
+`count` — Receives the number of elements.  
 `result` — Optional result output.
 
 **Context:** `0x1C`
@@ -1309,8 +1248,7 @@ Removes all elements without releasing `capacity` or zeroing stored bytes.
 
 **Parameters:**
 
-`stack` — Stack handle.
-
+`stack` — Stack handle.  
 `result` — Optional result output.
 
 **Context:** `0x1D`

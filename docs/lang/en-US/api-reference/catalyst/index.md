@@ -154,10 +154,14 @@ Represents four bits with values from 0 through 15. The underlying byte does not
 
 Unsigned eight-bit integer.
 
-**C90:** Defined as `unsigned char` when its range matches.
-
-**C99+:** Defined as `uint8_t`.
-
+**C90:**
+```c
+typedef unsigned char CATALYST_BYTE;
+```
+**C99+:**
+```c
+typedef uint8_t CATALYST_BYTE;
+```
 **C++:** `catalyst::BYTE`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
@@ -166,10 +170,14 @@ Unsigned eight-bit integer.
 
 Signed eight-bit integer.
 
-**C90:** Defined as `signed char` when its range matches.
-
-**C99+:** Defined as `int8_t`.
-
+**C90:**
+```c
+typedef signed char CATALYST_SBYTE;
+```
+**C99+:**
+```c
+typedef int8_t CATALYST_SBYTE;
+```
 **C++:** `catalyst::SBYTE`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
@@ -180,10 +188,18 @@ Signed sixteen-bit integer.
 
 <span data-heading-badge="CATALYST_SUPPORTS_16BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_16BIT to be 1"></span>
 
-**C90:** Defined as `signed short` when its range matches.
-
-**C99+:** Defined as `int16_t`.
-
+**C90:**
+```c
+#if CATALYST_SUPPORTS_16BIT
+typedef signed short CATALYST_SHORT;
+#endif
+```
+**C99+:**
+```c
+#if CATALYST_SUPPORTS_16BIT
+typedef int16_t CATALYST_SHORT;
+#endif
+```
 **C++:** `catalyst::SHORT`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
@@ -194,10 +210,18 @@ Unsigned sixteen-bit integer.
 
 <span data-heading-badge="CATALYST_SUPPORTS_16BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_16BIT to be 1"></span>
 
-**C90:** Defined as `unsigned short` when its range matches.
-
-**C99+:** Defined as `uint16_t`.
-
+**C90:**
+```c
+#if CATALYST_SUPPORTS_16BIT
+typedef unsigned short CATALYST_USHORT;
+#endif
+```
+**C99+:**
+```c
+#if CATALYST_SUPPORTS_16BIT
+typedef uint16_t CATALYST_USHORT;
+#endif
+```
 **C++:** `catalyst::USHORT`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
@@ -208,10 +232,18 @@ Signed thirty-two-bit integer.
 
 <span data-heading-badge="CATALYST_SUPPORTS_32BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_32BIT to be 1"></span>
 
-**C90:** Defined as `signed int` when its range matches.
-
-**C99+:** Defined as `int32_t`.
-
+**C90:**
+```c
+#if CATALYST_SUPPORTS_32BIT
+typedef signed int CATALYST_INT;
+#endif
+```
+**C99+:**
+```c
+#if CATALYST_SUPPORTS_32BIT
+typedef int32_t CATALYST_INT;
+#endif
+```
 **C++:** `catalyst::INT`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
@@ -222,10 +254,18 @@ Unsigned thirty-two-bit integer.
 
 <span data-heading-badge="CATALYST_SUPPORTS_32BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_32BIT to be 1"></span>
 
-**C90:** Defined as `unsigned int` when its range matches.
-
-**C99+:** Defined as `uint32_t`.
-
+**C90:**
+```c
+#if CATALYST_SUPPORTS_32BIT
+typedef unsigned int CATALYST_UINT;
+#endif
+```
+**C99+:**
+```c
+#if CATALYST_SUPPORTS_32BIT
+typedef uint32_t CATALYST_UINT;
+#endif
+```
 **C++:** `catalyst::UINT`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
@@ -236,10 +276,13 @@ Signed sixty-four-bit integer.
 
 <span data-heading-badge="CATALYST_SUPPORTS_64BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_64BIT to be 1"></span>
 
-**C90:** Not available.
-
-**C99+:** Defined as `int64_t`.
-
+**C90:** Not available.  
+**C99+:**
+```c
+#if CATALYST_SUPPORTS_64BIT
+typedef int64_t CATALYST_LONG;
+#endif
+```
 **C++:** `catalyst::LONG`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
@@ -250,10 +293,13 @@ Unsigned sixty-four-bit integer.
 
 <span data-heading-badge="CATALYST_SUPPORTS_64BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_64BIT to be 1"></span>
 
-**C90:** Not available.
-
-**C99+:** Defined as `uint64_t`.
-
+**C90:** Not available.  
+**C99+:**
+```c
+#if CATALYST_SUPPORTS_64BIT
+typedef uint64_t CATALYST_ULONG;
+#endif
+```
 **C++:** `catalyst::ULONG`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
@@ -864,12 +910,9 @@ Initializes each field with its corresponding argument.
 
 **Parameters:**
 
-`byte0` — Most significant byte (bits 31–24).
-
-`byte1` — Bits 23–16.
-
-`byte2` — Bits 15–8.
-
+`byte0` — Most significant byte (bits 31–24).  
+`byte1` — Bits 23–16.  
+`byte2` — Bits 15–8.  
 `byte3` — Least significant byte (bits 7–0).
 
 #### CODEPOINT copy constructor
@@ -968,8 +1011,7 @@ Initializes each field with its corresponding argument. The argument order is hi
 
 **Parameters:**
 
-`msb` — Most significant byte of the code unit.
-
+`msb` — Most significant byte of the code unit.  
 `lsb` — Least significant byte of the code unit.
 
 #### UTF16LE_CODE_UNIT copy constructor
@@ -1068,12 +1110,9 @@ Initializes each field with its corresponding argument.
 
 **Parameters:**
 
-`status` — Status code.
-
-`context` — Context code.
-
-`operation` — Operation code.
-
+`status` — Status code.  
+`context` — Context code.  
+`operation` — Operation code.  
 `detail` — Detail code.
 
 #### RESULT copy constructor

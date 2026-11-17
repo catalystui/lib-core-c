@@ -62,8 +62,7 @@ Allocator-owned metadata immediately preceding the payload. Do not modify it.
 
 **Fields:**
 
-`requested_size` — Requested payload size in bytes.
-
+`requested_size` — Requested payload size in bytes.  
 `allocated_size` — Tracked extent including the header; Linux rounds to pages, Windows and Darwin record header plus payload.
 
 **C++:** `catalyst::MEMORY_HEADER`.
@@ -92,10 +91,8 @@ Allocates `size` zero-filled bytes and stores the address in `*memory`. The outp
 
 **Parameters:**
 
-`memory` — Receives the allocation address; cleared on failure.
-
-`size` — Requested allocation size in bytes; must be nonzero.
-
+`memory` — Receives the allocation address; cleared on failure.  
+`size` — Requested allocation size in bytes; must be nonzero.  
 `result` — Optional result output.
 
 **Context:** `0x01`
@@ -131,10 +128,8 @@ On replacement allocation or old-block release failure, the pointer value is unc
 
 **Parameters:**
 
-`memory` — Address of the allocation pointer; updated on success.
-
-`size` — New allocation size in bytes; zero releases a non-null allocation.
-
+`memory` — Address of the allocation pointer; updated on success.  
+`size` — New allocation size in bytes; zero releases a non-null allocation.  
 `result` — Optional result output.
 
 **Context:** `0x02`
@@ -178,8 +173,7 @@ Releases a live CATMMLIB allocation at its original payload address. The caller'
 
 **Parameters:**
 
-`memory` — Address of the memory region.
-
+`memory` — Address of the memory region.  
 `result` — Optional result output.
 
 **Context:** `0x03`
@@ -214,12 +208,9 @@ Copies `size` bytes from `source` to `destination`. The regions must not overlap
 
 **Parameters:**
 
-`destination` — Writable destination region.
-
-`source` — Readable source region.
-
-`size` — Number of bytes to process.
-
+`destination` — Writable destination region.  
+`source` — Readable source region.  
+`size` — Number of bytes to process.  
 `result` — Optional result output.
 
 **Context:** `0x04`
@@ -251,12 +242,9 @@ Copies `size` bytes from `source` to `destination`, preserving the original sour
 
 **Parameters:**
 
-`destination` — Writable destination region.
-
-`source` — Readable source region.
-
-`size` — Number of bytes to process.
-
+`destination` — Writable destination region.  
+`source` — Readable source region.  
+`size` — Number of bytes to process.  
 `result` — Optional result output.
 
 **Context:** `0x05`
@@ -289,14 +277,10 @@ Compares `size` unsigned bytes lexicographically and writes −1, 0, or 1 to `*c
 
 **Parameters:**
 
-`first` — First readable region.
-
-`second` — Second readable region.
-
-`size` — Number of bytes to process.
-
-`comparison` — Receives −1, 0, or 1.
-
+`first` — First readable region.  
+`second` — Second readable region.  
+`size` — Number of bytes to process.  
+`comparison` — Receives −1, 0, or 1.  
 `result` — Optional result output.
 
 **Context:** `0x06`
@@ -330,12 +314,9 @@ Fills the `size`-byte region at `memory` with `value`.
 
 **Parameters:**
 
-`memory` — Address of the memory region.
-
-`value` — Byte to write throughout the region.
-
-`size` — Number of bytes to process.
-
+`memory` — Address of the memory region.  
+`value` — Byte to write throughout the region.  
+`size` — Number of bytes to process.  
 `result` — Optional result output.
 
 **Context:** `0x07`

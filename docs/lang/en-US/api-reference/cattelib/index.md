@@ -99,10 +99,8 @@ Encodes one codepoint as ASCII. Codepoints outside U+0000–U+007F are replaced 
 
 **Parameters:**
 
-`codepoint` — Codepoint to encode.
-
-`asciiw` — Writable buffer for one code unit.
-
+`codepoint` — Codepoint to encode.  
+`asciiw` — Writable buffer for one code unit.  
 `result` — Optional result output.
 
 **Context:** `0x01`
@@ -133,10 +131,8 @@ Decodes a single ASCII code unit into a codepoint. The input byte becomes the le
 
 **Parameters:**
 
-`ascii` — Readable input containing one code unit.
-
-`codepoint` — Receives the decoded codepoint.
-
+`ascii` — Readable input containing one code unit.  
+`codepoint` — Receives the decoded codepoint.  
 `result` — Optional result output.
 
 **Context:** `0x02`
@@ -166,10 +162,8 @@ Counts the code units in a null-terminated ASCII string, excluding the terminato
 
 **Parameters:**
 
-`ascii` — Readable null-terminated input.
-
-`length` — Receives the number of code units before the terminator.
-
+`ascii` — Readable null-terminated input.  
+`length` — Receives the number of code units before the terminator.  
 `result` — Optional result output.
 
 **Context:** `0x03`
@@ -202,10 +196,8 @@ Encodes one codepoint as Windows-1252. Unrepresentable codepoints are replaced w
 
 **Parameters:**
 
-`codepoint` — Codepoint to encode.
-
-`cp1252w` — Writable buffer for one code unit.
-
+`codepoint` — Codepoint to encode.  
+`cp1252w` — Writable buffer for one code unit.  
 `result` — Optional result output.
 
 **Context:** `0x04`
@@ -262,10 +254,8 @@ Decodes one Windows-1252 code unit. Undefined bytes (`0x81`, `0x8D`, `0x8F`, `0x
 
 **Parameters:**
 
-`cp1252` — Readable input containing one code unit.
-
-`codepoint` — Receives the decoded codepoint.
-
+`cp1252` — Readable input containing one code unit.  
+`codepoint` — Receives the decoded codepoint.  
 `result` — Optional result output.
 
 **Context:** `0x05`
@@ -323,10 +313,8 @@ Counts the code units in a null-terminated Windows-1252 string, excluding the te
 
 **Parameters:**
 
-`cp1252` — Readable null-terminated input.
-
-`length` — Receives the number of code units before the terminator.
-
+`cp1252` — Readable null-terminated input.  
+`length` — Receives the number of code units before the terminator.  
 `result` — Optional result output.
 
 **Context:** `0x06`
@@ -360,12 +348,9 @@ Encodes a Unicode scalar as one to four UTF-8 code units. The destination must a
 
 **Parameters:**
 
-`codepoint` — Codepoint to encode.
-
-`utf8w` — Writable buffer for up to four code units.
-
-`produced` — Receives the number of code units written.
-
+`codepoint` — Codepoint to encode.  
+`utf8w` — Writable buffer for up to four code units.  
+`produced` — Receives the number of code units written.  
 `result` — Optional result output.
 
 **Context:** `0x07`
@@ -403,12 +388,9 @@ Decodes one Unicode scalar from UTF-8 and reports the number of code units consu
 
 **Parameters:**
 
-`utf8` — Readable input containing the complete encoded sequence.
-
-`codepoint` — Receives the decoded codepoint.
-
-`consumed` — Receives the number of code units read.
-
+`utf8` — Readable input containing the complete encoded sequence.  
+`codepoint` — Receives the decoded codepoint.  
+`consumed` — Receives the number of code units read.  
 `result` — Optional result output.
 
 **Context:** `0x08`
@@ -460,10 +442,8 @@ Counts Unicode scalars in a null-terminated UTF-8 string, excluding the terminat
 
 **Parameters:**
 
-`utf8` — Readable null-terminated input.
-
-`length` — Receives the number of Unicode scalars.
-
+`utf8` — Readable null-terminated input.  
+`length` — Receives the number of Unicode scalars.  
 `result` — Optional result output.
 
 **Context:** `0x09`
@@ -514,12 +494,9 @@ Encodes a Unicode scalar as one UTF-16LE code unit or a surrogate pair. The dest
 
 **Parameters:**
 
-`codepoint` — Codepoint to encode.
-
-`utf16lew` — Writable buffer for up to two code units.
-
-`produced` — Receives the number of code units written.
-
+`codepoint` — Codepoint to encode.  
+`utf16lew` — Writable buffer for up to two code units.  
+`produced` — Receives the number of code units written.  
 `result` — Optional result output.
 
 **Context:** `0x0A`
@@ -553,12 +530,9 @@ Decodes one Unicode scalar from UTF-16LE and reports the number of code units co
 
 **Parameters:**
 
-`utf16le` — Readable input containing the complete encoded sequence.
-
-`codepoint` — Receives the decoded codepoint.
-
-`consumed` — Receives the number of code units read.
-
+`utf16le` — Readable input containing the complete encoded sequence.  
+`codepoint` — Receives the decoded codepoint.  
+`consumed` — Receives the number of code units read.  
 `result` — Optional result output.
 
 **Context:** `0x0B`
@@ -593,10 +567,8 @@ Counts Unicode scalars in a null-terminated UTF-16LE string, excluding the termi
 
 **Parameters:**
 
-`utf16le` — Readable null-terminated input.
-
-`length` — Receives the number of Unicode scalars.
-
+`utf16le` — Readable null-terminated input.  
+`length` — Receives the number of Unicode scalars.  
 `result` — Optional result output.
 
 **Context:** `0x0C`
@@ -636,10 +608,8 @@ Destination must hold at least the source byte count plus one terminator; no cap
 
 **Parameters:**
 
-`ascii` — Readable null-terminated input.
-
-`cp1252w` — Writable destination buffer.
-
+`ascii` — Readable null-terminated input.  
+`cp1252w` — Writable destination buffer.  
 `result` — Optional result output.
 
 **Context:** `0x0D`
@@ -672,12 +642,9 @@ Source bytes above 0x7F are replaced by '?'.
 
 **Parameters:**
 
-`ascii` — Readable null-terminated input.
-
-`utf8w` — Writable destination buffer.
-
-`capacity` — Destination capacity in code units, including the terminator.
-
+`ascii` — Readable null-terminated input.  
+`utf8w` — Writable destination buffer.  
+`capacity` — Destination capacity in code units, including the terminator.  
 `result` — Optional result output.
 
 **Context:** `0x0E`
@@ -711,12 +678,9 @@ Source bytes above 0x7F are replaced by '?'.
 
 **Parameters:**
 
-`ascii` — Readable null-terminated input.
-
-`utf16lew` — Writable destination buffer.
-
-`capacity` — Destination capacity in code units, including the terminator.
-
+`ascii` — Readable null-terminated input.  
+`utf16lew` — Writable destination buffer.  
+`capacity` — Destination capacity in code units, including the terminator.  
 `result` — Optional result output.
 
 **Context:** `0x0F`
@@ -749,10 +713,8 @@ Destination must hold at least the source byte count plus one terminator; no cap
 
 **Parameters:**
 
-`cp1252` — Readable null-terminated input.
-
-`ascii` — Writable destination buffer.
-
+`cp1252` — Readable null-terminated input.  
+`ascii` — Writable destination buffer.  
 `result` — Optional result output.
 
 **Context:** `0x10`
@@ -788,12 +750,9 @@ Undefined source bytes are replaced by '?'.
 
 **Parameters:**
 
-`cp1252` — Readable null-terminated input.
-
-`utf8w` — Writable destination buffer.
-
-`capacity` — Destination capacity in code units, including the terminator.
-
+`cp1252` — Readable null-terminated input.  
+`utf8w` — Writable destination buffer.  
+`capacity` — Destination capacity in code units, including the terminator.  
 `result` — Optional result output.
 
 **Context:** `0x11`
@@ -835,12 +794,9 @@ Undefined source bytes are replaced by '?'.
 
 **Parameters:**
 
-`cp1252` — Readable null-terminated input.
-
-`utf16lew` — Writable destination buffer.
-
-`capacity` — Destination capacity in code units, including the terminator.
-
+`cp1252` — Readable null-terminated input.  
+`utf16lew` — Writable destination buffer.  
+`capacity` — Destination capacity in code units, including the terminator.  
 `result` — Optional result output.
 
 **Context:** `0x12`
@@ -880,12 +836,9 @@ Unrepresentable values are replaced by '?'.
 
 **Parameters:**
 
-`utf8` — Readable null-terminated input.
-
-`ascii` — Writable destination buffer.
-
-`capacity` — Destination capacity in code units, including the terminator.
-
+`utf8` — Readable null-terminated input.  
+`ascii` — Writable destination buffer.  
+`capacity` — Destination capacity in code units, including the terminator.  
 `result` — Optional result output.
 
 **Context:** `0x13`
@@ -937,12 +890,9 @@ Unrepresentable values are replaced by '?'.
 
 **Parameters:**
 
-`utf8` — Readable null-terminated input.
-
-`cp1252w` — Writable destination buffer.
-
-`capacity` — Destination capacity in code units, including the terminator.
-
+`utf8` — Readable null-terminated input.  
+`cp1252w` — Writable destination buffer.  
+`capacity` — Destination capacity in code units, including the terminator.  
 `result` — Optional result output.
 
 **Context:** `0x14`
@@ -994,12 +944,9 @@ All valid Unicode scalars are preserved.
 
 **Parameters:**
 
-`utf8` — Readable null-terminated input.
-
-`utf16lew` — Writable destination buffer.
-
-`capacity` — Destination capacity in code units, including the terminator.
-
+`utf8` — Readable null-terminated input.  
+`utf16lew` — Writable destination buffer.  
+`capacity` — Destination capacity in code units, including the terminator.  
 `result` — Optional result output.
 
 **Context:** `0x15`
@@ -1053,12 +1000,9 @@ Unrepresentable values are replaced by '?'.
 
 **Parameters:**
 
-`utf16le` — Readable null-terminated input.
-
-`ascii` — Writable destination buffer.
-
-`capacity` — Destination capacity in code units, including the terminator.
-
+`utf16le` — Readable null-terminated input.  
+`ascii` — Writable destination buffer.  
+`capacity` — Destination capacity in code units, including the terminator.  
 `result` — Optional result output.
 
 **Context:** `0x16`
@@ -1098,12 +1042,9 @@ Unrepresentable values are replaced by '?'.
 
 **Parameters:**
 
-`utf16le` — Readable null-terminated input.
-
-`cp1252w` — Writable destination buffer.
-
-`capacity` — Destination capacity in code units, including the terminator.
-
+`utf16le` — Readable null-terminated input.  
+`cp1252w` — Writable destination buffer.  
+`capacity` — Destination capacity in code units, including the terminator.  
 `result` — Optional result output.
 
 **Context:** `0x17`
@@ -1143,12 +1084,9 @@ All valid Unicode scalars are preserved.
 
 **Parameters:**
 
-`utf16le` — Readable null-terminated input.
-
-`utf8w` — Writable destination buffer.
-
-`capacity` — Destination capacity in code units, including the terminator.
-
+`utf16le` — Readable null-terminated input.  
+`utf8w` — Writable destination buffer.  
+`capacity` — Destination capacity in code units, including the terminator.  
 `result` — Optional result output.
 
 **Context:** `0x18`
