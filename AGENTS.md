@@ -41,19 +41,16 @@ Every Core library MUST be implementable and usable on an 8-bit system.
 
 ## Operation results
 
-`CATALYST_RESULT` / `RESULT` is four ordered bytes with distinct responsibilities, not a status plus interchangeable metadata. Never replace it with a packed native integer, exception, or ad hoc convention.
+`CATALYST_RESULT` / `RESULT` is four ordered bytes: status, context, operation, detail. Each has a distinct scope and purpose; never pack into a native integer or substitute exceptions/ad hoc conventions.
 
-| Byte | Responsibility | Rule |
-| --- | --- | --- |
-| Status | What happened? | Most specific applicable FDEFSPEC status: success, no-op, warning, recoverable error, or fatal invariant violation. No new meanings/codes without approval. |
-| Context | Under what circumstances? | Meaningful for warnings/errors/fatal results (validation, size calculation, handle/element allocation, cleanup, etc.). Do not routinely use zero. MUST be zero for success-level statuses, including no-op. |
-| Operation | What public operation? | Stable, documented, nonzero operation identity on every path, including success/no-op. Never an internal stage or failure location; that belongs in context. No reuse for unrelated operations within the documented scope. |
-| Detail | What additional information? | Meaning precedence: status > context > operation. Never override a higher-priority definition. Use meaningful extra information, otherwise zero; do not duplicate other bytes. |
-
-- `ERROR_INVALID_ARGUMENT` detail MUST identify the zero-based parameter index in the public signature, including preceding input parameters. Never substitute native error numbers, dependency status, or internal argument indices. Zero can be meaningful.
-- Define/document consistent scoped operation/context assignments and detail meanings before implementation; reuse meanings where appropriate. New foundational definitions and changes to existing contracts require approval.
-- Dependency failures: report the actual applicable status, context of the failed stage, public operation identity, and public status-defined detail. Do not blindly copy dependency results or default to `ERROR_DEPENDENCY_FAILURE` (legacy behavior is not precedent). If the dependency status misrepresents the public outcome, use an appropriate existing status, including fatal invariant violation when warranted.
-- Null `result` discards status. Otherwise write all four fields on every path using `if (result != 0) *result = RESULT(...);`, defined constants, and severity helpers.
+- **Status (universal):** Outcome, analogous to HTTP status. Use the most specific applicable FDEFSPEC code. Undefined codes are reserved; never add or redefine them without approval.
+- **Context (unique per module):** Execution context, normally a stable ID identifying the method within its library/module. Locates the result's origin, not the internal failure stage. MUST be zero for success-level statuses (including no-op); otherwise use the applicable context ID.
+- **Operation (unique per method):** Identifies the precise internal operation/result-reporting site, not the public method or a generic error category. Assign a different opcode to every distinct result assignment site within a method, including success paths; never reuse an opcode across sites even when their statuses or failure reasons match. A single site may report multiple detail values. Keep IDs stable and documented.
+- **Detail (scoped to operation):** Additional useful information for the status/context/operation combination. May be symbolic, a literal byte value, an index, a count, or zero when nothing further is needed. Meaning precedence: status > context > operation; never override a higher-priority definition. Do not duplicate information already conveyed by other bytes or force runtime data into detail.
+- `ERROR_INVALID_ARGUMENT` detail MUST be the zero-based argument index from the full public function signature (including by-value arguments). Zero is meaningful here.
+- Define/document context IDs, opcodes, and applicable detail meanings consistently within their scopes before implementation. Example: UTF-8 decoder context identifies the method; each continuation check has its own opcode; detail may be zero or the offending byte if useful. Distinct missing-unit cases at one unexpected-end check may use distinct symbolic details.
+- Dependency failures: retain the reporting method's context and exact call-site opcode; report the actual applicable status and useful detail without blindly copying dependency fields or defaulting to `ERROR_DEPENDENCY_FAILURE`. Preserve meaningful diagnostics and fatal severity when applicable; respect status-defined detail. Changes to existing result contracts require approval.
+- Null `result` discards status. Otherwise assign all four fields on every path using `if (result != 0) *result = RESULT(...);`, defined status constants and severity helpers. Never invent information solely to avoid zero.
 
 ## Correctness
 
