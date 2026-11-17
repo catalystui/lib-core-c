@@ -7,8 +7,6 @@ Provides fixed-length arrays, sets, maps, and stacks of byte-represented element
 **Namespace:** `catalyst`  
 **Linking:** CATRLLIB and CATMMLIB.
 
-See [CATALYST](../catalyst/index.md) for foundational types and results, and [CATMMLIB](../catmmlib/index.md) for allocation and byte operations.
-
 ## Conventions
 
 - All functions return void; `result` may be null. Other pointers must be non-null and refer to live handles or valid readable/writable storage.
@@ -19,7 +17,7 @@ See [CATALYST](../catalyst/index.md) for foundational types and results, and [CA
 - Query outputs are assigned only on success. Recoverable mutation failures leave logical contents unchanged. Set/map enumeration order is unspecified and can change on mutation.
 - Clear retains capacity and does not securely erase bytes. After destroy is attempted, the handle must not be reused, even if cleanup reports failure. Foreign, stale or incorrectly typed handles are outside the contract. Concurrent access involving mutation or destruction requires external synchronization.
 
-Results use `0xSSCCOODD`. Context IDs identify public methods. Detail may identify an internal helper or CATMMLIB operation when the operation fails; the result retains the reporting method's own context and operation. Defensive invariant failures are listed even when unreachable with valid arguments and intact storage.
+On failure, detail may identify an internal helper or CATMMLIB operation. Defensive invariant failures are listed even when unreachable with valid arguments and intact storage.
 
 ## Type Summary
 

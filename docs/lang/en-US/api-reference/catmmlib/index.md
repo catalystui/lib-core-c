@@ -7,8 +7,6 @@ Provides memory allocation, release, resizing, and byte operations.
 **Namespace:** `catalyst`  
 **Linking:** CATMMLIB.
 
-See [CATALYST](../catalyst/index.md) for foundational types and status codes.
-
 ## Conventions
 
 - All sizes are byte counts. `result` may be null; all other pointer parameters must be non-null, even for zero-length byte operations.
@@ -16,7 +14,7 @@ See [CATALYST](../catalyst/index.md) for foundational types and status codes.
 - Release only live CATMMLIB allocations, through the same allocator backend. Foreign pointers, repeated frees and access during release are outside the contract.
 - Copy, move, compare and set operate on any valid readable/writable byte storage, not just CATMMLIB allocations. They do not check capacity or allocate memory.
 
-Results use `0xSSCCOODD`. In result patterns, `DD` is a runtime detail byte in the range `0x00`–`0xFF`. The same allocation and release context/operation IDs are used on all backends.
+In result patterns, `DD` is a runtime detail byte (`0x00`–`0xFF`). Allocation and release use the same context and operation IDs across backends.
 
 ## Type Summary
 
@@ -158,7 +156,7 @@ On replacement allocation or old-block release failure, the pointer value is unc
 | `0x91020406` | `ERROR_ALLOCATION_FAILED` | `0x02` (catmm_realloc) | Allocate replacement | `catmm_alloc` operation `0x06`: Allocate native memory |
 | `0xC1020502` | `FATAL_INVARIANT_VIOLATION` | `0x02` (catmm_realloc) | Release replacement after old-block release failed | `catmm_free` operation `0x02`: cleanup failed. |
 
-If the allocation pointer is null and the requested size is zero, the delegated allocation reports argument 1 as invalid. The result identifies the reallocation operation, rather than copying the dependency's result unchanged.
+If the allocation pointer is null and the requested size is zero, the delegated allocation reports argument 1 as invalid.
 
 **C++:** `catalyst::realloc(void** memory, NUINT size, RESULT* result)`.
 

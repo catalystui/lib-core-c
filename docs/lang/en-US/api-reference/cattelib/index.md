@@ -7,8 +7,6 @@ Provides encoding, decoding, length, and conversion operations for ASCII, Window
 **Namespace:** `catalyst`  
 **Linking:** CATTELIB.
 
-See [CATALYST](../catalyst/index.md) for the foundational text types and status definitions.
-
 ## Conventions
 
 - All functions return void; `result` may be null. All other pointer arguments require valid readable or writable storage.
@@ -18,7 +16,7 @@ See [CATALYST](../catalyst/index.md) for the foundational text types and status 
 - Length and conversion functions consume null-terminated input; lengths exclude the terminator. UTF-8 and UTF-16LE length/conversion functions skip an initial BOM (EF BB BF or FF FE), not internal U+FEFF.
 - Use separate storage for input and output and for distinct output arguments. Null-argument errors occur before output writes.
 
-Results use the four-byte format `0xSSCCOODD`. Defensive failure paths are included even when unreachable with valid input and intact invariants. Context IDs identify methods; operation IDs identify individual operations. When an internal call fails, detail identifies its operation code unless a status-specific detail takes precedence.
+Defensive failure paths are included even when unreachable with valid input and intact invariants. When an internal call fails, detail identifies its operation code unless a status-specific detail takes precedence.
 
 ## Constant Summary
 
@@ -644,7 +642,7 @@ void catte_ascii_to_utf8(
 );
 ```
 
-`capacity` specifies writable destination code units, including the terminator. Source bytes above 0x7F are replaced by '?'.
+Source bytes above 0x7F are replaced by '?'.
 
 **Parameters:**
 
@@ -681,7 +679,7 @@ void catte_ascii_to_utf16le(
 );
 ```
 
-`capacity` specifies writable destination code units, including the terminator. Source bytes above 0x7F are replaced by '?'.
+Source bytes above 0x7F are replaced by '?'.
 
 **Parameters:**
 
@@ -754,7 +752,7 @@ void catte_cp1252_to_utf8(
 );
 ```
 
-`capacity` specifies writable destination code units, including the terminator. Undefined source bytes are replaced by '?'.
+Undefined source bytes are replaced by '?'.
 
 **Parameters:**
 
@@ -799,7 +797,7 @@ void catte_cp1252_to_utf16le(
 );
 ```
 
-`capacity` specifies writable destination code units, including the terminator. Undefined source bytes are replaced by '?'.
+Undefined source bytes are replaced by '?'.
 
 **Parameters:**
 
@@ -842,7 +840,7 @@ void catte_utf8_to_ascii(
 );
 ```
 
-`capacity` specifies writable destination code units, including the terminator. Unrepresentable values are replaced by '?'.
+Unrepresentable values are replaced by '?'.
 
 **Parameters:**
 
@@ -897,7 +895,7 @@ void catte_utf8_to_cp1252(
 );
 ```
 
-`capacity` specifies writable destination code units, including the terminator. Unrepresentable values are replaced by '?'.
+Unrepresentable values are replaced by '?'.
 
 **Parameters:**
 
@@ -952,7 +950,7 @@ void catte_utf8_to_utf16le(
 );
 ```
 
-`capacity` specifies writable destination code units, including the terminator. All valid Unicode scalars are preserved.
+All valid Unicode scalars are preserved.
 
 **Parameters:**
 
@@ -1009,7 +1007,7 @@ void catte_utf16le_to_ascii(
 );
 ```
 
-`capacity` specifies writable destination code units, including the terminator. Unrepresentable values are replaced by '?'.
+Unrepresentable values are replaced by '?'.
 
 **Parameters:**
 
@@ -1052,7 +1050,7 @@ void catte_utf16le_to_cp1252(
 );
 ```
 
-`capacity` specifies writable destination code units, including the terminator. Unrepresentable values are replaced by '?'.
+Unrepresentable values are replaced by '?'.
 
 **Parameters:**
 
@@ -1095,7 +1093,7 @@ void catte_utf16le_to_utf8(
 );
 ```
 
-`capacity` specifies writable destination code units, including the terminator. All valid Unicode scalars are preserved.
+All valid Unicode scalars are preserved.
 
 **Parameters:**
 

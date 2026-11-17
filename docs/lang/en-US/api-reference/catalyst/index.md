@@ -334,7 +334,7 @@ Compilation fails when the configured pointer size is unsupported or its corresp
 
 ### Text Encoding
 
-String pointer types do not carry a length, capacity, or ownership information. The unsuffixed types provide read-only access to code units; the `W` suffix denotes writable access, not a wide-character representation. A null-terminated string ends with a zero code unit, not necessarily a zero byte.
+String pointer types do not carry length, capacity, or ownership information or guarantee null termination or valid encoding. Buffer capacity and termination requirements are specified by the consuming operation. The `W` suffix denotes writable access, not a wide-character representation. A null-terminated string ends with a zero code unit, not necessarily a zero byte.
 
 #### CATALYST_TEXT_ENCODING
 
@@ -386,7 +386,7 @@ Represents a seven-bit ASCII code unit in a byte. Valid ASCII values are 0x00–
 typedef const CATALYST_ASCII_CODE_UNIT* CATALYST_ASCII;
 ```
 
-Pointer to read-only ASCII code units. The pointer itself does not guarantee null termination or a valid encoding.
+Pointer to read-only ASCII code units.
 
 **C++:** `catalyst::ASCII`.
 
@@ -396,7 +396,7 @@ Pointer to read-only ASCII code units. The pointer itself does not guarantee nul
 typedef CATALYST_ASCII_CODE_UNIT* CATALYST_ASCIIW;
 ```
 
-Pointer to writable ASCII code units. Buffer capacity and termination requirements are specified by the consuming operation.
+Pointer to writable ASCII code units.
 
 **C++:** `catalyst::ASCIIW`.
 
@@ -416,7 +416,7 @@ Represents one Windows-1252 code unit as a byte. The type does not distinguish a
 typedef const CATALYST_CP1252_CODE_UNIT* CATALYST_CP1252;
 ```
 
-Pointer to read-only Windows-1252 code units. The pointer itself does not guarantee null termination or a valid encoding.
+Pointer to read-only Windows-1252 code units.
 
 **C++:** `catalyst::CP1252`.
 
@@ -426,7 +426,7 @@ Pointer to read-only Windows-1252 code units. The pointer itself does not guaran
 typedef CATALYST_CP1252_CODE_UNIT* CATALYST_CP1252W;
 ```
 
-Pointer to writable Windows-1252 code units. Buffer capacity and termination requirements are specified by the consuming operation.
+Pointer to writable Windows-1252 code units.
 
 **C++:** `catalyst::CP1252W`.
 
@@ -446,7 +446,7 @@ Represents one UTF-8 code unit as a byte. A Unicode scalar may occupy one to fou
 typedef const CATALYST_UTF8_CODE_UNIT* CATALYST_UTF8;
 ```
 
-Pointer to read-only UTF-8 code units. The pointer itself does not guarantee null termination or a valid encoding.
+Pointer to read-only UTF-8 code units.
 
 **C++:** `catalyst::UTF8`.
 
@@ -456,7 +456,7 @@ Pointer to read-only UTF-8 code units. The pointer itself does not guarantee nul
 typedef CATALYST_UTF8_CODE_UNIT* CATALYST_UTF8W;
 ```
 
-Pointer to writable UTF-8 code units. Buffer capacity and termination requirements are specified by the consuming operation.
+Pointer to writable UTF-8 code units.
 
 **C++:** `catalyst::UTF8W`.
 
@@ -486,7 +486,7 @@ Represents one sixteen-bit UTF-16LE code unit as two bytes in little-endian sign
 typedef const CATALYST_UTF16LE_CODE_UNIT* CATALYST_UTF16LE;
 ```
 
-Pointer to read-only UTF-16LE code units. The pointer itself does not guarantee null termination or a valid encoding.
+Pointer to read-only UTF-16LE code units.
 
 **C++:** `catalyst::UTF16LE`.
 
@@ -496,13 +496,11 @@ Pointer to read-only UTF-16LE code units. The pointer itself does not guarantee 
 typedef CATALYST_UTF16LE_CODE_UNIT* CATALYST_UTF16LEW;
 ```
 
-Pointer to writable UTF-16LE code units. Buffer capacity and termination requirements are specified by the consuming operation.
+Pointer to writable UTF-16LE code units.
 
 **C++:** `catalyst::UTF16LEW`.
 
 ### Operation Status
-
-A result describes the outcome and origin of an operation. Status meanings are universal; context and operation meanings are defined by the reporting implementation. Detail meanings are resolved in order of precedence: status, context, operation.
 
 #### CATALYST_STATUS_CODE
 
@@ -568,8 +566,6 @@ Represents a result as four ordered byte fields.
 
 Results are written in this reference as `0xSSCCOODD`, where `SS`, `CC`, `OO`, and `DD` are the status, context, operation, and detail bytes, respectively. The notation expresses field significance, not a requirement to pack the fields into a native integer.
 
-For example, `0x81080100` denotes an invalid-argument error (`0x81`), context `0x08`, operation `0x01`, and argument index 0 (`0x00`). Context and operation assignments in this example are illustrative; their actual meaning depends on the reporting module and method.
-
 Core functions that accept a final `CATALYST_RESULT* result` parameter write their result there when non-null. Passing null discards the result. A C aggregate has no automatic default initialization unless initialized by its declaration or storage duration.
 
 **C++:** `catalyst::RESULT` publicly derives from this structure. See [RESULT members](#result-members).
@@ -578,7 +574,7 @@ Core functions that accept a final `CATALYST_RESULT* result` parameter write the
 
 ### Integer limits
 
-The following macros define the bounds of the corresponding types. They remain available when including `catalyst.hpp`; optional integer types and their bounds exist only when supported.
+The limit macros remain available in C++; optional bounds require the corresponding integer type.
 
 | Minimum Constant | Value | Maximum Constant | Value | Requires |
 | --- | --- | --- | --- | --- |
@@ -844,7 +840,7 @@ Tests whether the given status belongs to the Fatal level.
 
 ## C++ Member Details
 
-All members below are defined inline in `catalyst.hpp` in namespace `catalyst`. Constructors and assignments copy or initialize representations; they do not validate codepoint, code-unit, or result semantics and do not emit `CATALYST_RESULT` values. Native integer conveniences are conditional and are not prerequisites for using the byte representations.
+Constructors and assignments do not validate codepoint, code-unit, or result semantics. Native integer conveniences are not prerequisites for using the byte representations.
 
 ### CODEPOINT members
 
@@ -1189,7 +1185,6 @@ These headers are selected through `catalyst.h`; they are not separate modules. 
 
 ## See Also
 
-- [FDEFSPEC](https://catalystui.org/specifications/languages/fdefspec/)
 - [C header source](https://github.com/catalystui/lib-core-c/blob/main/include/catalyst.h)
 - [C++ header source](https://github.com/catalystui/lib-core-c/blob/main/include/catalyst.hpp)
 - [C90 numeric header](https://github.com/catalystui/lib-core-c/blob/main/include/catalyst.c90.h)
