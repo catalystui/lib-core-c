@@ -83,13 +83,20 @@ struct CODEPOINT : public ::CATALYST_CODEPOINT {
 
 #if CATALYST_SUPPORTS_32BIT
     explicit CODEPOINT(UINT value) {
-        *this = ::cat_codepoint_from_uint(value);
+        byte0 = (BYTE) ((value >> 24) & (UINT) 0x000000FFu);
+        byte1 = (BYTE) ((value >> 16) & (UINT) 0x000000FFu);
+        byte2 = (BYTE) ((value >> 8)  & (UINT) 0x000000FFu);
+        byte3 = (BYTE) ( value        & (UINT) 0x000000FFu);
     }
     CODEPOINT& operator=(UINT value) {
-        return *this = ::cat_codepoint_from_uint(value);
+        byte0 = (BYTE) ((value >> 24) & (UINT) 0x000000FFu);
+        byte1 = (BYTE) ((value >> 16) & (UINT) 0x000000FFu);
+        byte2 = (BYTE) ((value >> 8)  & (UINT) 0x000000FFu);
+        byte3 = (BYTE) ( value        & (UINT) 0x000000FFu);
+        return *this;
     }
     operator UINT() const {
-        return ::cat_codepoint_to_uint(*this);
+        return ((UINT) byte0 << 24) | ((UINT) byte1 << 16) | ((UINT) byte2 << 8) |  (UINT) byte3;
     }
 #endif
 };
@@ -128,13 +135,16 @@ struct UTF16LE_CODE_UNIT : public ::CATALYST_UTF16LE_CODE_UNIT {
 
 #if CATALYST_SUPPORTS_16BIT
     explicit UTF16LE_CODE_UNIT(USHORT value) {
-        *this = ::cat_utf16le_code_unit_from_ushort(value);
+        msb = (BYTE) ((value >> 8) & (USHORT) 0x00FFu);
+        lsb = (BYTE) (value & (USHORT) 0x00FFu);
     }
     UTF16LE_CODE_UNIT& operator=(USHORT value) {
-        return *this = ::cat_utf16le_code_unit_from_ushort(value);
+        msb = (BYTE) ((value >> 8) & (USHORT) 0x00FFu);
+        lsb = (BYTE) (value & (USHORT) 0x00FFu);
+        return *this;
     }
     operator USHORT() const {
-        return ::cat_utf16le_code_unit_to_ushort(*this);
+        return ((USHORT) msb << 8) | (USHORT)lsb;
     }
 #endif
 };
@@ -239,13 +249,20 @@ struct RESULT : public ::CATALYST_RESULT {
 
 #if CATALYST_SUPPORTS_32BIT
     explicit RESULT(UINT value) {
-        *this = ::cat_result_from_uint(value);
+        status = (STATUS_CODE) ((value >> 24) & (UINT) 0x000000FFu);
+        context = (CONTEXT_CODE) ((value >> 16) & (UINT) 0x000000FFu);
+        operation = (OPERATION_CODE) ((value >> 8) & (UINT) 0x000000FFu);
+        detail = (DETAIL_CODE) (value & (UINT) 0x000000FFu);
     }
     RESULT& operator=(UINT value) {
-        return *this = ::cat_result_from_uint(value);
+        status = (STATUS_CODE) ((value >> 24) & (UINT) 0x000000FFu);
+        context = (CONTEXT_CODE) ((value >> 16) & (UINT) 0x000000FFu);
+        operation = (OPERATION_CODE) ((value >> 8) & (UINT) 0x000000FFu);
+        detail = (DETAIL_CODE) (value & (UINT) 0x000000FFu);
+        return *this;
     }
     operator UINT() const {
-        return ::cat_result_to_uint(*this);
+        return ((UINT) status << 24) | ((UINT) context << 16) | ((UINT) operation << 8) |  (UINT) detail;
     }
 #endif
 };

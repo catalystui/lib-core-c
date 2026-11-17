@@ -27,15 +27,6 @@ C++ names remove the `CATALYST_` prefix and reside in `catalyst`. ASCII, CP1252 
 
 `CATALYST_CODEPOINT` is a four-byte structure. Fields `byte0`, `byte1`, `byte2`, `byte3` store the most significant through least significant byte. The representation does not validate Unicode values. UTF encoders accept Unicode scalar values (U+0000–U+10FFFF excluding U+D800–U+DFFF).
 
-| C helper | Return value | Availability |
-| --- | --- | --- |
-| `cat_codepoint_from_uint(CATALYST_UINT value)` | `CATALYST_CODEPOINT` containing the four bytes of value | 32-bit integer support |
-| `cat_codepoint_to_uint(CATALYST_CODEPOINT codepoint)` | `CATALYST_UINT` reconstructed from the four bytes | 32-bit integer support |
-| `cat_utf16le_code_unit_from_ushort(CATALYST_USHORT value)` | `CATALYST_UTF16LE_CODE_UNIT` containing the low/high bytes | 16-bit integer support |
-| `cat_utf16le_code_unit_to_ushort(CATALYST_UTF16LE_CODE_UNIT codeunit)` | `CATALYST_USHORT` reconstructed from the two bytes | 16-bit integer support |
-
-These header-only functions do not validate the represented value or return a result status.
-
 ## C++ value types
 
 `catalyst::CODEPOINT` derives from `CATALYST_CODEPOINT`; `catalyst::UTF16LE_CODE_UNIT` derives from `CATALYST_UTF16LE_CODE_UNIT`.

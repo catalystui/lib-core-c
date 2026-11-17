@@ -62,15 +62,6 @@ The C predicates are comparison expressions; C++ predicates return `BOOL`. Sever
 
 ## Result conversions
 
-With 32-bit integer support:
-
-| C helper | Return value |
-| --- | --- |
-| `cat_result_from_uint(CATALYST_UINT value)` | `CATALYST_RESULT` unpacked from numeric 0xSSCCOODD |
-| `cat_result_to_uint(CATALYST_RESULT result)` | `CATALYST_UINT` packed as numeric 0xSSCCOODD |
-
-SS = status, CC = context, OO = operation, DD = detail. The helpers are endian-independent numeric conversions, not memory reinterpretation.
-
 `catalyst::RESULT` derives from `CATALYST_RESULT`.
 
 | Member | Behavior |

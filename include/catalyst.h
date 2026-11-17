@@ -10,17 +10,6 @@
 
 #include <float.h>
 
-/* Header-only C conversion helpers, including the configured C90 fallback. */
-#if defined(__cplusplus)
-    #define CATALYST_CORE_INLINE inline
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
-    #define CATALYST_CORE_INLINE static inline
-#elif defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
-    #define CATALYST_CORE_INLINE static __inline
-#else
-    #define CATALYST_CORE_INLINE static
-#endif
-
 /* CONSTEXPR Support */
 #if defined(__cplusplus)
     #if __cplusplus >= 201103L
@@ -137,22 +126,6 @@ typedef struct CATALYST_CODEPOINT {
     CATALYST_BYTE byte3; /* Least significant byte */
 } CATALYST_CODEPOINT;
 
-#if CATALYST_SUPPORTS_32BIT
-/** Convert between the four stored bytes and a numeric value without validation. */
-CATALYST_CORE_INLINE CATALYST_CODEPOINT cat_codepoint_from_uint(CATALYST_UINT value) {
-    CATALYST_CODEPOINT codepoint;
-    codepoint.byte0 = (CATALYST_BYTE) (value >> 24);
-    codepoint.byte1 = (CATALYST_BYTE) (value >> 16);
-    codepoint.byte2 = (CATALYST_BYTE) (value >> 8);
-    codepoint.byte3 = (CATALYST_BYTE) value;
-    return codepoint;
-}
-
-CATALYST_CORE_INLINE CATALYST_UINT cat_codepoint_to_uint(CATALYST_CODEPOINT codepoint) {
-    return ((CATALYST_UINT) codepoint.byte0 << 24) | ((CATALYST_UINT) codepoint.byte1 << 16) |
-           ((CATALYST_UINT) codepoint.byte2 << 8) | (CATALYST_UINT) codepoint.byte3;
-}
-#endif
 
 typedef CATALYST_BYTE CATALYST_ASCII_CODE_UNIT;
 typedef CATALYST_ASCII_CODE_UNIT* CATALYST_ASCIIW;
@@ -171,19 +144,6 @@ typedef struct CATALYST_UTF16LE_CODE_UNIT {
     CATALYST_BYTE msb; /* High byte of the UTF-16 code unit; second byte in UTF-16LE storage. */
 } CATALYST_UTF16LE_CODE_UNIT;
 
-#if CATALYST_SUPPORTS_16BIT
-/** Convert between a UTF-16LE code unit and its numeric value, independent of host byte order. */
-CATALYST_CORE_INLINE CATALYST_UTF16LE_CODE_UNIT cat_utf16le_code_unit_from_ushort(CATALYST_USHORT value) {
-    CATALYST_UTF16LE_CODE_UNIT codeunit;
-    codeunit.lsb = (CATALYST_BYTE) value;
-    codeunit.msb = (CATALYST_BYTE) (value >> 8);
-    return codeunit;
-}
-
-CATALYST_CORE_INLINE CATALYST_USHORT cat_utf16le_code_unit_to_ushort(CATALYST_UTF16LE_CODE_UNIT codeunit) {
-    return (CATALYST_USHORT) (((CATALYST_USHORT) codeunit.msb << 8) | (CATALYST_USHORT) codeunit.lsb);
-}
-#endif
 typedef CATALYST_UTF16LE_CODE_UNIT* CATALYST_UTF16LEW;
 typedef const CATALYST_UTF16LE_CODE_UNIT* CATALYST_UTF16LE;
 
@@ -275,23 +235,5 @@ typedef struct CATALYST_RESULT {
     CATALYST_DETAIL_CODE detail;
 } CATALYST_RESULT;
 
-#if CATALYST_SUPPORTS_32BIT
-/** Convert between ordered result fields and numeric 0xSSCCOODD without validation. */
-CATALYST_CORE_INLINE CATALYST_RESULT cat_result_from_uint(CATALYST_UINT value) {
-    CATALYST_RESULT result;
-    result.status = (CATALYST_STATUS_CODE) (value >> 24);
-    result.context = (CATALYST_CONTEXT_CODE) (value >> 16);
-    result.operation = (CATALYST_OPERATION_CODE) (value >> 8);
-    result.detail = (CATALYST_DETAIL_CODE) value;
-    return result;
-}
-
-CATALYST_CORE_INLINE CATALYST_UINT cat_result_to_uint(CATALYST_RESULT result) {
-    return ((CATALYST_UINT) result.status << 24) | ((CATALYST_UINT) result.context << 16) |
-           ((CATALYST_UINT) result.operation << 8) | (CATALYST_UINT) result.detail;
-}
-#endif
-
-#undef CATALYST_CORE_INLINE
 
 #endif /* CATALYST_H */
