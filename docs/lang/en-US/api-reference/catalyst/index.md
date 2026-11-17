@@ -178,7 +178,7 @@ Signed eight-bit integer.
 
 Signed sixteen-bit integer.
 
-**REQUIRES:** `CATALYST_SUPPORTS_16BIT` is 1. <span data-heading-badge="REQ. 16-BIT NUMERICS"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_16BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_16BIT to be 1"></span>
 
 **C90:** Defined as `signed short` when its range matches.
 
@@ -192,7 +192,7 @@ Signed sixteen-bit integer.
 
 Unsigned sixteen-bit integer.
 
-**REQUIRES:** `CATALYST_SUPPORTS_16BIT` is 1. <span data-heading-badge="REQ. 16-BIT NUMERICS"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_16BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_16BIT to be 1"></span>
 
 **C90:** Defined as `unsigned short` when its range matches.
 
@@ -206,7 +206,7 @@ Unsigned sixteen-bit integer.
 
 Signed thirty-two-bit integer.
 
-**REQUIRES:** `CATALYST_SUPPORTS_32BIT` is 1. <span data-heading-badge="REQ. 32-BIT NUMERICS"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_32BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_32BIT to be 1"></span>
 
 **C90:** Defined as `signed int` when its range matches.
 
@@ -220,7 +220,7 @@ Signed thirty-two-bit integer.
 
 Unsigned thirty-two-bit integer.
 
-**REQUIRES:** `CATALYST_SUPPORTS_32BIT` is 1. <span data-heading-badge="REQ. 32-BIT NUMERICS"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_32BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_32BIT to be 1"></span>
 
 **C90:** Defined as `unsigned int` when its range matches.
 
@@ -234,7 +234,7 @@ Unsigned thirty-two-bit integer.
 
 Signed sixty-four-bit integer.
 
-**REQUIRES:** `CATALYST_SUPPORTS_64BIT` is 1. <span data-heading-badge="REQ. 64-BIT NUMERICS"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_64BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_64BIT to be 1"></span>
 
 **C90:** Not available.
 
@@ -248,7 +248,7 @@ Signed sixty-four-bit integer.
 
 Unsigned sixty-four-bit integer.
 
-**REQUIRES:** `CATALYST_SUPPORTS_64BIT` is 1. <span data-heading-badge="REQ. 64-BIT NUMERICS"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_64BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_64BIT to be 1"></span>
 
 **C90:** Not available.
 
@@ -268,7 +268,7 @@ typedef float CATALYST_SINGLE;
 
 A binary floating-point type with 24 bits of significand precision, exponent limits −125 through 128 as defined by the corresponding `<float.h>` macros, and storage of 4 bytes. Storage size is checked at compile time.
 
-**REQUIRES:** `CATALYST_SUPPORTS_SINGLE` is 1. <span data-heading-badge="REQ. SINGLE PRECISION"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_SINGLE" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_SINGLE to be 1"></span>
 
 **C++:** `catalyst::SINGLE`.
 
@@ -282,7 +282,7 @@ typedef double CATALYST_DOUBLE;
 
 A binary floating-point type with 53 bits of significand precision, exponent limits −1021 through 1024 as defined by the corresponding `<float.h>` macros, and storage of 8 bytes. Storage size is checked at compile time.
 
-**REQUIRES:** `CATALYST_SUPPORTS_DOUBLE` is 1. <span data-heading-badge="REQ. DOUBLE PRECISION"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_DOUBLE" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_DOUBLE to be 1"></span>
 
 **C++:** `catalyst::DOUBLE`.
 
@@ -912,7 +912,7 @@ explicit CODEPOINT(UINT value);
 
 Initializes the fields from the unsigned integer. The four bytes correspond to the integer from most significant to least significant.
 
-**REQUIRES:** `CATALYST_SUPPORTS_32BIT` is 1. <span data-heading-badge="REQ. 32-BIT NUMERICS"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_32BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_32BIT to be 1"></span>
 
 **Parameters:**
 
@@ -926,7 +926,7 @@ CODEPOINT& operator=(UINT value);
 
 Assigns the fields from the unsigned integer using the same significance order as the numeric constructor.
 
-**REQUIRES:** `CATALYST_SUPPORTS_32BIT` is 1. <span data-heading-badge="REQ. 32-BIT NUMERICS"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_32BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_32BIT to be 1"></span>
 
 **Parameters:**
 
@@ -944,7 +944,7 @@ operator UINT() const;
 
 Converts the stored fields to an unsigned integer.
 
-**REQUIRES:** `CATALYST_SUPPORTS_32BIT` is 1. <span data-heading-badge="REQ. 32-BIT NUMERICS"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_32BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_32BIT to be 1"></span>
 
 **Returns:**
 
@@ -1012,7 +1012,7 @@ explicit UTF16LE_CODE_UNIT(USHORT value);
 
 Initializes the fields from the unsigned integer. The high eight bits become `msb`; the low eight bits become `lsb`. Storage order is unchanged.
 
-**REQUIRES:** `CATALYST_SUPPORTS_16BIT` is 1. <span data-heading-badge="REQ. 16-BIT NUMERICS"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_16BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_16BIT to be 1"></span>
 
 **Parameters:**
 
@@ -1026,7 +1026,7 @@ UTF16LE_CODE_UNIT& operator=(USHORT value);
 
 Assigns the fields from the unsigned integer using the same significance order as the numeric constructor.
 
-**REQUIRES:** `CATALYST_SUPPORTS_16BIT` is 1. <span data-heading-badge="REQ. 16-BIT NUMERICS"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_16BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_16BIT to be 1"></span>
 
 **Parameters:**
 
@@ -1044,7 +1044,7 @@ operator USHORT() const;
 
 Converts the stored fields to an unsigned integer.
 
-**REQUIRES:** `CATALYST_SUPPORTS_16BIT` is 1. <span data-heading-badge="REQ. 16-BIT NUMERICS"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_16BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_16BIT to be 1"></span>
 
 **Returns:**
 
@@ -1116,7 +1116,7 @@ explicit RESULT(UINT value);
 
 Initializes the fields from the unsigned integer. The integer is interpreted in `0xSSCCOODD` significance order, independent of host byte order.
 
-**REQUIRES:** `CATALYST_SUPPORTS_32BIT` is 1. <span data-heading-badge="REQ. 32-BIT NUMERICS"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_32BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_32BIT to be 1"></span>
 
 **Parameters:**
 
@@ -1130,7 +1130,7 @@ RESULT& operator=(UINT value);
 
 Assigns the fields from the unsigned integer using the same significance order as the numeric constructor.
 
-**REQUIRES:** `CATALYST_SUPPORTS_32BIT` is 1. <span data-heading-badge="REQ. 32-BIT NUMERICS"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_32BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_32BIT to be 1"></span>
 
 **Parameters:**
 
@@ -1148,7 +1148,7 @@ operator UINT() const;
 
 Converts the stored fields to an unsigned integer.
 
-**REQUIRES:** `CATALYST_SUPPORTS_32BIT` is 1. <span data-heading-badge="REQ. 32-BIT NUMERICS"></span>
+<span data-heading-badge="CATALYST_SUPPORTS_32BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_32BIT to be 1"></span>
 
 **Returns:**
 
