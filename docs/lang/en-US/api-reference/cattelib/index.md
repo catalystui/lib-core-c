@@ -5,7 +5,7 @@ Provides encoding, decoding, length, and conversion operations for ASCII, Window
 **C Header:** `cattelib.h`  
 **C++ Header:** `cattelib.hpp`  
 **Namespace:** `catalyst`  
-**Linking:** CATTELIB.
+**Library:** `catte`
 
 ## Conventions
 
