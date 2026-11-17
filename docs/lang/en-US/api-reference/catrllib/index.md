@@ -2,8 +2,8 @@
 
 Provides fixed-length arrays, sets, maps, and stacks of byte-represented elements.
 
-**C header:** `catrllib.h`  
-**C++ header:** `catrllib.hpp`  
+**C Header:** `catrllib.h`  
+**C++ Header:** `catrllib.hpp`  
 **Namespace:** `catalyst`  
 **Linking:** CATRLLIB and CATMMLIB.
 

@@ -2,8 +2,8 @@
 
 Provides memory allocation, release, resizing, and byte operations.
 
-**C header:** `catmmlib.h`  
-**C++ header:** `catmmlib.hpp`  
+**C Header:** `catmmlib.h`  
+**C++ Header:** `catmmlib.hpp`  
 **Namespace:** `catalyst`  
 **Linking:** CATMMLIB.
 

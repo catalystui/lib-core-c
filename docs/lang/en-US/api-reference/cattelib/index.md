@@ -2,8 +2,8 @@
 
 Provides encoding, decoding, length, and conversion operations for ASCII, Windows-1252, UTF-8, and UTF-16LE.
 
-**C header:** `cattelib.h`  
-**C++ header:** `cattelib.hpp`  
+**C Header:** `cattelib.h`  
+**C++ Header:** `cattelib.hpp`  
 **Namespace:** `catalyst`  
 **Linking:** CATTELIB.
 

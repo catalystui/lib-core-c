@@ -2,12 +2,12 @@
 
 Provides the foundational numeric types, text representations, and operation result definitions used by CatalystUI Core.
 
-**C header:** `catalyst.h`  
-**C++ header:** `catalyst.hpp`  
+**C Header:** `catalyst.h`  
+**C++ Header:** `catalyst.hpp`  
 **Namespace:** `catalyst`  
 **Linking:** Header-only; no separate library is required.
 
-The definitions correspond to the [Foundational Definitions Specification (FDEFSPEC)](https://github.com/catalystui/specifications/blob/languages/md/lang/en-US/fdefspec/index.md). The C++ header includes the C header and provides aliases, constants, and value-type conveniences.
+The definitions correspond to the [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/specifications/languages/fdefspec/).
 
 ## Contents
 
@@ -152,7 +152,11 @@ Represents four bits with values from 0 through 15. The underlying byte does not
 
 #### CATALYST_BYTE
 
-Unsigned eight-bit integer. The C99 numeric header defines it as `uint8_t`. The C90 numeric header defines it as `unsigned char` when that native type has the required range.
+Unsigned eight-bit integer.
+
+**C90:** Defined as `unsigned char` when its range matches.
+
+**C99+:** Defined as `uint8_t`.
 
 **C++:** `catalyst::BYTE`.
 
@@ -160,7 +164,11 @@ Unsigned eight-bit integer. The C99 numeric header defines it as `uint8_t`. The 
 
 #### CATALYST_SBYTE
 
-Signed eight-bit integer. The C99 numeric header defines it as `int8_t`. The C90 numeric header defines it as `signed char` when that native type has the required range.
+Signed eight-bit integer.
+
+**C90:** Defined as `signed char` when its range matches.
+
+**C99+:** Defined as `int8_t`.
 
 **C++:** `catalyst::SBYTE`.
 
@@ -168,7 +176,13 @@ Signed eight-bit integer. The C99 numeric header defines it as `int8_t`. The C90
 
 #### CATALYST_SHORT
 
-Signed sixteen-bit integer. The C99 numeric header defines it as `int16_t`. The C90 numeric header defines it as `signed short` when that native type has the required range. Available only when `CATALYST_SUPPORTS_16BIT` is 1.
+Signed sixteen-bit integer.
+
+**REQUIRES:** `CATALYST_SUPPORTS_16BIT` is 1. <span data-heading-badge="REQ. 16-BIT NUMERICS"></span>
+
+**C90:** Defined as `signed short` when its range matches.
+
+**C99+:** Defined as `int16_t`.
 
 **C++:** `catalyst::SHORT`.
 
@@ -176,7 +190,13 @@ Signed sixteen-bit integer. The C99 numeric header defines it as `int16_t`. The 
 
 #### CATALYST_USHORT
 
-Unsigned sixteen-bit integer. The C99 numeric header defines it as `uint16_t`. The C90 numeric header defines it as `unsigned short` when that native type has the required range. Available only when `CATALYST_SUPPORTS_16BIT` is 1.
+Unsigned sixteen-bit integer.
+
+**REQUIRES:** `CATALYST_SUPPORTS_16BIT` is 1. <span data-heading-badge="REQ. 16-BIT NUMERICS"></span>
+
+**C90:** Defined as `unsigned short` when its range matches.
+
+**C99+:** Defined as `uint16_t`.
 
 **C++:** `catalyst::USHORT`.
 
@@ -184,7 +204,13 @@ Unsigned sixteen-bit integer. The C99 numeric header defines it as `uint16_t`. T
 
 #### CATALYST_INT
 
-Signed thirty-two-bit integer. The C99 numeric header defines it as `int32_t`. The C90 numeric header defines it as `signed int` when that native type has the required range. Available only when `CATALYST_SUPPORTS_32BIT` is 1.
+Signed thirty-two-bit integer.
+
+**REQUIRES:** `CATALYST_SUPPORTS_32BIT` is 1. <span data-heading-badge="REQ. 32-BIT NUMERICS"></span>
+
+**C90:** Defined as `signed int` when its range matches.
+
+**C99+:** Defined as `int32_t`.
 
 **C++:** `catalyst::INT`.
 
@@ -192,7 +218,13 @@ Signed thirty-two-bit integer. The C99 numeric header defines it as `int32_t`. T
 
 #### CATALYST_UINT
 
-Unsigned thirty-two-bit integer. The C99 numeric header defines it as `uint32_t`. The C90 numeric header defines it as `unsigned int` when that native type has the required range. Available only when `CATALYST_SUPPORTS_32BIT` is 1.
+Unsigned thirty-two-bit integer.
+
+**REQUIRES:** `CATALYST_SUPPORTS_32BIT` is 1. <span data-heading-badge="REQ. 32-BIT NUMERICS"></span>
+
+**C90:** Defined as `unsigned int` when its range matches.
+
+**C99+:** Defined as `uint32_t`.
 
 **C++:** `catalyst::UINT`.
 
@@ -200,7 +232,13 @@ Unsigned thirty-two-bit integer. The C99 numeric header defines it as `uint32_t`
 
 #### CATALYST_LONG
 
-Signed sixty-four-bit integer. The C99 numeric header defines it as `int64_t`. The C90 numeric header does not provide this type. Available only when `CATALYST_SUPPORTS_64BIT` is 1.
+Signed sixty-four-bit integer.
+
+**REQUIRES:** `CATALYST_SUPPORTS_64BIT` is 1. <span data-heading-badge="REQ. 64-BIT NUMERICS"></span>
+
+**C90:** Not available.
+
+**C99+:** Defined as `int64_t`.
 
 **C++:** `catalyst::LONG`.
 
@@ -208,7 +246,13 @@ Signed sixty-four-bit integer. The C99 numeric header defines it as `int64_t`. T
 
 #### CATALYST_ULONG
 
-Unsigned sixty-four-bit integer. The C99 numeric header defines it as `uint64_t`. The C90 numeric header does not provide this type. Available only when `CATALYST_SUPPORTS_64BIT` is 1.
+Unsigned sixty-four-bit integer.
+
+**REQUIRES:** `CATALYST_SUPPORTS_64BIT` is 1. <span data-heading-badge="REQ. 64-BIT NUMERICS"></span>
+
+**C90:** Not available.
+
+**C99+:** Defined as `uint64_t`.
 
 **C++:** `catalyst::ULONG`.
 
@@ -222,7 +266,9 @@ typedef float CATALYST_SINGLE;
 #endif
 ```
 
-A binary floating-point type with 24 bits of significand precision, exponent limits −125 through 128 as defined by the corresponding `<float.h>` macros, and storage of 4 bytes. Available only when `CATALYST_SUPPORTS_SINGLE` is 1; storage size is checked at compile time.
+A binary floating-point type with 24 bits of significand precision, exponent limits −125 through 128 as defined by the corresponding `<float.h>` macros, and storage of 4 bytes. Storage size is checked at compile time.
+
+**REQUIRES:** `CATALYST_SUPPORTS_SINGLE` is 1. <span data-heading-badge="REQ. SINGLE PRECISION"></span>
 
 **C++:** `catalyst::SINGLE`.
 
@@ -234,7 +280,9 @@ typedef double CATALYST_DOUBLE;
 #endif
 ```
 
-A binary floating-point type with 53 bits of significand precision, exponent limits −1021 through 1024 as defined by the corresponding `<float.h>` macros, and storage of 8 bytes. Available only when `CATALYST_SUPPORTS_DOUBLE` is 1; storage size is checked at compile time.
+A binary floating-point type with 53 bits of significand precision, exponent limits −1021 through 1024 as defined by the corresponding `<float.h>` macros, and storage of 8 bytes. Storage size is checked at compile time.
+
+**REQUIRES:** `CATALYST_SUPPORTS_DOUBLE` is 1. <span data-heading-badge="REQ. DOUBLE PRECISION"></span>
 
 **C++:** `catalyst::DOUBLE`.
 
@@ -269,7 +317,7 @@ Compilation fails when the configured pointer size is unsupported or its corresp
 
 #### CATALYST_NUINT
 
-A unsigned integer matching the configured pointer width. Its underlying type is selected as follows:
+An unsigned integer matching the configured pointer width. Its underlying type is selected as follows:
 
 | Pointer Size (bytes) | Underlying Type |
 | --- | --- |
@@ -532,20 +580,20 @@ Core functions that accept a final `CATALYST_RESULT* result` parameter write the
 
 The following macros define the bounds of the corresponding types. They remain available when including `catalyst.hpp`; optional integer types and their bounds exist only when supported.
 
-| Minimum Constant | Value | Maximum Constant | Value |
-| --- | --- | --- | --- |
-| `CATALYST_BIT_MIN` | 0 | `CATALYST_BIT_MAX` | 1 |
-| `CATALYST_NIBBLE_MIN` | 0 | `CATALYST_NIBBLE_MAX` | 15 |
-| `CATALYST_BYTE_MIN` | 0 | `CATALYST_BYTE_MAX` | 255 |
-| `CATALYST_SBYTE_MIN` | Native minimum | `CATALYST_SBYTE_MAX` | 127 |
-| `CATALYST_SHORT_MIN` | Native minimum | `CATALYST_SHORT_MAX` | 32,767 |
-| `CATALYST_USHORT_MIN` | 0 | `CATALYST_USHORT_MAX` | 65,535 |
-| `CATALYST_INT_MIN` | Native minimum | `CATALYST_INT_MAX` | 2,147,483,647 |
-| `CATALYST_UINT_MIN` | 0 | `CATALYST_UINT_MAX` | 4,294,967,295 |
-| `CATALYST_LONG_MIN` | −9,223,372,036,854,775,808 | `CATALYST_LONG_MAX` | 9,223,372,036,854,775,807 |
-| `CATALYST_ULONG_MIN` | 0 | `CATALYST_ULONG_MAX` | 18,446,744,073,709,551,615 |
-| `CATALYST_NINT_MIN` | Selected signed minimum | `CATALYST_NINT_MAX` | Selected signed maximum |
-| `CATALYST_NUINT_MIN` | 0 | `CATALYST_NUINT_MAX` | Selected unsigned maximum |
+| Minimum Constant | Value | Maximum Constant | Value | Requires |
+| --- | --- | --- | --- | --- |
+| `CATALYST_BIT_MIN` | 0 | `CATALYST_BIT_MAX` | 1 | — |
+| `CATALYST_NIBBLE_MIN` | 0 | `CATALYST_NIBBLE_MAX` | 15 | — |
+| `CATALYST_BYTE_MIN` | 0 | `CATALYST_BYTE_MAX` | 255 | — |
+| `CATALYST_SBYTE_MIN` | Native minimum | `CATALYST_SBYTE_MAX` | 127 | — |
+| `CATALYST_SHORT_MIN` | Native minimum | `CATALYST_SHORT_MAX` | 32,767 | `CATALYST_SUPPORTS_16BIT` is 1 |
+| `CATALYST_USHORT_MIN` | 0 | `CATALYST_USHORT_MAX` | 65,535 | `CATALYST_SUPPORTS_16BIT` is 1 |
+| `CATALYST_INT_MIN` | Native minimum | `CATALYST_INT_MAX` | 2,147,483,647 | `CATALYST_SUPPORTS_32BIT` is 1 |
+| `CATALYST_UINT_MIN` | 0 | `CATALYST_UINT_MAX` | 4,294,967,295 | `CATALYST_SUPPORTS_32BIT` is 1 |
+| `CATALYST_LONG_MIN` | −9,223,372,036,854,775,808 | `CATALYST_LONG_MAX` | 9,223,372,036,854,775,807 | `CATALYST_SUPPORTS_64BIT` is 1 |
+| `CATALYST_ULONG_MIN` | 0 | `CATALYST_ULONG_MAX` | 18,446,744,073,709,551,615 | `CATALYST_SUPPORTS_64BIT` is 1 |
+| `CATALYST_NINT_MIN` | Selected signed minimum | `CATALYST_NINT_MAX` | Selected signed maximum | — |
+| `CATALYST_NUINT_MIN` | 0 | `CATALYST_NUINT_MAX` | Selected unsigned maximum | — |
 
 For `SBYTE`, `SHORT`, and `INT`, the C90 header uses `SCHAR_MIN`, `SHRT_MIN`, and `INT_MIN`, respectively; the C99 header uses the corresponding exact-width minima (−128, −32,768, and −2,147,483,648). Native-width limits alias the selected type’s limits. No floating-point limit macros are provided by CATALYST.
 
@@ -864,7 +912,7 @@ explicit CODEPOINT(UINT value);
 
 Initializes the fields from the unsigned integer. The four bytes correspond to the integer from most significant to least significant.
 
-**Availability:** `CATALYST_SUPPORTS_32BIT`.
+**REQUIRES:** `CATALYST_SUPPORTS_32BIT` is 1. <span data-heading-badge="REQ. 32-BIT NUMERICS"></span>
 
 **Parameters:**
 
@@ -878,7 +926,7 @@ CODEPOINT& operator=(UINT value);
 
 Assigns the fields from the unsigned integer using the same significance order as the numeric constructor.
 
-**Availability:** `CATALYST_SUPPORTS_32BIT`.
+**REQUIRES:** `CATALYST_SUPPORTS_32BIT` is 1. <span data-heading-badge="REQ. 32-BIT NUMERICS"></span>
 
 **Parameters:**
 
@@ -896,7 +944,7 @@ operator UINT() const;
 
 Converts the stored fields to an unsigned integer.
 
-**Availability:** `CATALYST_SUPPORTS_32BIT`.
+**REQUIRES:** `CATALYST_SUPPORTS_32BIT` is 1. <span data-heading-badge="REQ. 32-BIT NUMERICS"></span>
 
 **Returns:**
 
@@ -964,7 +1012,7 @@ explicit UTF16LE_CODE_UNIT(USHORT value);
 
 Initializes the fields from the unsigned integer. The high eight bits become `msb`; the low eight bits become `lsb`. Storage order is unchanged.
 
-**Availability:** `CATALYST_SUPPORTS_16BIT`.
+**REQUIRES:** `CATALYST_SUPPORTS_16BIT` is 1. <span data-heading-badge="REQ. 16-BIT NUMERICS"></span>
 
 **Parameters:**
 
@@ -978,7 +1026,7 @@ UTF16LE_CODE_UNIT& operator=(USHORT value);
 
 Assigns the fields from the unsigned integer using the same significance order as the numeric constructor.
 
-**Availability:** `CATALYST_SUPPORTS_16BIT`.
+**REQUIRES:** `CATALYST_SUPPORTS_16BIT` is 1. <span data-heading-badge="REQ. 16-BIT NUMERICS"></span>
 
 **Parameters:**
 
@@ -996,7 +1044,7 @@ operator USHORT() const;
 
 Converts the stored fields to an unsigned integer.
 
-**Availability:** `CATALYST_SUPPORTS_16BIT`.
+**REQUIRES:** `CATALYST_SUPPORTS_16BIT` is 1. <span data-heading-badge="REQ. 16-BIT NUMERICS"></span>
 
 **Returns:**
 
@@ -1068,7 +1116,7 @@ explicit RESULT(UINT value);
 
 Initializes the fields from the unsigned integer. The integer is interpreted in `0xSSCCOODD` significance order, independent of host byte order.
 
-**Availability:** `CATALYST_SUPPORTS_32BIT`.
+**REQUIRES:** `CATALYST_SUPPORTS_32BIT` is 1. <span data-heading-badge="REQ. 32-BIT NUMERICS"></span>
 
 **Parameters:**
 
@@ -1082,7 +1130,7 @@ RESULT& operator=(UINT value);
 
 Assigns the fields from the unsigned integer using the same significance order as the numeric constructor.
 
-**Availability:** `CATALYST_SUPPORTS_32BIT`.
+**REQUIRES:** `CATALYST_SUPPORTS_32BIT` is 1. <span data-heading-badge="REQ. 32-BIT NUMERICS"></span>
 
 **Parameters:**
 
@@ -1100,7 +1148,7 @@ operator UINT() const;
 
 Converts the stored fields to an unsigned integer.
 
-**Availability:** `CATALYST_SUPPORTS_32BIT`.
+**REQUIRES:** `CATALYST_SUPPORTS_32BIT` is 1. <span data-heading-badge="REQ. 32-BIT NUMERICS"></span>
 
 **Returns:**
 
@@ -1141,7 +1189,7 @@ These headers are selected through `catalyst.h`; they are not separate modules. 
 
 ## See Also
 
-- [FDEFSPEC](https://github.com/catalystui/specifications/blob/languages/md/lang/en-US/fdefspec/index.md)
+- [FDEFSPEC](https://catalystui.org/specifications/languages/fdefspec/)
 - [C header source](https://github.com/catalystui/lib-core-c/blob/main/include/catalyst.h)
 - [C++ header source](https://github.com/catalystui/lib-core-c/blob/main/include/catalyst.hpp)
 - [C90 numeric header](https://github.com/catalystui/lib-core-c/blob/main/include/catalyst.c90.h)
