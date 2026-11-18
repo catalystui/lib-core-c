@@ -1,16 +1,13 @@
 # Core
 
-Core provides foundational value representations and native C ABI libraries with C++ namespace wrappers.
+The purpose of CatalystUI Core is to provide a common foundation for working with digital data, regardless of the programming language, operating system, or hardware on which an application runs.
 
-See the [API Reference](api-reference/index.md) for the consolidated, current reference by module. The topic-based references below are retained for now; their result tables may describe earlier assignments.
+Different languages and systems often represent and operate on the same information in different ways. When libraries rely on those differences, their functionality becomes tied to particular environments, and developers must repeatedly solve the same underlying problems. Core exists to separate those fundamental operations from the environments in which they are performed.
 
-| Reference | Headers | Purpose |
-| --- | --- | --- |
-| [Foundational definitions](definitions/index.md) | `catalyst.h`, `catalyst.hpp`, `catalyst.c90.h`, `catalyst.c99.h` | Numeric and text types, encoding identifiers, status codes and result values. |
-| [Memory management (CATMMLIB)](catmmlib/index.md) | `catmmlib.h`, `catmmlib.hpp` | Allocation, release, resizing, copying, moving, comparing and filling memory. |
-| [Text encoding (CATTELIB)](cattelib/index.md) | `cattelib.h`, `cattelib.hpp` | ASCII, CP1252, UTF-8 and UTF-16LE encoding, decoding, length and conversion. |
-| [Relational collections (CATRLLIB)](catrllib/index.md) | `catrllib.h`, `catrllib.hpp` | Arrays, sets, maps and stacks. Depends on CATMMLIB. |
+Core implements the [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/specifications/languages/fdefspec/) through a native C ABI. By defining shared representations and contracts independently of any particular programming language, Core provides a foundation that other libraries can build upon without requiring a shared language runtime.
 
-Reporting C library functions return `CATALYST_RESULT` by value and use separate parameters for additional output. C++ wrappers reside in `catalyst` and return `RESULT` by value. Non-reporting functions return ordinary values directly or return `void`; numeric conversion helpers in the foundational headers return values directly.
+This independence extends to hardware. Core is designed to be implementable even on an 8-bit system, without requiring wider native arithmetic. Platform-specific operations are isolated where necessary, rather than allowing the capabilities of a particular system to define the library's fundamental contracts.
 
-Use the C header for the native ABI, or its C++ counterpart for namespace wrappers. Status names in the library references omit the `CATALYST_STATUS_CODE_` / `catalyst::STATUS_CODE_` prefix.
+Core is not an implementation of any particular layer or domain of the CatalystUI model. It exists to support all of them. By establishing a consistent foundation for digital data and its manipulation, higher-level libraries can focus on their own responsibilities rather than redefining the fundamentals.
+
+The [API Reference](api-reference/index.md) documents the public contracts provided by Core.
