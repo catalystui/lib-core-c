@@ -695,7 +695,7 @@ C constants use the prefix `CATALYST_STATUS_CODE_`; corresponding C++ constants 
 | C Constant | Value | Description | Status-defined Detail |
 | --- | --- | --- | --- |
 | `CATALYST_STATUS_CODE_FATAL` | `0xC0` | Operation failed due to an unrecoverable error. | — |
-| `CATALYST_STATUS_CODE_FATAL_INVARIANT_VIOLATION` | `0xC1` | A fundamental invariant was violated, indicating critical logic error or data corruption. | — |
+| `CATALYST_STATUS_CODE_FATAL_INVARIANT_VIOLATION` | `0xC1` | A fundamental correctness requirement was violated, indicating a critical logic error or data corruption. | — |
 
 For `ERROR_DEPENDENCY_FAILURE`, the operation code identifies the reporting operation, which may also identify the failing dependency. The detail byte is the dependency’s status, not a context or operation code.
 

@@ -198,7 +198,7 @@ enum {
 
     /* Operation failed with an unrecoverable error. */
     CATALYST_STATUS_CODE_FATAL                      = 0xC0,
-    /* A fundamental invariant was violated. */
+    /* A fundamental correctness requirement was violated. */
     CATALYST_STATUS_CODE_FATAL_INVARIANT_VIOLATION  = 0xC1
 };
 

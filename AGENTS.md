@@ -37,7 +37,7 @@ Every Core library MUST be implementable and usable on an 8-bit system.
 - C types/constants: uppercase snake case, `CATALYST_` prefix. C functions: lowercase snake case, library prefix + subject + operation (e.g. `catmm_copy`, `catte_utf8_encode`, `catrl_array_create`). Reserve `cat_` for existing foundational patterns; new foundational functions require approval.
 - C++ types/constants omit `CATALYST_`; functions omit library prefix, all in `namespace catalyst`. Public parameters/fields and generally private functions use lowercase snake case; existing descriptive lower-camel-case locals are acceptable. Match surrounding code; avoid unrelated renames.
 - Four-space indent, same-line braces, `if (...) {` / `} else {`, null pointer `0`, C-compatible `typedef`, existing explicit casts (e.g. `(BYTE) 0x80`).
-- Use early returns, direct control flow, named byte values, simple loops, and `static` for private helpers. Follow section dividers and concise `//` comments explaining intent, bit layouts, nonobvious conditions, invariants, and failure stages—not obvious assignments.
+- Use early returns, direct control flow, named byte values, simple loops, and `static` for private helpers. Follow section dividers and concise `//` comments explaining intent, bit layouts, nonobvious conditions, internal state guarantees, and failure stages—not obvious assignments.
 - Follow `.editorconfig` and `.gitattributes`: UTF-8, CRLF working-tree endings, final newline, no trailing whitespace.
 
 ## Validation boundary
@@ -45,7 +45,7 @@ Every Core library MUST be implementable and usable on an 8-bit system.
 - Core is a foundation of computing primitives, not a defensive programmer-validation layer. Every public function and private helper assumes that its documented caller preconditions hold. The caller owns contract validation: live and correctly typed handles, initialized objects, valid readable/writable pointers and extents, required termination, valid indices for direct indexed access, nonzero configured element extents, lifetime, alignment, non-overlap, synchronization, and any other prerequisites of the operation. Do not check these again in Core or return Results for their violation. A contract violation is outside the function's guarantees.
 - Core owns operational validation: conditions that determine whether the intended operation can succeed even with all caller preconditions satisfied. Examples include malformed encoding encountered during decoding, unrepresentable codepoints, supplied capacity limits, requested extent overflow, allocation/native I/O/cleanup failures, and missing keys or empty stacks when the requested retrieval cannot produce a value. Do not require input content to be well-formed if determining its meaning is the operation's purpose.
 - Perform necessary checks as part of the actual operation, not a separate preliminary validation pass. Bounds checks needed to read a malformed sequence safely are operational; a caller must supply an accessible extent or terminated sequence according to the documented interface. Never read beyond that extent. Do not hide an operational failure by redefining it as a precondition.
-- Establish internal invariants through creation and maintain them through mutation. Trust live handles and established invariants; do not repeatedly inspect storage metadata or revalidate internal steps solely to detect programmer misuse or arbitrary memory corruption. Detect genuine invariant failures arising from an operation or dependency when they can occur with valid inputs.
+- Establish valid internal state during creation and preserve it through mutation. Trust live handles and the guarantees established by previous operations; do not repeatedly inspect storage metadata or revalidate internal steps solely to detect programmer misuse or arbitrary memory corruption. Detect genuine failures of internal state arising from an operation or dependency when they can occur with valid inputs.
 - Ordinary absence, empty state, comparison, arithmetic carry/borrow, and no-op are normal outcomes when so defined. Do not introduce validation or reporting merely to acknowledge them. Define the natural contract first, then choose the return type.
 - These rules apply equally to C exports, C++ wrappers, and internal helpers. The owner has approved applying this validation policy to existing Core functions and removing redundant checks and Results; unrelated architectural changes still require approval.
 
@@ -110,7 +110,7 @@ Apply these rules consistently:
   - Unix linker/ABI aliases are symlinks.
 - Use existing standalone `test/test_<library>.cpp` programs, exercising C++ wrappers and checking ordinary outputs and, for reporting functions, all four result bytes. Cover normal, boundary, no-op, malformed data, operational overflow, and failure-state cases as applicable; do not invoke functions in violation of caller preconditions; simple checks/nonzero exits, no new test framework.
 - Verify public headers/builds with C90/C++98 and C99/C++11 when possible. Independently review byte arithmetic and width assumptions; x86/x64 builds do not establish 8-bit compatibility. Never claim actual 8-bit testing unless performed.
-- Report tests performed, limitations, and invariant conflicts.
+- Report tests performed, limitations, and conflicts with requirements.
 
 ## Commits
 

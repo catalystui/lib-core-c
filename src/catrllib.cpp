@@ -277,12 +277,12 @@ struct CATALYST_STREAM {
     BOOL exhausted;
 };
 
-/* Fault details are scoped to the public method's invariant-check opcode.
+/* Fault details are scoped to the public method's state-check opcode.
  * 1: zero stride, 2: count exceeds capacity, 3: storage/capacity mismatch,
  * 4: unrepresentable extent, 5: invalid map key extent, 6: array count differs
  * from capacity. The checks cannot validate arbitrary foreign pointers.
  */
-/* Classify storage invariants. The enclosing operation owns reporting. */
+/* Classify storage state failures. The enclosing operation owns reporting. */
 /* Live storage and index < capacity are preconditions. This
  * guarantees non-null storage and a representable element offset.
  */

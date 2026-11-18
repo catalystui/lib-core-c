@@ -40,7 +40,7 @@ These principles apply to public C functions, C++ wrappers, and internal helpers
 </div>
 </div>
 
-**Why?** Establish preconditions once, then compose operations without repeatedly checking them. Internal invariants are established during creation and maintained through mutation. This avoids redundant work without hiding genuine operational failures as caller preconditions.
+**Why?** Establish preconditions once, then compose operations without repeatedly checking them. Valid internal state is established during creation and preserved through mutation. This avoids redundant work without hiding genuine operational failures as caller preconditions.
 
 <div style="box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);margin:1rem 0;">
 <strong>Example · Decoding UTF-8</strong>
