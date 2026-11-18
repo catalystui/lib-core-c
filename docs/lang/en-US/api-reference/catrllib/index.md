@@ -1,6 +1,6 @@
 # CATRLLIB
 
-Provides fixed-length arrays, sets, maps, and stacks of byte-represented elements.
+Provides fixed-length arrays, sets, maps, indexed persistent files, and sequential byte streams.
 
 **C Header:** `catrllib.h`  
 **C++ Header:** `catrllib.hpp`  
@@ -15,7 +15,10 @@ Provides fixed-length arrays, sets, maps, and stacks of byte-represented element
 | [`CATALYST_ARRAY`](#catalyst_array) | `ARRAY` | Fixed-length indexed elements. |
 | [`CATALYST_SET`](#catalyst_set) | `SET` | Distinct byte values. |
 | [`CATALYST_MAP`](#catalyst_map) | `MAP` | Unique byte keys associated with values. |
-| [`CATALYST_STACK`](#catalyst_stack) | `STACK` | Last-in, first-out elements. |
+| [`CATALYST_FILE`](#catalyst_file) | `FILE` | Indexed bytes from persistent storage. |
+| [`CATALYST_STREAM`](#catalyst_stream) | `STREAM` | Sequential byte chunks. |
+| [`CATALYST_FILE_READER`](#catalyst_file_reader) | `FILE_READER` | Persistent byte reader. |
+| [`CATALYST_STREAM_READER`](#catalyst_stream_reader) | `STREAM_READER` | Sequential chunk producer. |
 
 ## Constant Summary
 
@@ -62,21 +65,26 @@ Provides fixed-length arrays, sets, maps, and stacks of byte-represented element
 | [`catrl_map_at`](#catrl_map_at) | Copies the key and value at an unordered enumeration index to their respective outputs, sized `key_size` and `value_size` bytes. |
 | [`catrl_map_clear`](#catrl_map_clear) | Removes all associations without releasing storage capacity or zeroing stored bytes. |
 
-### Stack
+### File
 
 | Function | Description |
 | --- | --- |
-| [`catrl_stack_create`](#catrl_stack_create) | Creates an empty stack with `element_size` bytes per element. |
-| [`catrl_stack_destroy`](#catrl_stack_destroy) | Releases stack storage and handle. |
-| [`catrl_stack_push`](#catrl_stack_push) | Copies value to the top of the stack. |
-| [`catrl_stack_pop`](#catrl_stack_pop) | Copies the top element into value and removes it. |
-| [`catrl_stack_peek`](#catrl_stack_peek) | Copies the top element into value without removing it. |
-| [`catrl_stack_count`](#catrl_stack_count) | Returns the number of elements. |
-| [`catrl_stack_clear`](#catrl_stack_clear) | Removes all elements without releasing storage capacity or zeroing stored bytes. |
+| [`catrl_file_create`](#catrl_file_create) | Bind a fixed-length persistent byte source. |
+| [`catrl_file_destroy`](#catrl_file_destroy) | Release the handle, not the underlying persistent source. |
+| [`catrl_file_get`](#catrl_file_get) | Evaluate the persistent byte source at an index. |
+| [`catrl_file_length`](#catrl_file_length) | Return the fixed length of the indexed source in bytes. |
+
+### Stream
+
+| Function | Description |
+| --- | --- |
+| [`catrl_stream_create`](#catrl_stream_create) | Bind a sequential byte producer without retrieving a chunk. |
+| [`catrl_stream_destroy`](#catrl_stream_destroy) | Release the handle without destroying its producer or freeing borrowed chunks. |
+| [`catrl_stream_next`](#catrl_stream_next) | Retrieve exactly the next chunk from the producer. |
 
 ## Type Details
 
-Collections own copies of their elements, keys, and values, each of the configured byte size. Embedded pointers are shallow copies; referenced resources remain caller-owned. Internal byte storage has no typed alignment guarantee. Handles must be live and correctly typed; concurrent access involving mutation or destruction requires external synchronization. A handle must not be reused after destruction is attempted, even if cleanup fails.
+In-memory collections own copies of their elements, keys, and values, each of the configured byte size. Embedded pointers are shallow copies; referenced resources remain caller-owned. Internal byte storage has no typed alignment guarantee. Handles must be live and correctly typed; concurrent access involving mutation or destruction requires external synchronization. A handle must not be reused after destruction is attempted, even if cleanup fails.
 
 ### CATALYST_ARRAY
 
@@ -108,15 +116,61 @@ typedef struct CATALYST_MAP CATALYST_MAP;
 
 **C++:** `catalyst::MAP`.
 
-### CATALYST_STACK
+### CATALYST_FILE
 
-Opaque handle to a last-in, first-out stack. Create with [`catrl_stack_create`](#catrl_stack_create) and release with [`catrl_stack_destroy`](#catrl_stack_destroy).
+Opaque handle to a finite, contiguous indexed byte source originating from persistent storage, as defined by FRELSPEC. The provider supplies persistent storage; the handle binds its length and reader. No path, cursor, file descriptor, or native file handle is required. The provider must preserve the bound length for the handle's lifetime.
 
 ```c
-typedef struct CATALYST_STACK CATALYST_STACK;
+typedef struct CATALYST_FILE CATALYST_FILE;
 ```
 
-**C++:** `catalyst::STACK`.
+**C++:** `catalyst::FILE` (qualify the name when the C standard library's `FILE` is visible).
+
+### CATALYST_STREAM
+
+Opaque handle to a source of successive byte chunks. No fixed chunk size, known total length, or random access is required.
+
+```c
+typedef struct CATALYST_STREAM CATALYST_STREAM;
+```
+
+**C++:** `catalyst::STREAM`.
+
+### CATALYST_FILE_READER
+
+A provider callback implementing indexed evaluation of a persistent source. `state` is caller-owned; `index` is a valid zero-based byte index; `value` receives one byte on SUCCESS. The provider must permit arbitrary index order and repeated reads. It must obtain bytes from persistent storage, not merely an in-memory array.
+
+```c
+typedef CATALYST_RESULT (*CATALYST_FILE_READER)(
+    void* state,
+    CATALYST_NUINT index,
+    CATALYST_BYTE* value
+);
+```
+
+**C++:** `catalyst::FILE_READER`.
+
+### CATALYST_STREAM_READER
+
+A provider callback implementing successive chunk retrieval or generation. On SUCCESS, `chunk` receives a borrowed read-only pointer to a contiguous byte sequence and `length` receives its byte count. A zero-length chunk is permitted; nonempty chunks require non-null storage. SUCCESS_NOOP denotes permanent exhaustion. The producer owns the storage and must keep it readable until its next invocation or destruction of the backing state, whichever comes first. Copy the bytes if they are needed later.
+
+```c
+typedef CATALYST_RESULT (*CATALYST_STREAM_READER)(
+    void* state,
+    const CATALYST_BYTE** chunk,
+    CATALYST_NUINT* length
+);
+```
+
+**C++:** `catalyst::STREAM_READER`.
+
+#### Provider result conventions
+
+The caller supplies valid provider functions and keeps their state alive. The state may be null for stateless providers. Handles do not own, close, or destroy provider state. Access to provider state must be externally synchronized, including calls through different handles. The provider may fail even when all caller preconditions hold.
+
+A provider returns SUCCESS with complete output, a defined error or fatal status on failure, or (for a stream only) SUCCESS_NOOP for permanent exhaustion. A file provider cannot report a successful no-op, since an indexed evaluation must return a byte. Provider warnings and other success-level statuses are not complete outputs under this contract.
+
+Provider errors and fatal statuses are reported at the enclosing function's context and operation. In result patterns, SS is the provider status: for the direct failure row it is a defined error/fatal code other than 0x81 (0x80, 0x82–0x8A, 0x90, 0x91, 0xA0, 0xC0, 0xC1); DD is the provider detail for 0x8A and zero otherwise. For the dependency-failure row, SS is 0x81 or 0x01–0x7F (except 0x01 for stream retrieval). Provider argument indices are not public argument indices; an invalid provider argument therefore reports ERROR_DEPENDENCY_FAILURE instead. The provider must not return reserved status codes.
 
 ## Constant Details
 
@@ -663,23 +717,27 @@ Removes all associations without releasing storage capacity or zeroing stored by
 **C++:** `void catalyst::map_clear(MAP* map)`.
 
 
-### Stack
+### File
 
-#### catrl_stack_create
+#### catrl_file_create
 
 ```c
-CATALYST_RESULT catrl_stack_create(
-    CATALYST_STACK** stack,
-    CATALYST_NUINT element_size
+CATALYST_RESULT catrl_file_create(
+    CATALYST_FILE** file,
+    void* state,
+    CATALYST_FILE_READER reader,
+    CATALYST_NUINT length
 );
 ```
 
-Creates an empty stack with `element_size` bytes per element. Element storage is allocated as needed.
+Bind a fixed-length persistent byte source. The provider remains caller-owned.
 
 **Parameters:**
 
-`stack` — Receives the new stack handle; cleared on failure.  
-`element_size` — Element size in bytes. Must be nonzero.
+`file` — Writable output handle; cleared on failure.  
+`state` — Borrowed provider state; may be null.  
+`reader` — Non-null persistent byte reader.  
+`length` — Fixed byte count; zero is valid.
 
 **Context:** `0x17`
 
@@ -687,27 +745,27 @@ Creates an empty stack with `element_size` bytes per element. Element storage is
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00170300` | `SUCCESS` | Create storage | — |
-| `0x82170302` | `ERROR_INVALID_STATE` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
-| `0x90170302` | `ERROR_BUFFER_OVERFLOW` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
-| `0x91170302` | `ERROR_ALLOCATION_FAILED` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
+| `0x00170200` | SUCCESS | Bind provider | — |
+| `0x82170103` | ERROR_INVALID_STATE | Allocate handle | Allocator operation 0x03. |
+| `0x90170104` | ERROR_BUFFER_OVERFLOW | Allocate handle | Allocator operation 0x04. |
+| `0x90170105` | ERROR_BUFFER_OVERFLOW | Allocate handle | Allocator operation 0x05. |
+| `0x91170106` | ERROR_ALLOCATION_FAILED | Allocate handle | Allocator operation 0x06. |
 
-**C++:** `catalyst::RESULT catalyst::stack_create(STACK** stack, NUINT element_size)`.
+**C++:** `catalyst::RESULT catalyst::file_create(FILE** file, void* state, FILE_READER reader, NUINT length)`.
 
-
-#### catrl_stack_destroy
+#### catrl_file_destroy
 
 ```c
-CATALYST_RESULT catrl_stack_destroy(
-    CATALYST_STACK* stack
+CATALYST_RESULT catrl_file_destroy(
+    CATALYST_FILE* file
 );
 ```
 
-Releases stack storage and handle.
+Release the handle, not the underlying persistent source.
 
 **Parameters:**
 
-`stack` — Stack handle.
+`file` — Live handle; consumed by this call.
 
 **Context:** `0x18`
 
@@ -715,28 +773,28 @@ Releases stack storage and handle.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00180200` | `SUCCESS` | Destroy storage | — |
-| `0x82180201` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x01`: Release element storage. |
-| `0x82180202` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x02`: Release handle. |
+| `0x00180200` | SUCCESS | Release handle | — |
+| `0x82180102` | ERROR_INVALID_STATE | Release handle | Allocator operation 0x02. |
 
-**C++:** `catalyst::RESULT catalyst::stack_destroy(STACK* stack)`.
+**C++:** `catalyst::RESULT catalyst::file_destroy(FILE* file)`.
 
-
-#### catrl_stack_push
+#### catrl_file_get
 
 ```c
-CATALYST_RESULT catrl_stack_push(
-    CATALYST_STACK* stack,
-    const void* value
+CATALYST_RESULT catrl_file_get(
+    const CATALYST_FILE* file,
+    CATALYST_NUINT index,
+    CATALYST_BYTE* value
 );
 ```
 
-Copies value to the top of the stack. Grows storage as needed.
+Evaluate the persistent byte source at an index. No cursor is advanced.
 
 **Parameters:**
 
-`stack` — Stack handle.  
-`value` — Readable element of the configured byte size.
+`file` — Live file handle.  
+`index` — Valid zero-based byte index, less than the bound length.  
+`value` — Writable byte; assigned on success only.
 
 **Context:** `0x19`
 
@@ -744,59 +802,49 @@ Copies value to the top of the stack. Grows storage as needed.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00190500` | `SUCCESS` | Push value | — |
-| `0x82190302` | `ERROR_INVALID_STATE` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
-| `0x90190301` | `ERROR_BUFFER_OVERFLOW` | Grow storage | Growth helper operation `0x01`: Check collection growth limit. |
-| `0x90190302` | `ERROR_BUFFER_OVERFLOW` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
-| `0x91190302` | `ERROR_ALLOCATION_FAILED` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
-| `0xC1190302` | `FATAL_INVARIANT_VIOLATION` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
+| `0x00190300` | SUCCESS | Return byte | — |
+| `0x8A1901SS` | ERROR_DEPENDENCY_FAILURE | Read byte | Provider status SS (defined below). |
+| `0xSS1902DD` | Provider error or fatal status | Read byte | Provider detail for dependency failure; otherwise zero. See provider result conventions. |
 
-**C++:** `catalyst::RESULT catalyst::stack_push(STACK* stack, const void* value)`.
+**C++:** `catalyst::RESULT catalyst::file_get(const FILE* file, NUINT index, BYTE* value)`.
 
-
-#### catrl_stack_pop
+#### catrl_file_length
 
 ```c
-CATALYST_RESULT catrl_stack_pop(
-    CATALYST_STACK* stack,
-    void* value
+CATALYST_NUINT catrl_file_length(
+    const CATALYST_FILE* file
 );
 ```
 
-Copies the top element into `value` and removes it. An empty stack returns `ERROR_NOT_FOUND` without modifying `value`.
+Return the fixed length of the indexed source in bytes.
 
 **Parameters:**
 
-`stack` — Stack handle.  
-`value` — Writable buffer of at least the configured element size in bytes.
+`file` — Live file handle.
 
-**Context:** `0x1A`
+**Returns:** The bound byte count.
 
-**Results:**
+**C++:** `catalyst::NUINT catalyst::file_length(const FILE* file)`.
 
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x001A0500` | `SUCCESS` | Remove top element | — |
-| `0x881A0300` | `ERROR_NOT_FOUND` | Check for top element | — |
+### Stream
 
-**C++:** `catalyst::RESULT catalyst::stack_pop(STACK* stack, void* value)`.
-
-
-#### catrl_stack_peek
+#### catrl_stream_create
 
 ```c
-CATALYST_RESULT catrl_stack_peek(
-    const CATALYST_STACK* stack,
-    void* value
+CATALYST_RESULT catrl_stream_create(
+    CATALYST_STREAM** stream,
+    void* state,
+    CATALYST_STREAM_READER reader
 );
 ```
 
-Copies the top element into `value` without removing it. An empty stack returns `ERROR_NOT_FOUND` without modifying `value`.
+Bind a sequential byte producer without retrieving a chunk.
 
 **Parameters:**
 
-`stack` — Stack handle.  
-`value` — Writable buffer of at least the configured element size in bytes.
+`stream` — Writable output handle; cleared on failure.  
+`state` — Borrowed producer state; may be null.  
+`reader` — Non-null sequential chunk producer.
 
 **Context:** `0x1B`
 
@@ -804,41 +852,68 @@ Copies the top element into `value` without removing it. An empty stack returns 
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x001B0500` | `SUCCESS` | Retrieve top element | — |
-| `0x881B0300` | `ERROR_NOT_FOUND` | Check for top element | — |
+| `0x001B0200` | SUCCESS | Bind producer | — |
+| `0x821B0103` | ERROR_INVALID_STATE | Allocate handle | Allocator operation 0x03. |
+| `0x901B0104` | ERROR_BUFFER_OVERFLOW | Allocate handle | Allocator operation 0x04. |
+| `0x901B0105` | ERROR_BUFFER_OVERFLOW | Allocate handle | Allocator operation 0x05. |
+| `0x911B0106` | ERROR_ALLOCATION_FAILED | Allocate handle | Allocator operation 0x06. |
 
-**C++:** `catalyst::RESULT catalyst::stack_peek(const STACK* stack, void* value)`.
+**C++:** `catalyst::RESULT catalyst::stream_create(STREAM** stream, void* state, STREAM_READER reader)`.
 
-
-#### catrl_stack_count
-
-```c
-CATALYST_NUINT catrl_stack_count(const CATALYST_STACK* stack);
-```
-
-Returns the number of elements.
-
-**Parameters:**
-
-`stack` — Valid live stack handle.
-
-**Returns:** The number of elements.
-
-**C++:** `catalyst::NUINT catalyst::stack_count(const STACK* stack)`.
-
-
-#### catrl_stack_clear
+#### catrl_stream_destroy
 
 ```c
-void catrl_stack_clear(
-    CATALYST_STACK* stack
+CATALYST_RESULT catrl_stream_destroy(
+    CATALYST_STREAM* stream
 );
 ```
 
-Removes all elements without releasing storage capacity or zeroing stored bytes. An empty collection is unchanged.
+Release the handle without destroying its producer or freeing borrowed chunks.
 
 **Parameters:**
 
-`stack` — Stack handle.
+`stream` — Live handle; consumed by this call.
 
-**C++:** `void catalyst::stack_clear(STACK* stack)`.
+**Context:** `0x1C`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x001C0200` | SUCCESS | Release handle | — |
+| `0x821C0102` | ERROR_INVALID_STATE | Release handle | Allocator operation 0x02. |
+
+**C++:** `catalyst::RESULT catalyst::stream_destroy(STREAM* stream)`.
+
+#### catrl_stream_next
+
+```c
+CATALYST_RESULT catrl_stream_next(
+    CATALYST_STREAM* stream,
+    const CATALYST_BYTE** chunk,
+    CATALYST_NUINT* length
+);
+```
+
+Retrieve exactly the next chunk from the producer. SUCCESS returns a chunk, which may be empty; SUCCESS_NOOP returns null and zero at permanent exhaustion. Later calls after exhaustion do not invoke the producer. On any other result, outputs are unchanged; the producer may have advanced and previously borrowed bytes may no longer be valid.
+
+**Parameters:**
+
+`stream` — Live stream handle.  
+`chunk` — Writable output for the borrowed chunk; null at exhaustion.  
+`length` — Writable byte count; zero at exhaustion.
+
+**Context:** `0x1D`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x011D0100` | SUCCESS_NOOP | Already exhausted | — |
+| `0x011D0200` | SUCCESS_NOOP | Producer exhausted | — |
+| `0x8A1D03SS` | ERROR_DEPENDENCY_FAILURE | Retrieve chunk | Provider status SS (defined below). |
+| `0xSS1D04DD` | Provider error or fatal status | Retrieve chunk | Provider detail for dependency failure; otherwise zero. See provider result conventions. |
+| `0xC11D0500` | FATAL_INVARIANT_VIOLATION | Validate chunk | A nonempty chunk has no storage. |
+| `0x001D0600` | SUCCESS | Return chunk | — |
+
+**C++:** `catalyst::RESULT catalyst::stream_next(STREAM* stream, const BYTE** chunk, NUINT* length)`.

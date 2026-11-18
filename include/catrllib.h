@@ -24,8 +24,15 @@ typedef struct CATALYST_ARRAY CATALYST_ARRAY;
 typedef struct CATALYST_SET CATALYST_SET;
 /** Collection of byte-keyed value associations. */
 typedef struct CATALYST_MAP CATALYST_MAP;
-/** Last-in, first-out collection of byte values. */
-typedef struct CATALYST_STACK CATALYST_STACK;
+/** Finite indexed byte source originating from persistent storage. */
+typedef struct CATALYST_FILE CATALYST_FILE;
+/** Sequential producer of byte chunks. */
+typedef struct CATALYST_STREAM CATALYST_STREAM;
+
+/** Evaluate one valid zero-based index in a persistent source. */
+typedef CATALYST_RESULT (*CATALYST_FILE_READER)(void* state, CATALYST_NUINT index, CATALYST_BYTE* value);
+/** Produce the next borrowed chunk, or SUCCESS_NOOP at permanent exhaustion. */
+typedef CATALYST_RESULT (*CATALYST_STREAM_READER)(void* state, const CATALYST_BYTE** chunk, CATALYST_NUINT* length);
 
 /* -------------------------------------------------------------------------------------------------
  * C API :: ARRAY
@@ -106,29 +113,33 @@ CATRLLIB_API void catrl_map_at(const CATALYST_MAP* map, CATALYST_NUINT index, vo
 CATRLLIB_API void catrl_map_clear(CATALYST_MAP* map);
 
 /* -------------------------------------------------------------------------------------------------
- * C API :: STACK
+ * C API :: FILE
  * ------------------------------------------------------------------------------------------------- */
 
-/** Create an empty last-in, first-out collection with nonzero element_size. */
-CATRLLIB_API CATALYST_RESULT catrl_stack_create(CATALYST_STACK** stack, CATALYST_NUINT element_size);
+/** Bind a fixed-length persistent byte source. The provider remains caller-owned. */
+CATRLLIB_API CATALYST_RESULT catrl_file_create(CATALYST_FILE** file, void* state, CATALYST_FILE_READER reader, CATALYST_NUINT length);
 
-/** Destroy the stack and release its storage. */
-CATRLLIB_API CATALYST_RESULT catrl_stack_destroy(CATALYST_STACK* stack);
+/** Release the handle, not the underlying persistent source. */
+CATRLLIB_API CATALYST_RESULT catrl_file_destroy(CATALYST_FILE* file);
 
-/** Push a copy of value onto the stack. */
-CATRLLIB_API CATALYST_RESULT catrl_stack_push(CATALYST_STACK* stack, const void* value);
+/** Evaluate the persistent byte source at an index. No cursor is advanced. */
+CATRLLIB_API CATALYST_RESULT catrl_file_get(const CATALYST_FILE* file, CATALYST_NUINT index, CATALYST_BYTE* value);
 
-/** Copy and remove the top element. An empty stack returns ERROR_NOT_FOUND. */
-CATRLLIB_API CATALYST_RESULT catrl_stack_pop(CATALYST_STACK* stack, void* value);
+/** Return the fixed length of the indexed source in bytes. */
+CATRLLIB_API CATALYST_NUINT catrl_file_length(const CATALYST_FILE* file);
 
-/** Copy the top element. An empty stack returns ERROR_NOT_FOUND. */
-CATRLLIB_API CATALYST_RESULT catrl_stack_peek(const CATALYST_STACK* stack, void* value);
+/* -------------------------------------------------------------------------------------------------
+ * C API :: STREAM
+ * ------------------------------------------------------------------------------------------------- */
 
-/** Return the number of elements from a valid live handle. */
-CATRLLIB_API CATALYST_NUINT catrl_stack_count(const CATALYST_STACK* stack);
+/** Bind a sequential byte producer without retrieving a chunk. */
+CATRLLIB_API CATALYST_RESULT catrl_stream_create(CATALYST_STREAM** stream, void* state, CATALYST_STREAM_READER reader);
 
-/** Remove all elements, retaining storage. Empty collections are unchanged. */
-CATRLLIB_API void catrl_stack_clear(CATALYST_STACK* stack);
+/** Release the handle without destroying its producer or freeing borrowed chunks. */
+CATRLLIB_API CATALYST_RESULT catrl_stream_destroy(CATALYST_STREAM* stream);
+
+/** Retrieve exactly the next chunk from the producer. SUCCESS returns a chunk, which may be empty; SUCCESS_NOOP returns null and zero at permanent exhaustion. Later calls after exhaustion do not invoke the producer. On any other result, outputs are unchanged; the producer may have advanced and previously borrowed bytes may no longer be valid. */
+CATRLLIB_API CATALYST_RESULT catrl_stream_next(CATALYST_STREAM* stream, const CATALYST_BYTE** chunk, CATALYST_NUINT* length);
 
 #ifdef __cplusplus
 } /* extern C */

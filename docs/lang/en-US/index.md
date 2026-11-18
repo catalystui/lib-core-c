@@ -27,7 +27,7 @@ The [compile workflow](https://github.com/catalystui/lib-core-c/actions/workflow
 | --- | --- | --- | --- | --- |
 | [CATMMLIB](api-reference/catmmlib/index.md) | `catmm.lib`, `libcatmm.lib` | `libcatmm.dylib`, `libcatmm.a` | `libcatmm.so`, `libcatmm.a` | Memory allocation, release, resizing, and byte operations. |
 | [CATTELIB](api-reference/cattelib/index.md) | `catte.lib`, `libcatte.lib` | `libcatte.dylib`, `libcatte.a` | `libcatte.so`, `libcatte.a` | Text encoding, decoding, length calculation, and conversion. |
-| [CATRLLIB](api-reference/catrllib/index.md) | `catrl.lib`, `libcatrl.lib` | `libcatrl.dylib`, `libcatrl.a` | `libcatrl.so`, `libcatrl.a` | Arrays, sets, maps, and stacks. |
+| [CATRLLIB](api-reference/catrllib/index.md) | `catrl.lib`, `libcatrl.lib` | `libcatrl.dylib`, `libcatrl.a` | `libcatrl.so`, `libcatrl.a` | Arrays, sets, maps, files, and streams. |
 
 These are development linker filenames. Runtime shared libraries use versioned filenames, and Unix shared-library linker aliases point to the corresponding runtime ABI aliases. The filenames follow the shared build configuration and platform toolchain conventions; the Windows names above describe the MSVC convention.
 

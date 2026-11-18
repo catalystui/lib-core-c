@@ -15,6 +15,120 @@ static void print_result(const char* label, const RESULT& result) {
     );
 }
 
+// Use a persistent-storage provider, with no cursor exposed by CATRLLIB.
+extern "C" CATALYST_RESULT test_file_reader(void* state, CATALYST_NUINT index, CATALYST_BYTE* value) {
+    ::FILE* source = (::FILE*) state;
+    // The fixture contains only three bytes.
+    if (fseek(source, (long) index, SEEK_SET) != 0 || fread(value, 1, 1, source) != 1) {
+        return RESULT(STATUS_CODE_ERROR_IO_ERROR, 1, 1, 0);
+    }
+    return RESULT(STATUS_CODE_SUCCESS, 1, 2, 0);
+}
+
+extern "C" CATALYST_RESULT test_file_failure(void*, CATALYST_NUINT, CATALYST_BYTE* value) {
+    *value = 0;
+    return RESULT(STATUS_CODE_ERROR_ACCESS_DENIED, 1, 1, 0);
+}
+
+struct test_stream_state {
+    BYTE step;
+    BYTE bytes[2];
+};
+
+extern "C" CATALYST_RESULT test_stream_reader(void* state, const CATALYST_BYTE** chunk, CATALYST_NUINT* length) {
+    test_stream_state* producer = (test_stream_state*) state;
+    switch (producer->step) {
+        case 0:
+            producer->step = 1;
+            producer->bytes[0] = 0;
+            producer->bytes[1] = 0xFF;
+            *chunk = producer->bytes;
+            *length = 2;
+            return RESULT(STATUS_CODE_SUCCESS, 1, 1, 0);
+        case 1:
+            producer->step = 2;
+            *chunk = 0;
+            *length = 0;
+            return RESULT(STATUS_CODE_SUCCESS, 1, 2, 0);
+        case 2:
+            producer->step = 3;
+            producer->bytes[0] = 0x42;
+            *chunk = producer->bytes;
+            *length = 1;
+            return RESULT(STATUS_CODE_SUCCESS, 1, 3, 0);
+        case 3:
+            producer->step = 4;
+            return RESULT(STATUS_CODE_ERROR_IO_ERROR, 1, 4, 0);
+        default:
+            producer->step = 5;
+            return RESULT(STATUS_CODE_SUCCESS_NOOP, 1, 5, 0);
+    }
+}
+
+extern "C" CATALYST_RESULT test_bad_chunk(void*, const CATALYST_BYTE** chunk, CATALYST_NUINT* length) {
+    *chunk = 0;
+    *length = 1;
+    return RESULT(STATUS_CODE_SUCCESS, 1, 1, 0);
+}
+
+static BOOL matches(RESULT result, STATUS_CODE status, CONTEXT_CODE context, OPERATION_CODE operation, DETAIL_CODE detail) {
+    return result.status == status && result.context == context && result.operation == operation && result.detail == detail ? TRUE : FALSE;
+}
+
+static BOOL test_file_and_stream() {
+    ::FILE* source = tmpfile();
+    if (source == 0) return FALSE;
+    BYTE data[3] = {0, 0x42, 0xFF};
+    if (fwrite(data, 1, 3, source) != 3 || fflush(source) != 0) {
+        fclose(source);
+        return FALSE;
+    }
+    catalyst::FILE* file = 0;
+    BYTE value = 0xAA;
+    BOOL ok = matches(file_create(&file, source, test_file_reader, 3), STATUS_CODE_SUCCESS, 0x17, 2, 0);
+    if (ok) {
+        ok = file_length(file) == 3 &&
+             matches(file_get(file, 2, &value), STATUS_CODE_SUCCESS, 0x19, 3, 0) && value == 0xFF &&
+             matches(file_get(file, 0, &value), STATUS_CODE_SUCCESS, 0x19, 3, 0) && value == 0 &&
+             matches(file_get(file, 2, &value), STATUS_CODE_SUCCESS, 0x19, 3, 0) && value == 0xFF;
+        if (!matches(file_destroy(file), STATUS_CODE_SUCCESS, 0x18, 2, 0)) ok = FALSE;
+    }
+    // Destroying the relation does not close the persistent source.
+    if (fseek(source, 1, SEEK_SET) != 0 || fread(&value, 1, 1, source) != 1 || value != 0x42) ok = FALSE;
+    if (ok) {
+        ok = matches(file_create(&file, source, test_file_reader, 0), STATUS_CODE_SUCCESS, 0x17, 2, 0);
+        if (ok) {
+            ok = file_length(file) == 0;
+            if (!matches(file_destroy(file), STATUS_CODE_SUCCESS, 0x18, 2, 0)) ok = FALSE;
+        }
+    }
+    fclose(source);
+    if (!ok) return FALSE;
+    if (!matches(file_create(&file, 0, test_file_failure, 1), STATUS_CODE_SUCCESS, 0x17, 2, 0)) return FALSE;
+    value = 0xAA;
+    if (!matches(file_get(file, 0, &value), STATUS_CODE_ERROR_ACCESS_DENIED, 0x19, 2, 0) || value != 0xAA) return FALSE;
+    if (!matches(file_destroy(file), STATUS_CODE_SUCCESS, 0x18, 2, 0)) return FALSE;
+
+    test_stream_state producer = {0, {0, 0}};
+    STREAM* stream = 0;
+    const BYTE* chunk = 0;
+    NUINT length = 0;
+    if (!matches(stream_create(&stream, &producer, test_stream_reader), STATUS_CODE_SUCCESS, 0x1B, 2, 0) || producer.step != 0) return FALSE;
+    if (!matches(stream_next(stream, &chunk, &length), STATUS_CODE_SUCCESS, 0x1D, 6, 0) || length != 2 || chunk != producer.bytes || chunk[0] != 0 || chunk[1] != 0xFF) return FALSE;
+    if (!matches(stream_next(stream, &chunk, &length), STATUS_CODE_SUCCESS, 0x1D, 6, 0) || chunk != 0 || length != 0) return FALSE;
+    if (!matches(stream_next(stream, &chunk, &length), STATUS_CODE_SUCCESS, 0x1D, 6, 0) || length != 1 || chunk[0] != 0x42) return FALSE;
+    if (!matches(stream_next(stream, &chunk, &length), STATUS_CODE_ERROR_IO_ERROR, 0x1D, 4, 0) || chunk != producer.bytes || length != 1) return FALSE;
+    if (!matches(stream_next(stream, &chunk, &length), STATUS_CODE_SUCCESS_NOOP, 0x1D, 2, 0) || chunk != 0 || length != 0 || producer.step != 5) return FALSE;
+    producer.step = 0;
+    if (!matches(stream_next(stream, &chunk, &length), STATUS_CODE_SUCCESS_NOOP, 0x1D, 1, 0) || chunk != 0 || length != 0 || producer.step != 0) return FALSE;
+    if (!matches(stream_destroy(stream), STATUS_CODE_SUCCESS, 0x1C, 2, 0)) return FALSE;
+    if (!matches(stream_create(&stream, 0, test_bad_chunk), STATUS_CODE_SUCCESS, 0x1B, 2, 0)) return FALSE;
+    if (!matches(stream_next(stream, &chunk, &length), STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x1D, 5, 0)) return FALSE;
+    if (!matches(stream_destroy(stream), STATUS_CODE_SUCCESS, 0x1C, 2, 0)) return FALSE;
+    printf("File and Stream verified successfully.\n");
+    return TRUE;
+}
+
 int main() {
     RESULT result;
     NUINT count = 0;
@@ -269,87 +383,7 @@ int main() {
     }
     printf("Map verified successfully.\n");
 
-    /* ---------------------------------------------------------------------------------------------
-     * Stack: capacity growth and last-in, first-out behavior.
-     * --------------------------------------------------------------------------------------------- */
-
-    STACK* stack = 0;
-    result = stack_create(&stack, sizeof(BYTE));
-    print_result("stack create", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x17 || result.operation != 0x03 || result.detail != 0x00 || stack == 0) {
-        printf("FAIL: stack create\n");
-        return 45;
-    }
-    value = 99;
-    result = stack_pop(stack, &value);
-    print_result("stack empty pop", result);
-    if (result.status != STATUS_CODE_ERROR_NOT_FOUND || result.context != 0x1A || result.operation != 0x03 || result.detail != 0x00 || value != 99) {
-        printf("FAIL: stack empty pop\n");
-        return 46;
-    }
-    result = stack_peek(stack, &value);
-    print_result("stack empty peek", result);
-    if (result.status != STATUS_CODE_ERROR_NOT_FOUND || result.context != 0x1B || result.operation != 0x03 || result.detail != 0x00 || value != 99) {
-        printf("FAIL: stack empty peek\n");
-        return 47;
-    }
-    for (BYTE i = 0; i < 8; i++) {
-        result = stack_push(stack, &i);
-        print_result("stack push", result);
-        if (result.status != STATUS_CODE_SUCCESS || result.context != 0x19 || result.operation != 0x05 || result.detail != 0x00) {
-            printf("FAIL: stack push\n");
-            return 48;
-        }
-    }
-    count = stack_count(stack);
-    if (count != 8) {
-        printf("FAIL: stack count\n");
-        return 49;
-    }
-    result = stack_peek(stack, &value);
-    print_result("stack peek", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x1B || result.operation != 0x05 || result.detail != 0x00 || value != 7) {
-        printf("FAIL: stack peek\n");
-        return 50;
-    }
-    count = stack_count(stack);
-    if (count != 8) {
-        printf("FAIL: stack count after peek\n");
-        return 51;
-    }
-    for (BYTE i = 8; i != 0; i--) {
-        result = stack_pop(stack, &value);
-        print_result("stack pop", result);
-        if (result.status != STATUS_CODE_SUCCESS || result.context != 0x1A || result.operation != 0x05 || result.detail != 0x00 || value != i - 1) {
-            printf("FAIL: stack pop\n");
-            return 52;
-        }
-    }
-    count = stack_count(stack);
-    if (count != 0) {
-        printf("FAIL: stack empty count\n");
-        return 53;
-    }
-    result = stack_push(stack, &value);
-    print_result("stack reuse", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x19 || result.operation != 0x05 || result.detail != 0x00) {
-        printf("FAIL: stack reuse\n");
-        return 54;
-    }
-    stack_clear(stack);
-    count = stack_count(stack);
-    if (count != 0) {
-        printf("FAIL: stack cleared count\n");
-        return 56;
-    }
-    stack_clear(stack);
-    result = stack_destroy(stack);
-    print_result("stack destroy", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x18 || result.operation != 0x02 || result.detail != 0x00) {
-        printf("FAIL: stack destroy\n");
-        return 58;
-    }
-    printf("Stack verified successfully.\n");
+    if (!test_file_and_stream()) return 45;
 
     /* ---------------------------------------------------------------------------------------------
      * Representable size limits.
@@ -358,7 +392,6 @@ int main() {
     array = 0;
     set = 0;
     map = 0;
-    stack = 0;
     result = array_create(&array, 2, CATALYST_NUINT_MAX);
     print_result("array size overflow", result);
     if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x01 || result.operation != 0x03 || result.detail != 0x01 || array != 0) {
@@ -411,23 +444,22 @@ int main() {
     result = map_destroy(map);
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x0F || result.operation != 0x02 || result.detail != 0) return 83;
 
-    // Exercise count carry/borrow and growth over 255 elements.
-    result = stack_create(&stack, 1);
-    if (stack == 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0x17 || result.operation != 0x03 || result.detail != 0) return 84;
+    // Exercise count carry/borrow and growth over 255 distinct elements.
+    result = set_create(&set, 2);
+    if (set == 0 || result.status != STATUS_CODE_SUCCESS) return 84;
+    BYTE keyBytes[2] = {0, 0};
     for (BYTE pass = 0; pass < 2; ++pass) {
+        keyBytes[0] = pass;
         for (BYTE i = 0; i < 128; ++i) {
-            result = stack_push(stack, &item);
-            if (result.status != STATUS_CODE_SUCCESS || result.context != 0x19 || result.operation != 0x05 || result.detail != 0) return 85;
+            keyBytes[1] = i;
+            if (set_add(set, keyBytes).status != STATUS_CODE_SUCCESS) return 85;
         }
     }
-    count = stack_count(stack);
-    if (count != 256) return 86;
-    result = stack_pop(stack, &value);
-    if (value != item || result.status != STATUS_CODE_SUCCESS || result.context != 0x1A || result.operation != 0x05 || result.detail != 0) return 87;
-    count = stack_count(stack);
-    if (count != 255) return 88;
-    result = stack_destroy(stack);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x18 || result.operation != 0x02 || result.detail != 0) return 89;
+    if (set_count(set) != 256) return 86;
+    keyBytes[1] = 127;
+    set_remove(set, keyBytes);
+    if (set_count(set) != 255) return 88;
+    if (set_destroy(set).status != STATUS_CODE_SUCCESS) return 89;
 #endif
 
     // Empty collection searches are ordinary outcomes.

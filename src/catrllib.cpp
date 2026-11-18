@@ -251,7 +251,7 @@ static catrl_size size_previous(const catrl_size* size) {
     return previous;
 }
 
-/* Private storage shared by the four collection implementations. */
+/* Private storage shared by the three in-memory collection implementations. */
 struct catrl_storage {
     BYTE* bytes;
     catrl_size stride;
@@ -265,7 +265,17 @@ struct CATALYST_MAP {
     catrl_storage storage;
     catrl_size key_size;
 };
-struct CATALYST_STACK { catrl_storage storage; };
+struct CATALYST_FILE {
+    void* state;
+    CATALYST_FILE_READER reader;
+    NUINT length;
+};
+
+struct CATALYST_STREAM {
+    void* state;
+    CATALYST_STREAM_READER reader;
+    BOOL exhausted;
+};
 
 /* Fault details are scoped to the public method's invariant-check opcode.
  * 1: zero stride, 2: count exceeds capacity, 3: storage/capacity mismatch,
@@ -592,61 +602,100 @@ void catrl_map_clear(CATALYST_MAP* map) {
     map->storage.count = size_byte(0);
 }
 
-/* STACK */
-CATALYST_RESULT catrl_stack_create(CATALYST_STACK** stack, CATALYST_NUINT element_size) {
-    *stack = 0;
-    catrl_size stride = size_from_abi(element_size);
-    RESULT storageResult;
-    catrl_size count = size_byte(0);
-    void* object;
-    storageResult = create_storage(sizeof(CATALYST_STACK), &stride, &count, &object);
-    *stack = (CATALYST_STACK*) object;
-    return RESULT(storageResult.status, 0x17, 0x03, status_code_is_success(storageResult.status) ? 0 : storageResult.operation);
+/* FILE */
+CATALYST_RESULT catrl_file_create(CATALYST_FILE** file, void* state, CATALYST_FILE_READER reader, CATALYST_NUINT length) {
+    *file = 0;
+    void* storage = 0;
+    RESULT allocation = catmm_alloc(&storage, sizeof(CATALYST_FILE));
+    if (!status_code_is_success(allocation.status)) {
+        return RESULT(allocation.status, 0x17, 0x01, allocation.operation);
+    }
+    CATALYST_FILE* object = (CATALYST_FILE*) storage;
+    object->state = state;
+    object->reader = reader;
+    object->length = length;
+    *file = object;
+    return RESULT(STATUS_CODE_SUCCESS, 0x17, 0x02, 0);
 }
 
-CATALYST_RESULT catrl_stack_destroy(CATALYST_STACK* stack) {
-    RESULT storageResult;
-    storageResult = destroy_storage(stack, &stack->storage);
-    return RESULT(storageResult.status, 0x18, 0x02, status_code_is_success(storageResult.status) ? 0 : storageResult.operation);
+CATALYST_RESULT catrl_file_destroy(CATALYST_FILE* file) {
+    RESULT release = catmm_free(file);
+    if (!status_code_is_success(release.status)) {
+        return RESULT(release.status, 0x18, 0x01, release.operation);
+    }
+    return RESULT(STATUS_CODE_SUCCESS, 0x18, 0x02, 0);
 }
 
-CATALYST_RESULT catrl_stack_push(CATALYST_STACK* stack, const void* value) {
-    if (size_compare(&stack->storage.count, &stack->storage.capacity) == 0) {
-        RESULT growthResult;
-        growthResult = grow(&stack->storage);
-        if (!status_code_is_success(growthResult.status)) {
-            return RESULT(growthResult.status, 0x19, 0x03, growthResult.operation);
+CATALYST_RESULT catrl_file_get(const CATALYST_FILE* file, CATALYST_NUINT index, CATALYST_BYTE* value) {
+    BYTE byte = 0;
+    RESULT read = file->reader(file->state, index, &byte);
+    if (read.status != STATUS_CODE_SUCCESS) {
+        // The provider's argument indices do not identify this function's arguments.
+        if (read.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ||
+            (!status_code_is_error(read.status) && !status_code_is_fatal(read.status))) {
+            return RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0x19, 0x01, read.status);
         }
+        return RESULT(read.status, 0x19, 0x02, read.status == STATUS_CODE_ERROR_DEPENDENCY_FAILURE ? read.detail : 0);
     }
-    catmm_copy(element_at(&stack->storage, &stack->storage.count), value, size_to_abi(&stack->storage.stride));
-    size_increment(&stack->storage.count);
-    return RESULT(STATUS_CODE_SUCCESS, 0x19, 0x05, 0);
+    *value = byte;
+    return RESULT(STATUS_CODE_SUCCESS, 0x19, 0x03, 0);
 }
 
-CATALYST_RESULT catrl_stack_pop(CATALYST_STACK* stack, void* value) {
-    if (size_zero(&stack->storage.count)) {
-        return RESULT(STATUS_CODE_ERROR_NOT_FOUND, 0x1A, 0x03, 0);
+CATALYST_NUINT catrl_file_length(const CATALYST_FILE* file) {
+    return file->length;
+}
+
+/* STREAM */
+CATALYST_RESULT catrl_stream_create(CATALYST_STREAM** stream, void* state, CATALYST_STREAM_READER reader) {
+    *stream = 0;
+    void* storage = 0;
+    RESULT allocation = catmm_alloc(&storage, sizeof(CATALYST_STREAM));
+    if (!status_code_is_success(allocation.status)) {
+        return RESULT(allocation.status, 0x1B, 0x01, allocation.operation);
     }
-    catrl_size last = size_previous(&stack->storage.count);
-    catmm_copy(value, element_at(&stack->storage, &last), size_to_abi(&stack->storage.stride));
-    stack->storage.count = last;
-    return RESULT(STATUS_CODE_SUCCESS, 0x1A, 0x05, 0);
+    CATALYST_STREAM* object = (CATALYST_STREAM*) storage;
+    object->state = state;
+    object->reader = reader;
+    object->exhausted = FALSE;
+    *stream = object;
+    return RESULT(STATUS_CODE_SUCCESS, 0x1B, 0x02, 0);
 }
 
-CATALYST_RESULT catrl_stack_peek(const CATALYST_STACK* stack, void* value) {
-    if (size_zero(&stack->storage.count)) {
-        return RESULT(STATUS_CODE_ERROR_NOT_FOUND, 0x1B, 0x03, 0);
+CATALYST_RESULT catrl_stream_destroy(CATALYST_STREAM* stream) {
+    RESULT release = catmm_free(stream);
+    if (!status_code_is_success(release.status)) {
+        return RESULT(release.status, 0x1C, 0x01, release.operation);
     }
-    catrl_size last = size_previous(&stack->storage.count);
-    catmm_copy(value, element_at(&stack->storage, &last), size_to_abi(&stack->storage.stride));
-    return RESULT(STATUS_CODE_SUCCESS, 0x1B, 0x05, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0x1C, 0x02, 0);
 }
 
-CATALYST_NUINT catrl_stack_count(const CATALYST_STACK* stack) {
-    return size_to_abi(&stack->storage.count);
+CATALYST_RESULT catrl_stream_next(CATALYST_STREAM* stream, const CATALYST_BYTE** chunk, CATALYST_NUINT* length) {
+    if (stream->exhausted) {
+        *chunk = 0;
+        *length = 0;
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x1D, 0x01, 0);
+    }
+    const BYTE* bytes = 0;
+    NUINT count = 0;
+    RESULT read = stream->reader(stream->state, &bytes, &count);
+    if (read.status == STATUS_CODE_SUCCESS_NOOP) {
+        stream->exhausted = TRUE;
+        *chunk = 0;
+        *length = 0;
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x1D, 0x02, 0);
+    }
+    if (read.status != STATUS_CODE_SUCCESS) {
+        if (read.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ||
+            (!status_code_is_error(read.status) && !status_code_is_fatal(read.status))) {
+            return RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0x1D, 0x03, read.status);
+        }
+        return RESULT(read.status, 0x1D, 0x04, read.status == STATUS_CODE_ERROR_DEPENDENCY_FAILURE ? read.detail : 0);
+    }
+    catrl_size extent = size_from_abi(count);
+    if (bytes == 0 && !size_zero(&extent)) {
+        return RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x1D, 0x05, 0);
+    }
+    *chunk = bytes;
+    *length = count;
+    return RESULT(STATUS_CODE_SUCCESS, 0x1D, 0x06, 0);
 }
-
-void catrl_stack_clear(CATALYST_STACK* stack) {
-    stack->storage.count = size_byte(0);
-}
-

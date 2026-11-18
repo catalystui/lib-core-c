@@ -7,7 +7,10 @@ namespace catalyst {
 typedef ::CATALYST_ARRAY ARRAY;
 typedef ::CATALYST_SET SET;
 typedef ::CATALYST_MAP MAP;
-typedef ::CATALYST_STACK STACK;
+typedef ::CATALYST_FILE FILE;
+typedef ::CATALYST_STREAM STREAM;
+typedef ::CATALYST_FILE_READER FILE_READER;
+typedef ::CATALYST_STREAM_READER STREAM_READER;
 
 inline RESULT array_create(ARRAY** array, NUINT element_size, NUINT length) {
     return ::catrl_array_create(array, element_size, length);
@@ -97,32 +100,32 @@ inline void map_clear(MAP* map) {
     ::catrl_map_clear(map);
 }
 
-inline RESULT stack_create(STACK** stack, NUINT element_size) {
-    return ::catrl_stack_create(stack, element_size);
+inline RESULT file_create(FILE** file, void* state, FILE_READER reader, NUINT length) {
+    return ::catrl_file_create(file, state, reader, length);
 }
 
-inline RESULT stack_destroy(STACK* stack) {
-    return ::catrl_stack_destroy(stack);
+inline RESULT file_destroy(FILE* file) {
+    return ::catrl_file_destroy(file);
 }
 
-inline RESULT stack_push(STACK* stack, const void* value) {
-    return ::catrl_stack_push(stack, value);
+inline RESULT file_get(const FILE* file, NUINT index, BYTE* value) {
+    return ::catrl_file_get(file, index, value);
 }
 
-inline RESULT stack_pop(STACK* stack, void* value) {
-    return ::catrl_stack_pop(stack, value);
+inline NUINT file_length(const FILE* file) {
+    return ::catrl_file_length(file);
 }
 
-inline RESULT stack_peek(const STACK* stack, void* value) {
-    return ::catrl_stack_peek(stack, value);
+inline RESULT stream_create(STREAM** stream, void* state, STREAM_READER reader) {
+    return ::catrl_stream_create(stream, state, reader);
 }
 
-inline NUINT stack_count(const STACK* stack) {
-    return ::catrl_stack_count(stack);
+inline RESULT stream_destroy(STREAM* stream) {
+    return ::catrl_stream_destroy(stream);
 }
 
-inline void stack_clear(STACK* stack) {
-    ::catrl_stack_clear(stack);
+inline RESULT stream_next(STREAM* stream, const BYTE** chunk, NUINT* length) {
+    return ::catrl_stream_next(stream, chunk, length);
 }
 
 } /* namespace catalyst */
