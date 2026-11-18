@@ -41,34 +41,20 @@ int main() {
     }
     for (BYTE i = 0; i < 8; i++) {
         value = 99;
-        result = array_get(array, i, &value);
-        print_result("array initial value", result);
-        if (result.status != STATUS_CODE_SUCCESS || result.context != 0x03 || result.operation != 0x05 || result.detail != 0x00 || value != 0) {
+        array_get(array, i, &value);
+        if (value != 0) {
             printf("FAIL: array initial value\n");
             return 3;
         }
         value = i + 10;
-        result = array_set(array, i, &value);
-        print_result("array set", result);
-        if (result.status != STATUS_CODE_SUCCESS || result.context != 0x04 || result.operation != 0x05 || result.detail != 0x00) {
-            printf("FAIL: array set\n");
-            return 4;
-        }
+        array_set(array, i, &value);
     }
     for (BYTE i = 0; i < 8; i++) {
-        result = array_get(array, i, &value);
-        print_result("array get", result);
-        if (result.status != STATUS_CODE_SUCCESS || result.context != 0x03 || result.operation != 0x05 || result.detail != 0x00 || value != i + 10) {
+        array_get(array, i, &value);
+        if (value != i + 10) {
             printf("FAIL: array get\n");
             return 5;
         }
-    }
-    value = 99;
-    result = array_get(array, 8, &value);
-    print_result("array out of bounds", result);
-    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x03 || result.operation != 0x02 || result.detail != 0x01 || value != 99) {
-        printf("FAIL: array out of bounds\n");
-        return 6;
     }
     result = array_destroy(array);
     print_result("array destroy", result);
@@ -127,72 +113,48 @@ int main() {
         printf("FAIL: set count\n");
         return 14;
     }
-    result = set_contains(set, &value, &contains);
-    print_result("set contains", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x0A || result.operation != 0x05 || result.detail != 0x00 || contains != TRUE) {
+    contains = set_contains(set, &value);
+    if (contains != TRUE) {
         printf("FAIL: set contains\n");
         return 15;
     }
     BYTE seen = 0;
     for (BYTE i = 0; i < count; i++) {
-        result = set_at(set, i, &value);
-        print_result("set enumerate", result);
-        if (result.status != STATUS_CODE_SUCCESS || result.context != 0x0C || result.operation != 0x05 || result.detail != 0x00 || value >= 8 || (seen & ((BYTE) 1 << value)) != 0) {
+        set_at(set, i, &value);
+        if (value >= 8 || (seen & ((BYTE) 1 << value)) != 0) {
             printf("FAIL: set enumerate\n");
             return 16;
         }
         seen |= (BYTE) 1 << value;
     }
     value = 3;
-    result = set_remove(set, &value);
-    print_result("set remove", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x09 || result.operation != 0x06 || result.detail != 0x00) {
-        printf("FAIL: set remove\n");
-        return 17;
-    }
-    result = set_contains(set, &value, &contains);
-    print_result("set removed membership", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x0A || result.operation != 0x05 || result.detail != 0x00 || contains != FALSE) {
+    set_remove(set, &value);
+    contains = set_contains(set, &value);
+    if (contains != FALSE) {
         printf("FAIL: set removed membership\n");
         return 18;
     }
-    result = set_remove(set, &value);
-    print_result("set remove absent", result);
-    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0x09 || result.operation != 0x04 || result.detail != 0x00) {
-        printf("FAIL: set remove absent\n");
-        return 19;
-    }
+    set_remove(set, &value);
     count = set_count(set);
     if (count != 7) {
         printf("FAIL: set count after remove\n");
         return 20;
     }
-    result = set_clear(set);
-    print_result("set clear", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x0D || result.operation != 0x03 || result.detail != 0x00) {
-        printf("FAIL: set clear\n");
-        return 21;
-    }
+    set_clear(set);
     count = set_count(set);
     if (count != 0) {
         printf("FAIL: set empty count\n");
         return 22;
     }
-    result = set_clear(set);
-    print_result("set clear empty", result);
-    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0x0D || result.operation != 0x02 || result.detail != 0x00) {
-        printf("FAIL: set clear empty\n");
-        return 23;
-    }
+    set_clear(set);
     result = set_add(set, &value);
     print_result("set reuse", result);
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x08 || result.operation != 0x07 || result.detail != 0x00) {
         printf("FAIL: set reuse\n");
         return 24;
     }
-    result = set_contains(set, &value, &contains);
-    print_result("set reuse membership", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x0A || result.operation != 0x05 || result.detail != 0x00 || contains != TRUE) {
+    contains = set_contains(set, &value);
+    if (contains != TRUE) {
         printf("FAIL: set reuse membership\n");
         return 25;
     }
@@ -245,32 +207,24 @@ int main() {
         printf("FAIL: map count\n");
         return 31;
     }
-    result = map_contains(map, &key, &contains);
-    print_result("map contains", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x13 || result.operation != 0x05 || result.detail != 0x00 || contains != TRUE) {
+    contains = map_contains(map, &key);
+    if (contains != TRUE) {
         printf("FAIL: map contains\n");
         return 32;
     }
     seen = 0;
     for (BYTE i = 0; i < count; i++) {
-        result = map_at(map, i, &key, &value);
-        print_result("map enumerate", result);
-        if (result.status != STATUS_CODE_SUCCESS || result.context != 0x15 || result.operation != 0x07 || result.detail != 0x00 || key >= 8 || (seen & ((BYTE) 1 << key)) != 0 || value != (key == 3 ? 199 : (BYTE) (key + 100))) {
+        map_at(map, i, &key, &value);
+        if (key >= 8 || (seen & ((BYTE) 1 << key)) != 0 || value != (key == 3 ? 199 : (BYTE) (key + 100))) {
             printf("FAIL: map enumerate\n");
             return 33;
         }
         seen |= (BYTE) 1 << key;
     }
     key = 3;
-    result = map_remove(map, &key);
-    print_result("map remove", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x12 || result.operation != 0x06 || result.detail != 0x00) {
-        printf("FAIL: map remove\n");
-        return 34;
-    }
-    result = map_contains(map, &key, &contains);
-    print_result("map removed membership", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x13 || result.operation != 0x05 || result.detail != 0x00 || contains != FALSE) {
+    map_remove(map, &key);
+    contains = map_contains(map, &key);
+    if (contains != FALSE) {
         printf("FAIL: map removed membership\n");
         return 35;
     }
@@ -281,34 +235,19 @@ int main() {
         printf("FAIL: map missing key\n");
         return 36;
     }
-    result = map_remove(map, &key);
-    print_result("map remove absent", result);
-    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0x12 || result.operation != 0x04 || result.detail != 0x00) {
-        printf("FAIL: map remove absent\n");
-        return 37;
-    }
+    map_remove(map, &key);
     count = map_count(map);
     if (count != 7) {
         printf("FAIL: map count after remove\n");
         return 38;
     }
-    result = map_clear(map);
-    print_result("map clear", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x16 || result.operation != 0x03 || result.detail != 0x00) {
-        printf("FAIL: map clear\n");
-        return 39;
-    }
+    map_clear(map);
     count = map_count(map);
     if (count != 0) {
         printf("FAIL: map empty count\n");
         return 40;
     }
-    result = map_clear(map);
-    print_result("map clear empty", result);
-    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0x16 || result.operation != 0x02 || result.detail != 0x00) {
-        printf("FAIL: map clear empty\n");
-        return 41;
-    }
+    map_clear(map);
     result = map_set(map, &key, &value);
     print_result("map reuse", result);
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x11 || result.operation != 0x08 || result.detail != 0x00) {
@@ -397,23 +336,13 @@ int main() {
         printf("FAIL: stack reuse\n");
         return 54;
     }
-    result = stack_clear(stack);
-    print_result("stack clear", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x1D || result.operation != 0x03 || result.detail != 0x00) {
-        printf("FAIL: stack clear\n");
-        return 55;
-    }
+    stack_clear(stack);
     count = stack_count(stack);
     if (count != 0) {
         printf("FAIL: stack cleared count\n");
         return 56;
     }
-    result = stack_clear(stack);
-    print_result("stack clear empty", result);
-    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0x1D || result.operation != 0x02 || result.detail != 0x00) {
-        printf("FAIL: stack clear empty\n");
-        return 57;
-    }
+    stack_clear(stack);
     result = stack_destroy(stack);
     print_result("stack destroy", result);
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x18 || result.operation != 0x02 || result.detail != 0x00) {
@@ -423,30 +352,18 @@ int main() {
     printf("Stack verified successfully.\n");
 
     /* ---------------------------------------------------------------------------------------------
-     * Invalid arguments and representable size limits.
+     * Representable size limits.
      * --------------------------------------------------------------------------------------------- */
 
     array = 0;
     set = 0;
     map = 0;
     stack = 0;
-    result = array_create(&array, 0, 1);
-    print_result("array zero element size", result);
-    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x01 || result.operation != 0x02 || result.detail != 0x01 || array != 0) {
-        printf("FAIL: array zero element size\n");
-        return 59;
-    }
     result = array_create(&array, 2, CATALYST_NUINT_MAX);
     print_result("array size overflow", result);
     if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x01 || result.operation != 0x03 || result.detail != 0x01 || array != 0) {
         printf("FAIL: array size overflow\n");
         return 60;
-    }
-    result = set_create(&set, 0);
-    print_result("set zero element size", result);
-    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x06 || result.operation != 0x02 || result.detail != 0x01 || set != 0) {
-        printf("FAIL: set zero element size\n");
-        return 61;
     }
     result = map_create(&map, CATALYST_NUINT_MAX, 1);
     print_result("map size overflow", result);
@@ -454,30 +371,6 @@ int main() {
         printf("FAIL: map size overflow\n");
         return 62;
     }
-    result = stack_create(&stack, 0);
-    print_result("stack zero element size", result);
-    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x17 || result.operation != 0x02 || result.detail != 0x01 || stack != 0) {
-        printf("FAIL: stack zero element size\n");
-        return 63;
-    }
-    result = array_get(0, 0, &value);
-    print_result("array null handle", result);
-    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x03 || result.operation != 0x01 || result.detail != 0x00) {
-        printf("FAIL: array null handle\n");
-        return 64;
-    }
-
-    // Growth fails before touching the element when allocator extent overflows.
-    // This deliberately probes the failure path before a maximum-size payload could be read.
-    set = 0;
-    result = set_create(&set, CATALYST_NUINT_MAX);
-    if (set == 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0x06 || result.operation != 0x03 || result.detail != 0) return 65;
-    result = set_add(set, &value);
-    if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x08 || result.operation != 0x05 || result.detail != 0x02) return 66;
-    count = set_count(set);
-    if (count != 0) return 67;
-    result = set_destroy(set);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x07 || result.operation != 0x02 || result.detail != 0) return 68;
 
     // Ignoring the returned Result does not change the operation.
     BYTE item = 0xA5;
@@ -489,18 +382,6 @@ int main() {
     if (value != item) return 70;
     array_destroy(array);
 
-    // Validate remaining argument positions and leave output values unchanged.
-    result = array_create(&array, 1, 1);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x01 || result.operation != 0x03 || result.detail != 0) return 71;
-    result = array_get(array, 0, 0);
-    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x03 || result.operation != 0x03 || result.detail != 2) return 72;
-    result = array_set(array, 1, &item);
-    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x04 || result.operation != 0x02 || result.detail != 1) return 73;
-    result = array_destroy(array);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x02 || result.operation != 0x02 || result.detail != 0) return 74;
-
-    result = map_create(&map, 1, 0);
-    if (map != 0 || result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0E || result.operation != 0x03 || result.detail != 2) return 75;
 
 #if TARGET_SIZEOF_VOID_P > 1
     // The 17th 17-byte element crosses an eight-bit offset boundary.
@@ -510,10 +391,9 @@ int main() {
     wide[16] = 0x34;
     result = array_create(&array, 17, 17);
     if (array == 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0x01 || result.operation != 0x03 || result.detail != 0) return 76;
-    result = array_set(array, 16, wide);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x04 || result.operation != 0x05 || result.detail != 0) return 77;
-    result = array_get(array, 16, readback);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x03 || result.operation != 0x05 || result.detail != 0 || readback[0] != 0x12 || readback[16] != 0x34) return 78;
+    array_set(array, 16, wide);
+    array_get(array, 16, readback);
+    if (readback[0] != 0x12 || readback[16] != 0x34) return 78;
     result = array_destroy(array);
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x02 || result.operation != 0x02 || result.detail != 0) return 79;
 
@@ -550,43 +430,22 @@ int main() {
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x18 || result.operation != 0x02 || result.detail != 0) return 89;
 #endif
 
-    // Search preconditions remain checked at each public boundary.
+    // Empty collection searches are ordinary outcomes.
     result = set_create(&set, 1);
     if (set == 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0x06 || result.operation != 0x03 || result.detail != 0) return 90;
-    contains = TRUE;
-    result = set_contains(set, &item, &contains);
-    if (contains != FALSE || result.status != STATUS_CODE_SUCCESS || result.context != 0x0A || result.operation != 0x05 || result.detail != 0) return 91;
-    result = set_add(set, 0);
-    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x08 || result.operation != 0x02 || result.detail != 1) return 92;
-    result = set_remove(set, 0);
-    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x09 || result.operation != 0x02 || result.detail != 1) return 93;
-    contains = TRUE;
-    result = set_contains(set, 0, &contains);
-    if (contains != TRUE || result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0A || result.operation != 0x02 || result.detail != 1) return 94;
-    result = set_contains(set, &item, 0);
-    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0A || result.operation != 0x03 || result.detail != 2) return 95;
+    contains = set_contains(set, &item);
+    if (contains != FALSE) return 91;
     result = set_destroy(set);
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x07 || result.operation != 0x02 || result.detail != 0) return 96;
 
     result = map_create(&map, 1, 1);
     if (map == 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0x0E || result.operation != 0x05 || result.detail != 0) return 97;
     contains = TRUE;
-    result = map_contains(map, &item, &contains);
-    if (contains != FALSE || result.status != STATUS_CODE_SUCCESS || result.context != 0x13 || result.operation != 0x05 || result.detail != 0) return 98;
+    contains = map_contains(map, &item);
+    if (contains != FALSE) return 98;
     value = 99;
     result = map_get(map, &item, &value);
     if (value != 99 || result.status != STATUS_CODE_ERROR_NOT_FOUND || result.context != 0x10 || result.operation != 0x05 || result.detail != 0) return 99;
-    result = map_get(map, 0, &value);
-    if (value != 99 || result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x10 || result.operation != 0x02 || result.detail != 1) return 100;
-    result = map_set(map, 0, &item);
-    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x11 || result.operation != 0x02 || result.detail != 1) return 101;
-    result = map_remove(map, 0);
-    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x12 || result.operation != 0x02 || result.detail != 1) return 102;
-    contains = TRUE;
-    result = map_contains(map, 0, &contains);
-    if (contains != TRUE || result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x13 || result.operation != 0x02 || result.detail != 1) return 103;
-    result = map_contains(map, &item, 0);
-    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x13 || result.operation != 0x03 || result.detail != 2) return 104;
     result = map_destroy(map);
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x0F || result.operation != 0x02 || result.detail != 0) return 105;
 

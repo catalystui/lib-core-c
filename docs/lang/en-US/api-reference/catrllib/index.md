@@ -10,15 +10,15 @@ Provides fixed-length arrays, sets, maps, and stacks of byte-represented element
 
 ## Conventions
 
-- Reporting functions return `CATALYST_RESULT` by value. Length and count accessors return `CATALYST_NUINT` directly and require valid live handles. Pointers must be non-null and refer to live handles or valid readable/writable storage.
-- Element, key and value sizes are nonzero byte counts. Lengths, counts and indices count elements or associations; indices start at zero. An array may have zero elements.
+- Reporting functions return `CATALYST_RESULT` by value. Membership predicates return `CATALYST_BOOL`, count accessors return `CATALYST_NUINT`, and indexed access, removal and clear procedures return `void`. All handles must be live and correctly typed; pointers must refer to valid readable/writable storage of the required extent. Caller preconditions are not checked.
+- Element, key and value sizes are nonzero byte counts. Lengths, counts and indices count elements or associations; indices start at zero and must be less than the current length or count. An array may have zero elements.
 - Collections copy exactly the configured number of bytes. Pointers embedded in stored values are shallow copies; referenced resources remain caller-owned. Set and map key equality compares every byte, including padding. Supply consistent byte representations.
 - Inputs and outputs must not overlap. Provide buffers of the configured sizes; no typed alignment of internal bytes is promised.
-- Creation clears a non-null output handle before validating sizes or allocating. Any existing handle is replaced, not destroyed. Arrays allocate element storage at creation when their length is nonzero; sets, maps and stacks start without element storage and allocate it as needed.
+- Creation clears the output handle before attempting allocation. Any existing handle is replaced, not destroyed. Arrays allocate element storage at creation when their length is nonzero; sets, maps and stacks start without element storage and allocate it as needed.
 - Query outputs are unchanged on recoverable failure and may be unspecified after fatal failure. Recoverable mutation failures leave logical contents unchanged. Set/map enumeration order is unspecified and can change on mutation.
 - Clear retains capacity and does not securely erase bytes. After destroy is attempted, the handle must not be reused, even if cleanup reports failure. Foreign, stale or incorrectly typed handles are outside the contract. Concurrent access involving mutation or destruction requires external synchronization.
 
-On failure, detail may identify an internal helper or CATMMLIB operation. Set and map searches use validated storage and return an ordinary index internally. Byte copies use non-reporting CATMMLIB primitives after public argument, extent and invariant validation. Defensive invariant failures are listed even when unreachable with valid arguments and intact storage. Fatal results indicate that the affected collection or outputs cannot safely be assumed usable.
+On failure, detail may identify an internal reporting helper or CATMMLIB allocation operation. Collection invariants are established by creation and maintained by mutation, not repeatedly revalidated. Fatal results arising from allocation or cleanup may invalidate the affected collection.
 
 ## Type Summary
 
@@ -163,8 +163,6 @@ Creates a fixed-length array of length elements, each `element_size` bytes. All 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x00010300` | `SUCCESS` | Create storage | — |
-| `0x81010100` | `ERROR_INVALID_ARGUMENT` | Validate `array` | Argument 0 (`array`) |
-| `0x81010201` | `ERROR_INVALID_ARGUMENT` | Validate `element_size` | Argument 1 (`element_size`) |
 | `0x82010302` | `ERROR_INVALID_STATE` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 | `0x82010303` | `ERROR_INVALID_STATE` | Create storage | Storage helper operation `0x03`: Release handle during creation cleanup. |
 | `0x82010304` | `ERROR_INVALID_STATE` | Create storage | Storage helper operation `0x04`: Allocate element storage. |
@@ -173,9 +171,6 @@ Creates a fixed-length array of length elements, each `element_size` bytes. All 
 | `0x90010304` | `ERROR_BUFFER_OVERFLOW` | Create storage | Storage helper operation `0x04`: Allocate element storage. |
 | `0x91010302` | `ERROR_ALLOCATION_FAILED` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 | `0x91010304` | `ERROR_ALLOCATION_FAILED` | Create storage | Storage helper operation `0x04`: Allocate element storage. |
-| `0xC1010302` | `FATAL_INVARIANT_VIOLATION` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
-| `0xC1010303` | `FATAL_INVARIANT_VIOLATION` | Create storage | Storage helper operation `0x03`: Release handle during creation cleanup (internal argument failure). |
-| `0xC1010304` | `FATAL_INVARIANT_VIOLATION` | Create storage | Storage helper operation `0x04`: Allocate element storage. |
 
 **C++:** `catalyst::RESULT catalyst::array_create(ARRAY** array, NUINT element_size, NUINT length)`.
 
@@ -201,16 +196,8 @@ Releases array storage and handle.
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x00020200` | `SUCCESS` | Destroy storage | — |
-| `0x81020100` | `ERROR_INVALID_ARGUMENT` | Validate `array` | Argument 0 (`array`) |
 | `0x82020201` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x01`: Release element storage. |
 | `0x82020202` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x02`: Release handle. |
-| `0xC1020201` | `FATAL_INVARIANT_VIOLATION` | Destroy storage | Storage helper operation `0x01`: Release element storage (internal argument failure). |
-| `0xC1020202` | `FATAL_INVARIANT_VIOLATION` | Destroy storage | Storage helper operation `0x02`: Release handle (internal argument failure). |
-| `0xC1020301` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC1020302` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC1020303` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC1020304` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-| `0xC1020306` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Fixed array count differs from capacity. |
 
 **C++:** `catalyst::RESULT catalyst::array_destroy(ARRAY* array)`.
 
@@ -218,7 +205,7 @@ Releases array storage and handle.
 #### catrl_array_get
 
 ```c
-CATALYST_RESULT catrl_array_get(
+void catrl_array_get(
     const CATALYST_ARRAY* array,
     CATALYST_NUINT index,
     void* value
@@ -230,32 +217,18 @@ Copies the element at index into value, which must hold `element_size` bytes.
 **Parameters:**
 
 `array` — Array handle.  
-`index` — Zero-based element index.  
+`index` — Zero-based index strictly below the collection length or count.
 `value` — Writable buffer receiving the value.
 
-**Context:** `0x03`
+**Returns:** Nothing.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x00030500` | `SUCCESS` | Retrieve value | — |
-| `0x81030100` | `ERROR_INVALID_ARGUMENT` | Validate `array` | Argument 0 (`array`) |
-| `0x81030201` | `ERROR_INVALID_ARGUMENT` | Validate `index` | Argument 1 (`index`) |
-| `0x81030302` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 2 (`value`) |
-| `0xC1030601` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC1030602` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC1030603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC1030604` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-| `0xC1030606` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Fixed array count differs from capacity. |
-
-**C++:** `catalyst::RESULT catalyst::array_get(const ARRAY* array, NUINT index, void* value)`.
+**C++:** `void catalyst::array_get(const ARRAY* array, NUINT index, void* value)`.
 
 
 #### catrl_array_set
 
 ```c
-CATALYST_RESULT catrl_array_set(
+void catrl_array_set(
     CATALYST_ARRAY* array,
     CATALYST_NUINT index,
     const void* value
@@ -267,26 +240,12 @@ Replaces the element at index with a copy of `element_size` bytes from value.
 **Parameters:**
 
 `array` — Array handle.  
-`index` — Zero-based element index.  
+`index` — Zero-based index strictly below the collection length or count.
 `value` — Readable value to copy or match.
 
-**Context:** `0x04`
+**Returns:** Nothing.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x00040500` | `SUCCESS` | Store value | — |
-| `0x81040100` | `ERROR_INVALID_ARGUMENT` | Validate `array` | Argument 0 (`array`) |
-| `0x81040201` | `ERROR_INVALID_ARGUMENT` | Validate `index` | Argument 1 (`index`) |
-| `0x81040302` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 2 (`value`) |
-| `0xC1040601` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC1040602` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC1040603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC1040604` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-| `0xC1040606` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Fixed array count differs from capacity. |
-
-**C++:** `catalyst::RESULT catalyst::array_set(ARRAY* array, NUINT index, const void* value)`.
+**C++:** `void catalyst::array_set(ARRAY* array, NUINT index, const void* value)`.
 
 
 #### catrl_array_length
@@ -331,12 +290,9 @@ Creates an empty set of `element_size`-byte elements.
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x00060300` | `SUCCESS` | Create storage | — |
-| `0x81060100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
-| `0x81060201` | `ERROR_INVALID_ARGUMENT` | Validate `element_size` | Argument 1 (`element_size`) |
 | `0x82060302` | `ERROR_INVALID_STATE` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 | `0x90060302` | `ERROR_BUFFER_OVERFLOW` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 | `0x91060302` | `ERROR_ALLOCATION_FAILED` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
-| `0xC1060302` | `FATAL_INVARIANT_VIOLATION` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 
 **C++:** `catalyst::RESULT catalyst::set_create(SET** set, NUINT element_size)`.
 
@@ -362,15 +318,8 @@ Releases set storage and handle.
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x00070200` | `SUCCESS` | Destroy storage | — |
-| `0x81070100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
 | `0x82070201` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x01`: Release element storage. |
 | `0x82070202` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x02`: Release handle. |
-| `0xC1070201` | `FATAL_INVARIANT_VIOLATION` | Destroy storage | Storage helper operation `0x01`: Release element storage (internal argument failure). |
-| `0xC1070202` | `FATAL_INVARIANT_VIOLATION` | Destroy storage | Storage helper operation `0x02`: Release handle (internal argument failure). |
-| `0xC1070301` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC1070302` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC1070303` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC1070304` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 
 **C++:** `catalyst::RESULT catalyst::set_destroy(SET* set)`.
 
@@ -399,18 +348,11 @@ Copies `value` into the set if no byte-identical element exists. Grows storage a
 | --- | --- | --- | --- |
 | `0x00080700` | `SUCCESS` | Insert element | — |
 | `0x01080400` | `SUCCESS_NOOP` | Skip existing element | — |
-| `0x81080100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
-| `0x81080201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
 | `0x82080502` | `ERROR_INVALID_STATE` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0x90080501` | `ERROR_BUFFER_OVERFLOW` | Grow storage | Growth helper operation `0x01`: Check collection growth limit. |
 | `0x90080502` | `ERROR_BUFFER_OVERFLOW` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0x91080502` | `ERROR_ALLOCATION_FAILED` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0xC1080502` | `FATAL_INVARIANT_VIOLATION` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
-| `0xC1080801` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC1080802` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC1080803` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC1080804` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-| `0xC1080504` | `FATAL_INVARIANT_VIOLATION` | Grow storage | Growth helper operation `0x04`: Calculated capacity or extent violated growth bounds. |
 
 **C++:** `catalyst::RESULT catalyst::set_add(SET* set, const void* value)`.
 
@@ -418,44 +360,30 @@ Copies `value` into the set if no byte-identical element exists. Grows storage a
 #### catrl_set_remove
 
 ```c
-CATALYST_RESULT catrl_set_remove(
+void catrl_set_remove(
     CATALYST_SET* set,
     const void* value
 );
 ```
 
-Removes a byte-identical element. An absent element leaves the set unchanged and returns `SUCCESS_NOOP`. Enumeration order may change.
+Removes a byte-identical element. Absence or emptiness is a no-op.
 
 **Parameters:**
 
 `set` — Set handle.  
 `value` — Readable value to copy or match.
 
-**Context:** `0x09`
+**Returns:** Nothing. Absence or emptiness is a no-op.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x00090600` | `SUCCESS` | Remove entry | — |
-| `0x01090400` | `SUCCESS_NOOP` | Skip absent entry | — |
-| `0x81090100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
-| `0x81090201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
-| `0xC1090701` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC1090702` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC1090703` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC1090704` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-
-**C++:** `catalyst::RESULT catalyst::set_remove(SET* set, const void* value)`.
+**C++:** `void catalyst::set_remove(SET* set, const void* value)`.
 
 
 #### catrl_set_contains
 
 ```c
-CATALYST_RESULT catrl_set_contains(
+CATALYST_BOOL catrl_set_contains(
     const CATALYST_SET* set,
-    const void* value,
-    CATALYST_BOOL* contains
+    const void* value
 );
 ```
 
@@ -464,25 +392,11 @@ Reports whether the set contains the specified value.
 **Parameters:**
 
 `set` — Set handle.  
-`value` — Readable value to copy or match.  
-`contains` — Receives `CATALYST_TRUE` or `CATALYST_FALSE`.
+`value` — Readable value to copy or match.
 
-**Context:** `0x0A`
+**Returns:** `TRUE` if present, otherwise `FALSE`.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x000A0500` | `SUCCESS` | Write membership result | — |
-| `0x810A0100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
-| `0x810A0201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
-| `0x810A0302` | `ERROR_INVALID_ARGUMENT` | Validate `contains` | Argument 2 (`contains`) |
-| `0xC10A0601` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC10A0602` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC10A0603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC10A0604` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-
-**C++:** `catalyst::RESULT catalyst::set_contains(const SET* set, const void* value, BOOL* contains)`.
+**C++:** `catalyst::BOOL catalyst::set_contains(const SET* set, const void* value)`.
 
 
 #### catrl_set_count
@@ -505,7 +419,7 @@ Returns the number of distinct elements.
 #### catrl_set_at
 
 ```c
-CATALYST_RESULT catrl_set_at(
+void catrl_set_at(
     const CATALYST_SET* set,
     CATALYST_NUINT index,
     void* value
@@ -517,31 +431,18 @@ Copies the element at an unordered enumeration index into value.
 **Parameters:**
 
 `set` — Set handle.  
-`index` — Zero-based enumeration index.  
+`index` — Zero-based index strictly below the collection length or count.
 `value` — Writable buffer receiving the value.
 
-**Context:** `0x0C`
+**Returns:** Nothing.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x000C0500` | `SUCCESS` | Retrieve entry | — |
-| `0x810C0100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
-| `0x810C0201` | `ERROR_INVALID_ARGUMENT` | Validate `index` | Argument 1 (`index`) |
-| `0x810C0302` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 2 (`value`) |
-| `0xC10C0601` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC10C0602` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC10C0603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC10C0604` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-
-**C++:** `catalyst::RESULT catalyst::set_at(const SET* set, NUINT index, void* value)`.
+**C++:** `void catalyst::set_at(const SET* set, NUINT index, void* value)`.
 
 
 #### catrl_set_clear
 
 ```c
-CATALYST_RESULT catrl_set_clear(
+void catrl_set_clear(
     CATALYST_SET* set
 );
 ```
@@ -552,21 +453,9 @@ Removes all elements without releasing `capacity` or zeroing the stored bytes.
 
 `set` — Set handle.
 
-**Context:** `0x0D`
+**Returns:** Nothing. Absence or emptiness is a no-op.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x000D0300` | `SUCCESS` | Clear collection | — |
-| `0x010D0200` | `SUCCESS_NOOP` | Skip empty collection | — |
-| `0x810D0100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
-| `0xC10D0401` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC10D0402` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC10D0403` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC10D0404` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-
-**C++:** `catalyst::RESULT catalyst::set_clear(SET* set)`.
+**C++:** `void catalyst::set_clear(SET* set)`.
 
 
 ### Map
@@ -596,14 +485,10 @@ Creates an empty map with fixed `key_size` and `value_size` bytes per associatio
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x000E0500` | `SUCCESS` | Create storage | — |
-| `0x810E0100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
-| `0x810E0201` | `ERROR_INVALID_ARGUMENT` | Validate `key_size` | Argument 1 (`key_size`) |
-| `0x810E0302` | `ERROR_INVALID_ARGUMENT` | Validate `value_size` | Argument 2 (`value_size`) |
 | `0x820E0502` | `ERROR_INVALID_STATE` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 | `0x900E0400` | `ERROR_BUFFER_OVERFLOW` | Check combined key and value size | — |
 | `0x900E0502` | `ERROR_BUFFER_OVERFLOW` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 | `0x910E0502` | `ERROR_ALLOCATION_FAILED` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
-| `0xC10E0502` | `FATAL_INVARIANT_VIOLATION` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 
 **C++:** `catalyst::RESULT catalyst::map_create(MAP** map, NUINT key_size, NUINT value_size)`.
 
@@ -629,16 +514,8 @@ Releases map storage and handle.
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x000F0200` | `SUCCESS` | Destroy storage | — |
-| `0x810F0100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
 | `0x820F0201` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x01`: Release element storage. |
 | `0x820F0202` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x02`: Release handle. |
-| `0xC10F0201` | `FATAL_INVARIANT_VIOLATION` | Destroy storage | Storage helper operation `0x01`: Release element storage (internal argument failure). |
-| `0xC10F0202` | `FATAL_INVARIANT_VIOLATION` | Destroy storage | Storage helper operation `0x02`: Release handle (internal argument failure). |
-| `0xC10F0301` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC10F0302` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC10F0303` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC10F0304` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-| `0xC10F0305` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Map key extent is zero or not smaller than the entry stride. |
 
 **C++:** `catalyst::RESULT catalyst::map_destroy(MAP* map)`.
 
@@ -668,15 +545,7 @@ Retrieves the value associated with a byte-identical key. If the key is absent, 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x00100700` | `SUCCESS` | Retrieve value | — |
-| `0x81100100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
-| `0x81100201` | `ERROR_INVALID_ARGUMENT` | Validate `key` | Argument 1 (`key`) |
-| `0x81100302` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 2 (`value`) |
 | `0x88100500` | `ERROR_NOT_FOUND` | Locate key | — |
-| `0xC1100801` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC1100802` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC1100803` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC1100804` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-| `0xC1100805` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Map key extent is zero or not smaller than the entry stride. |
 
 **C++:** `catalyst::RESULT catalyst::map_get(const MAP* map, const void* key, void* value)`.
 
@@ -706,20 +575,11 @@ Inserts a key/value association or updates an existing key without increasing th
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x00110800` | `SUCCESS` | Store value | — |
-| `0x81110100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
-| `0x81110201` | `ERROR_INVALID_ARGUMENT` | Validate `key` | Argument 1 (`key`) |
-| `0x81110302` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 2 (`value`) |
 | `0x82110502` | `ERROR_INVALID_STATE` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0x90110501` | `ERROR_BUFFER_OVERFLOW` | Grow storage | Growth helper operation `0x01`: Check collection growth limit. |
 | `0x90110502` | `ERROR_BUFFER_OVERFLOW` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0x91110502` | `ERROR_ALLOCATION_FAILED` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0xC1110502` | `FATAL_INVARIANT_VIOLATION` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
-| `0xC1110901` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC1110902` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC1110903` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC1110904` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-| `0xC1110905` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Map key extent is zero or not smaller than the entry stride. |
-| `0xC1110504` | `FATAL_INVARIANT_VIOLATION` | Grow storage | Growth helper operation `0x04`: Calculated capacity or extent violated growth bounds. |
 
 **C++:** `catalyst::RESULT catalyst::map_set(MAP* map, const void* key, const void* value)`.
 
@@ -727,45 +587,30 @@ Inserts a key/value association or updates an existing key without increasing th
 #### catrl_map_remove
 
 ```c
-CATALYST_RESULT catrl_map_remove(
+void catrl_map_remove(
     CATALYST_MAP* map,
     const void* key
 );
 ```
 
-Removes an association with a byte-identical key. An absent key leaves the map unchanged and returns `SUCCESS_NOOP`. Enumeration order may change.
+Removes an association with a byte-identical key. Absence or emptiness is a no-op.
 
 **Parameters:**
 
 `map` — Map handle.  
 `key` — Readable key of the configured key size.
 
-**Context:** `0x12`
+**Returns:** Nothing. Absence or emptiness is a no-op.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x00120600` | `SUCCESS` | Remove entry | — |
-| `0x01120400` | `SUCCESS_NOOP` | Skip absent entry | — |
-| `0x81120100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
-| `0x81120201` | `ERROR_INVALID_ARGUMENT` | Validate `key` | Argument 1 (`key`) |
-| `0xC1120701` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC1120702` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC1120703` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC1120704` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-| `0xC1120705` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Map key extent is zero or not smaller than the entry stride. |
-
-**C++:** `catalyst::RESULT catalyst::map_remove(MAP* map, const void* key)`.
+**C++:** `void catalyst::map_remove(MAP* map, const void* key)`.
 
 
 #### catrl_map_contains
 
 ```c
-CATALYST_RESULT catrl_map_contains(
+CATALYST_BOOL catrl_map_contains(
     const CATALYST_MAP* map,
-    const void* key,
-    CATALYST_BOOL* contains
+    const void* key
 );
 ```
 
@@ -774,26 +619,11 @@ Reports whether the map contains the specified key.
 **Parameters:**
 
 `map` — Map handle.  
-`key` — Readable key of the configured key size.  
-`contains` — Receives `CATALYST_TRUE` or `CATALYST_FALSE`.
+`key` — Readable key of the configured key size.
 
-**Context:** `0x13`
+**Returns:** `TRUE` if present, otherwise `FALSE`.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x00130500` | `SUCCESS` | Write membership result | — |
-| `0x81130100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
-| `0x81130201` | `ERROR_INVALID_ARGUMENT` | Validate `key` | Argument 1 (`key`) |
-| `0x81130302` | `ERROR_INVALID_ARGUMENT` | Validate `contains` | Argument 2 (`contains`) |
-| `0xC1130601` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC1130602` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC1130603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC1130604` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-| `0xC1130605` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Map key extent is zero or not smaller than the entry stride. |
-
-**C++:** `catalyst::RESULT catalyst::map_contains(const MAP* map, const void* key, BOOL* contains)`.
+**C++:** `catalyst::BOOL catalyst::map_contains(const MAP* map, const void* key)`.
 
 
 #### catrl_map_count
@@ -816,7 +646,7 @@ Returns the number of key/value associations.
 #### catrl_map_at
 
 ```c
-CATALYST_RESULT catrl_map_at(
+void catrl_map_at(
     const CATALYST_MAP* map,
     CATALYST_NUINT index,
     void* key,
@@ -829,34 +659,19 @@ Copies the key and value at an unordered enumeration index to their respective o
 **Parameters:**
 
 `map` — Map handle.  
-`index` — Zero-based enumeration index.  
+`index` — Zero-based index strictly below the collection length or count.
 `key` — Writable buffer receiving the key.  
 `value` — Writable buffer receiving the value.
 
-**Context:** `0x15`
+**Returns:** Nothing.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x00150700` | `SUCCESS` | Retrieve entry | — |
-| `0x81150100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
-| `0x81150201` | `ERROR_INVALID_ARGUMENT` | Validate `index` | Argument 1 (`index`) |
-| `0x81150302` | `ERROR_INVALID_ARGUMENT` | Validate `key` | Argument 2 (`key`) |
-| `0x81150403` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 3 (`value`) |
-| `0xC1150801` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC1150802` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC1150803` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC1150804` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-| `0xC1150805` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Map key extent is zero or not smaller than the entry stride. |
-
-**C++:** `catalyst::RESULT catalyst::map_at(const MAP* map, NUINT index, void* key, void* value)`.
+**C++:** `void catalyst::map_at(const MAP* map, NUINT index, void* key, void* value)`.
 
 
 #### catrl_map_clear
 
 ```c
-CATALYST_RESULT catrl_map_clear(
+void catrl_map_clear(
     CATALYST_MAP* map
 );
 ```
@@ -867,22 +682,9 @@ Removes all associations without releasing `capacity` or zeroing stored bytes.
 
 `map` — Map handle.
 
-**Context:** `0x16`
+**Returns:** Nothing. Absence or emptiness is a no-op.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x00160300` | `SUCCESS` | Clear collection | — |
-| `0x01160200` | `SUCCESS_NOOP` | Skip empty collection | — |
-| `0x81160100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
-| `0xC1160401` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC1160402` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC1160403` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC1160404` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-| `0xC1160405` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Map key extent is zero or not smaller than the entry stride. |
-
-**C++:** `catalyst::RESULT catalyst::map_clear(MAP* map)`.
+**C++:** `void catalyst::map_clear(MAP* map)`.
 
 
 ### Stack
@@ -910,12 +712,9 @@ Creates an empty stack with `element_size` bytes per element.
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x00170300` | `SUCCESS` | Create storage | — |
-| `0x81170100` | `ERROR_INVALID_ARGUMENT` | Validate `stack` | Argument 0 (`stack`) |
-| `0x81170201` | `ERROR_INVALID_ARGUMENT` | Validate `element_size` | Argument 1 (`element_size`) |
 | `0x82170302` | `ERROR_INVALID_STATE` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 | `0x90170302` | `ERROR_BUFFER_OVERFLOW` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 | `0x91170302` | `ERROR_ALLOCATION_FAILED` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
-| `0xC1170302` | `FATAL_INVARIANT_VIOLATION` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 
 **C++:** `catalyst::RESULT catalyst::stack_create(STACK** stack, NUINT element_size)`.
 
@@ -941,15 +740,8 @@ Releases stack storage and handle.
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x00180200` | `SUCCESS` | Destroy storage | — |
-| `0x81180100` | `ERROR_INVALID_ARGUMENT` | Validate `stack` | Argument 0 (`stack`) |
 | `0x82180201` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x01`: Release element storage. |
 | `0x82180202` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x02`: Release handle. |
-| `0xC1180201` | `FATAL_INVARIANT_VIOLATION` | Destroy storage | Storage helper operation `0x01`: Release element storage (internal argument failure). |
-| `0xC1180202` | `FATAL_INVARIANT_VIOLATION` | Destroy storage | Storage helper operation `0x02`: Release handle (internal argument failure). |
-| `0xC1180301` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC1180302` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC1180303` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC1180304` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 
 **C++:** `catalyst::RESULT catalyst::stack_destroy(STACK* stack)`.
 
@@ -977,18 +769,11 @@ Copies value to the top of the stack. Grows storage as needed.
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x00190500` | `SUCCESS` | Push value | — |
-| `0x81190100` | `ERROR_INVALID_ARGUMENT` | Validate `stack` | Argument 0 (`stack`) |
-| `0x81190201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
 | `0x82190302` | `ERROR_INVALID_STATE` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0x90190301` | `ERROR_BUFFER_OVERFLOW` | Grow storage | Growth helper operation `0x01`: Check collection growth limit. |
 | `0x90190302` | `ERROR_BUFFER_OVERFLOW` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0x91190302` | `ERROR_ALLOCATION_FAILED` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0xC1190302` | `FATAL_INVARIANT_VIOLATION` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
-| `0xC1190601` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC1190602` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC1190603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC1190604` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-| `0xC1190304` | `FATAL_INVARIANT_VIOLATION` | Grow storage | Growth helper operation `0x04`: Calculated capacity or extent violated growth bounds. |
 
 **C++:** `catalyst::RESULT catalyst::stack_push(STACK* stack, const void* value)`.
 
@@ -1016,13 +801,7 @@ Copies the top element into `value` and removes it. An empty stack returns `ERRO
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x001A0500` | `SUCCESS` | Remove top element | — |
-| `0x811A0100` | `ERROR_INVALID_ARGUMENT` | Validate `stack` | Argument 0 (`stack`) |
-| `0x811A0201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
 | `0x881A0300` | `ERROR_NOT_FOUND` | Check for top element | — |
-| `0xC11A0601` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC11A0602` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC11A0603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC11A0604` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 
 **C++:** `catalyst::RESULT catalyst::stack_pop(STACK* stack, void* value)`.
 
@@ -1050,13 +829,7 @@ Copies the top element into `value` without removing it. An empty stack returns 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x001B0500` | `SUCCESS` | Retrieve top element | — |
-| `0x811B0100` | `ERROR_INVALID_ARGUMENT` | Validate `stack` | Argument 0 (`stack`) |
-| `0x811B0201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
 | `0x881B0300` | `ERROR_NOT_FOUND` | Check for top element | — |
-| `0xC11B0601` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC11B0602` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC11B0603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC11B0604` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 
 **C++:** `catalyst::RESULT catalyst::stack_peek(const STACK* stack, void* value)`.
 
@@ -1081,7 +854,7 @@ Returns the number of elements.
 #### catrl_stack_clear
 
 ```c
-CATALYST_RESULT catrl_stack_clear(
+void catrl_stack_clear(
     CATALYST_STACK* stack
 );
 ```
@@ -1092,18 +865,6 @@ Removes all elements without releasing `capacity` or zeroing stored bytes.
 
 `stack` — Stack handle.
 
-**Context:** `0x1D`
+**Returns:** Nothing. Absence or emptiness is a no-op.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x001D0300` | `SUCCESS` | Clear collection | — |
-| `0x011D0200` | `SUCCESS_NOOP` | Skip empty collection | — |
-| `0x811D0100` | `ERROR_INVALID_ARGUMENT` | Validate `stack` | Argument 0 (`stack`) |
-| `0xC11D0401` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC11D0402` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC11D0403` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC11D0404` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-
-**C++:** `catalyst::RESULT catalyst::stack_clear(STACK* stack)`.
+**C++:** `void catalyst::stack_clear(STACK* stack)`.
