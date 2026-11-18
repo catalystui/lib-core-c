@@ -2,7 +2,7 @@
 
 See [CATTELIB conventions](../index.md#conventions) for buffer requirements and result conventions.
 
-All functions return `void`. Result context, operation and detail default to zero unless indicated.
+All functions return `CATALYST_RESULT` by value. Result context, operation and detail default to zero unless indicated.
 
 Conversions write a destination terminator on success or warning; no destination BOM is added. On error a written prefix may remain unterminated; there is no rollback or produced-length output. A warning means substituted output, not a failed conversion.
 
@@ -13,14 +13,13 @@ When a conversion reports ERROR_DEPENDENCY_FAILURE, operation 1 denotes decoding
 Destination must hold at least the source byte count plus one terminator; no capacity parameter is provided. Source bytes above 0x7F are replaced by '?'.
 
 ```c
-void catte_ascii_to_cp1252(CATALYST_ASCII ascii, CATALYST_CP1252W cp1252w, CATALYST_RESULT* result);
+CATALYST_RESULT catte_ascii_to_cp1252(CATALYST_ASCII ascii, CATALYST_CP1252W cp1252w);
 ```
 
 | Parameter | Description |
 | --- | --- |
 | `ascii` | Readable null-terminated input. |
 | `cp1252w` | Writable destination buffer. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -34,7 +33,7 @@ void catte_ascii_to_cp1252(CATALYST_ASCII ascii, CATALYST_CP1252W cp1252w, CATAL
 `capacity` specifies writable destination code units, including the terminator. Source bytes above 0x7F are replaced by '?'.
 
 ```c
-void catte_ascii_to_utf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATALYST_RESULT catte_ascii_to_utf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity);
 ```
 
 | Parameter | Description |
@@ -42,7 +41,6 @@ void catte_ascii_to_utf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, CATALYST_NU
 | `ascii` | Readable null-terminated input. |
 | `utf8w` | Writable destination buffer. |
 | `capacity` | Destination capacity in code units, including the terminator. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -56,7 +54,7 @@ void catte_ascii_to_utf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, CATALYST_NU
 `capacity` specifies writable destination code units, including the terminator. Source bytes above 0x7F are replaced by '?'.
 
 ```c
-void catte_ascii_to_utf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATALYST_RESULT catte_ascii_to_utf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity);
 ```
 
 | Parameter | Description |
@@ -64,7 +62,6 @@ void catte_ascii_to_utf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW utf16lew, CA
 | `ascii` | Readable null-terminated input. |
 | `utf16lew` | Writable destination buffer. |
 | `capacity` | Destination capacity in code units, including the terminator. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -78,14 +75,13 @@ void catte_ascii_to_utf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW utf16lew, CA
 Destination must hold at least the source byte count plus one terminator; no capacity parameter is provided. Undefined source bytes and values not representable in ASCII are replaced by '?'.
 
 ```c
-void catte_cp1252_to_ascii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW ascii, CATALYST_RESULT* result);
+CATALYST_RESULT catte_cp1252_to_ascii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW ascii);
 ```
 
 | Parameter | Description |
 | --- | --- |
 | `cp1252` | Readable null-terminated input. |
 | `ascii` | Writable destination buffer. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -100,7 +96,7 @@ void catte_cp1252_to_ascii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW ascii, CATALY
 `capacity` specifies writable destination code units, including the terminator. Undefined source bytes are replaced by '?'.
 
 ```c
-void catte_cp1252_to_utf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATALYST_RESULT catte_cp1252_to_utf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity);
 ```
 
 | Parameter | Description |
@@ -108,7 +104,6 @@ void catte_cp1252_to_utf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST
 | `cp1252` | Readable null-terminated input. |
 | `utf8w` | Writable destination buffer. |
 | `capacity` | Destination capacity in code units, including the terminator. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -123,7 +118,7 @@ void catte_cp1252_to_utf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST
 `capacity` specifies writable destination code units, including the terminator. Undefined source bytes are replaced by '?'.
 
 ```c
-void catte_cp1252_to_utf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATALYST_RESULT catte_cp1252_to_utf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity);
 ```
 
 | Parameter | Description |
@@ -131,7 +126,6 @@ void catte_cp1252_to_utf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew,
 | `cp1252` | Readable null-terminated input. |
 | `utf16lew` | Writable destination buffer. |
 | `capacity` | Destination capacity in code units, including the terminator. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -146,7 +140,7 @@ void catte_cp1252_to_utf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew,
 `capacity` specifies writable destination code units, including the terminator. Unrepresentable values are replaced by '?'.
 
 ```c
-void catte_utf8_to_ascii(CATALYST_UTF8 utf8, CATALYST_ASCIIW ascii, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATALYST_RESULT catte_utf8_to_ascii(CATALYST_UTF8 utf8, CATALYST_ASCIIW ascii, CATALYST_NUINT capacity);
 ```
 
 | Parameter | Description |
@@ -154,7 +148,6 @@ void catte_utf8_to_ascii(CATALYST_UTF8 utf8, CATALYST_ASCIIW ascii, CATALYST_NUI
 | `utf8` | Readable null-terminated input. |
 | `ascii` | Writable destination buffer. |
 | `capacity` | Destination capacity in code units, including the terminator. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -169,7 +162,7 @@ void catte_utf8_to_ascii(CATALYST_UTF8 utf8, CATALYST_ASCIIW ascii, CATALYST_NUI
 `capacity` specifies writable destination code units, including the terminator. Unrepresentable values are replaced by '?'.
 
 ```c
-void catte_utf8_to_cp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATALYST_RESULT catte_utf8_to_cp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity);
 ```
 
 | Parameter | Description |
@@ -177,7 +170,6 @@ void catte_utf8_to_cp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST
 | `utf8` | Readable null-terminated input. |
 | `cp1252w` | Writable destination buffer. |
 | `capacity` | Destination capacity in code units, including the terminator. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -192,7 +184,7 @@ void catte_utf8_to_cp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST
 `capacity` specifies writable destination code units, including the terminator. All valid Unicode scalars are preserved.
 
 ```c
-void catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATALYST_RESULT catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity);
 ```
 
 | Parameter | Description |
@@ -200,7 +192,6 @@ void catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATAL
 | `utf8` | Readable null-terminated input. |
 | `utf16lew` | Writable destination buffer. |
 | `capacity` | Destination capacity in code units, including the terminator. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -214,7 +205,7 @@ void catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATAL
 `capacity` specifies writable destination code units, including the terminator. Unrepresentable values are replaced by '?'.
 
 ```c
-void catte_utf16le_to_ascii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW ascii, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATALYST_RESULT catte_utf16le_to_ascii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW ascii, CATALYST_NUINT capacity);
 ```
 
 | Parameter | Description |
@@ -222,7 +213,6 @@ void catte_utf16le_to_ascii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW ascii, CAT
 | `utf16le` | Readable null-terminated input. |
 | `ascii` | Writable destination buffer. |
 | `capacity` | Destination capacity in code units, including the terminator. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -237,7 +227,7 @@ void catte_utf16le_to_ascii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW ascii, CAT
 `capacity` specifies writable destination code units, including the terminator. Unrepresentable values are replaced by '?'.
 
 ```c
-void catte_utf16le_to_cp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATALYST_RESULT catte_utf16le_to_cp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity);
 ```
 
 | Parameter | Description |
@@ -245,7 +235,6 @@ void catte_utf16le_to_cp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w,
 | `utf16le` | Readable null-terminated input. |
 | `cp1252w` | Writable destination buffer. |
 | `capacity` | Destination capacity in code units, including the terminator. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -260,7 +249,7 @@ void catte_utf16le_to_cp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w,
 `capacity` specifies writable destination code units, including the terminator. All valid Unicode scalars are preserved.
 
 ```c
-void catte_utf16le_to_utf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATALYST_RESULT catte_utf16le_to_utf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity);
 ```
 
 | Parameter | Description |
@@ -268,7 +257,6 @@ void catte_utf16le_to_utf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W utf8w, CATAL
 | `utf16le` | Readable null-terminated input. |
 | `utf8w` | Writable destination buffer. |
 | `capacity` | Destination capacity in code units, including the terminator. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |

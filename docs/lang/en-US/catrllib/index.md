@@ -15,7 +15,7 @@ All four are opaque structures. Create returns a handle through a pointer-to-poi
 
 ## Conventions
 
-- All functions return void; `result` may be null. Other pointers must be non-null and refer to live handles or valid readable/writable storage.
+- All functions return `CATALYST_RESULT` by value. Pointers must be non-null and refer to live handles or valid readable/writable storage.
 - Sizes are nonzero byte counts. Lengths, counts and indices count elements or associations; indices start at zero.
 - Collections copy exactly the configured number of bytes. Pointers embedded in stored values are shallow copies; referenced resources remain caller-owned. Set and map key equality compares every byte, including padding. Supply consistent byte representations.
 - Inputs and outputs must not overlap. Provide buffers of the configured sizes; no typed alignment of internal bytes is promised.

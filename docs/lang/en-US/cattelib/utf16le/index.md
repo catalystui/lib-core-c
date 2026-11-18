@@ -2,14 +2,14 @@
 
 See [CATTELIB conventions](../index.md#conventions) for buffer requirements and result conventions.
 
-All functions return `void`. Result context, operation and detail default to zero unless indicated.
+All functions return `CATALYST_RESULT` by value. Result context, operation and detail default to zero unless indicated.
 
 ## catte_utf16le_encode
 
 Encodes a Unicode scalar as one UTF-16LE code unit or a surrogate pair. The destination must accommodate two units. After argument validation, `produced` is zero until encoding succeeds; an invalid scalar leaves the destination unchanged.
 
 ```c
-void catte_utf16le_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT* produced, CATALYST_RESULT* result);
+CATALYST_RESULT catte_utf16le_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT* produced);
 ```
 
 | Parameter | Description |
@@ -17,7 +17,6 @@ void catte_utf16le_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW 
 | `codepoint` | Codepoint to encode. |
 | `utf16lew` | Writable buffer for up to two code units. |
 | `produced` | Receives the number of code units written. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -30,7 +29,7 @@ void catte_utf16le_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW 
 Decodes one Unicode scalar from UTF-16LE and reports the number of code units consumed (1 or 2). After argument validation, both `codepoint` and `consumed` are zero on decoding failure.
 
 ```c
-void catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed, CATALYST_RESULT* result);
+CATALYST_RESULT catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed);
 ```
 
 | Parameter | Description |
@@ -38,7 +37,6 @@ void catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoin
 | `utf16le` | Readable input containing the complete encoded sequence. |
 | `codepoint` | Receives the decoded codepoint. |
 | `consumed` | Receives the number of code units read. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -51,14 +49,13 @@ void catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoin
 Counts Unicode scalars in a null-terminated UTF-16LE string, excluding the terminator and any leading BOM. A surrogate pair counts as one scalar. After argument validation, `length` is zero on failure.
 
 ```c
-void catte_utf16le_length(CATALYST_UTF16LE utf16le, CATALYST_NUINT* length, CATALYST_RESULT* result);
+CATALYST_RESULT catte_utf16le_length(CATALYST_UTF16LE utf16le, CATALYST_NUINT* length);
 ```
 
 | Parameter | Description |
 | --- | --- |
 | `utf16le` | Readable null-terminated input. |
 | `length` | Receives the number of Unicode scalars. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |

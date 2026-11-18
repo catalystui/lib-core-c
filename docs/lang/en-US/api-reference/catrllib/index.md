@@ -10,7 +10,7 @@ Provides fixed-length arrays, sets, maps, and stacks of byte-represented element
 
 ## Conventions
 
-- All functions return void; `result` may be null. Other pointers must be non-null and refer to live handles or valid readable/writable storage.
+- All functions return `CATALYST_RESULT` by value. Pointers must be non-null and refer to live handles or valid readable/writable storage.
 - Sizes are nonzero byte counts. Lengths, counts and indices count elements or associations; indices start at zero.
 - Collections copy exactly the configured number of bytes. Pointers embedded in stored values are shallow copies; referenced resources remain caller-owned. Set and map key equality compares every byte, including padding. Supply consistent byte representations.
 - Inputs and outputs must not overlap. Provide buffers of the configured sizes; no typed alignment of internal bytes is promised.
@@ -141,11 +141,10 @@ Opaque handle to a last-in, first-out stack. Create with [`catrl_stack_create`](
 #### catrl_array_create
 
 ```c
-void catrl_array_create(
+CATALYST_RESULT catrl_array_create(
     CATALYST_ARRAY** array,
     CATALYST_NUINT element_size,
-    CATALYST_NUINT length,
-    CATALYST_RESULT* result
+    CATALYST_NUINT length
 );
 ```
 
@@ -155,8 +154,7 @@ Creates a fixed-length array of length elements, each `element_size` bytes. All 
 
 `array` — Receives the new array handle; cleared on failure.  
 `element_size` — Element size in bytes. Must be nonzero.  
-`length` — Number of elements; may be zero.  
-`result` — Optional result output.
+`length` — Number of elements; may be zero.
 
 **Context:** `0x01`
 
@@ -179,15 +177,14 @@ Creates a fixed-length array of length elements, each `element_size` bytes. All 
 | `0xC1010303` | `FATAL_INVARIANT_VIOLATION` | Create storage | Storage helper operation `0x03`: Release handle during creation cleanup (internal argument failure). |
 | `0xC1010304` | `FATAL_INVARIANT_VIOLATION` | Create storage | Storage helper operation `0x04`: Allocate element storage. |
 
-**C++:** `catalyst::array_create(ARRAY** array, NUINT element_size, NUINT length, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::array_create(ARRAY** array, NUINT element_size, NUINT length)`.
 
 
 #### catrl_array_destroy
 
 ```c
-void catrl_array_destroy(
-    CATALYST_ARRAY* array,
-    CATALYST_RESULT* result
+CATALYST_RESULT catrl_array_destroy(
+    CATALYST_ARRAY* array
 );
 ```
 
@@ -195,8 +192,7 @@ Releases array storage and handle.
 
 **Parameters:**
 
-`array` — Array handle.  
-`result` — Optional result output.
+`array` — Array handle.
 
 **Context:** `0x02`
 
@@ -216,17 +212,16 @@ Releases array storage and handle.
 | `0xC1020304` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 | `0xC1020306` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Fixed array count differs from capacity. |
 
-**C++:** `catalyst::array_destroy(ARRAY* array, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::array_destroy(ARRAY* array)`.
 
 
 #### catrl_array_get
 
 ```c
-void catrl_array_get(
+CATALYST_RESULT catrl_array_get(
     const CATALYST_ARRAY* array,
     CATALYST_NUINT index,
-    void* value,
-    CATALYST_RESULT* result
+    void* value
 );
 ```
 
@@ -236,8 +231,7 @@ Copies the element at index into value, which must hold `element_size` bytes.
 
 `array` — Array handle.  
 `index` — Zero-based element index.  
-`value` — Writable buffer receiving the value.  
-`result` — Optional result output.
+`value` — Writable buffer receiving the value.
 
 **Context:** `0x03`
 
@@ -257,17 +251,16 @@ Copies the element at index into value, which must hold `element_size` bytes.
 | `0xC1030604` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 | `0xC1030606` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Fixed array count differs from capacity. |
 
-**C++:** `catalyst::array_get(const ARRAY* array, NUINT index, void* value, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::array_get(const ARRAY* array, NUINT index, void* value)`.
 
 
 #### catrl_array_set
 
 ```c
-void catrl_array_set(
+CATALYST_RESULT catrl_array_set(
     CATALYST_ARRAY* array,
     CATALYST_NUINT index,
-    const void* value,
-    CATALYST_RESULT* result
+    const void* value
 );
 ```
 
@@ -277,8 +270,7 @@ Replaces the element at index with a copy of `element_size` bytes from value.
 
 `array` — Array handle.  
 `index` — Zero-based element index.  
-`value` — Readable value to copy or match.  
-`result` — Optional result output.
+`value` — Readable value to copy or match.
 
 **Context:** `0x04`
 
@@ -298,16 +290,15 @@ Replaces the element at index with a copy of `element_size` bytes from value.
 | `0xC1040604` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 | `0xC1040606` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Fixed array count differs from capacity. |
 
-**C++:** `catalyst::array_set(ARRAY* array, NUINT index, const void* value, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::array_set(ARRAY* array, NUINT index, const void* value)`.
 
 
 #### catrl_array_length
 
 ```c
-void catrl_array_length(
+CATALYST_RESULT catrl_array_length(
     const CATALYST_ARRAY* array,
-    CATALYST_NUINT* length,
-    CATALYST_RESULT* result
+    CATALYST_NUINT* length
 );
 ```
 
@@ -316,8 +307,7 @@ Writes the fixed element count to length.
 **Parameters:**
 
 `array` — Array handle.  
-`length` — Receives the fixed element count.  
-`result` — Optional result output.
+`length` — Receives the fixed element count.
 
 **Context:** `0x05`
 
@@ -334,7 +324,7 @@ Writes the fixed element count to length.
 | `0xC1050404` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 | `0xC1050406` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Fixed array count differs from capacity. |
 
-**C++:** `catalyst::array_length(const ARRAY* array, NUINT* length, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::array_length(const ARRAY* array, NUINT* length)`.
 
 
 ### Set
@@ -342,10 +332,9 @@ Writes the fixed element count to length.
 #### catrl_set_create
 
 ```c
-void catrl_set_create(
+CATALYST_RESULT catrl_set_create(
     CATALYST_SET** set,
-    CATALYST_NUINT element_size,
-    CATALYST_RESULT* result
+    CATALYST_NUINT element_size
 );
 ```
 
@@ -354,8 +343,7 @@ Creates an empty set of `element_size`-byte elements.
 **Parameters:**
 
 `set` — Receives the new set handle; cleared on failure.  
-`element_size` — Element size in bytes. Must be nonzero.  
-`result` — Optional result output.
+`element_size` — Element size in bytes. Must be nonzero.
 
 **Context:** `0x06`
 
@@ -371,15 +359,14 @@ Creates an empty set of `element_size`-byte elements.
 | `0x91060302` | `ERROR_ALLOCATION_FAILED` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 | `0xC1060302` | `FATAL_INVARIANT_VIOLATION` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 
-**C++:** `catalyst::set_create(SET** set, NUINT element_size, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::set_create(SET** set, NUINT element_size)`.
 
 
 #### catrl_set_destroy
 
 ```c
-void catrl_set_destroy(
-    CATALYST_SET* set,
-    CATALYST_RESULT* result
+CATALYST_RESULT catrl_set_destroy(
+    CATALYST_SET* set
 );
 ```
 
@@ -387,8 +374,7 @@ Releases set storage and handle.
 
 **Parameters:**
 
-`set` — Set handle.  
-`result` — Optional result output.
+`set` — Set handle.
 
 **Context:** `0x07`
 
@@ -407,16 +393,15 @@ Releases set storage and handle.
 | `0xC1070303` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
 | `0xC1070304` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 
-**C++:** `catalyst::set_destroy(SET* set, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::set_destroy(SET* set)`.
 
 
 #### catrl_set_add
 
 ```c
-void catrl_set_add(
+CATALYST_RESULT catrl_set_add(
     CATALYST_SET* set,
-    const void* value,
-    CATALYST_RESULT* result
+    const void* value
 );
 ```
 
@@ -425,8 +410,7 @@ Copies value into the set if no byte-identical element exists. Grows storage as 
 **Parameters:**
 
 `set` — Set handle.  
-`value` — Readable value to copy or match.  
-`result` — Optional result output.
+`value` — Readable value to copy or match.
 
 **Context:** `0x08`
 
@@ -452,16 +436,15 @@ Copies value into the set if no byte-identical element exists. Grows storage as 
 | `0xC1080804` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 | `0xC1080504` | `FATAL_INVARIANT_VIOLATION` | Grow storage | Growth helper operation `0x04`: Calculated capacity or extent violated growth bounds. |
 
-**C++:** `catalyst::set_add(SET* set, const void* value, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::set_add(SET* set, const void* value)`.
 
 
 #### catrl_set_remove
 
 ```c
-void catrl_set_remove(
+CATALYST_RESULT catrl_set_remove(
     CATALYST_SET* set,
-    const void* value,
-    CATALYST_RESULT* result
+    const void* value
 );
 ```
 
@@ -470,8 +453,7 @@ Removes a byte-identical element. Enumeration order may change.
 **Parameters:**
 
 `set` — Set handle.  
-`value` — Readable value to copy or match.  
-`result` — Optional result output.
+`value` — Readable value to copy or match.
 
 **Context:** `0x09`
 
@@ -491,17 +473,16 @@ Removes a byte-identical element. Enumeration order may change.
 | `0xC1090703` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
 | `0xC1090704` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 
-**C++:** `catalyst::set_remove(SET* set, const void* value, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::set_remove(SET* set, const void* value)`.
 
 
 #### catrl_set_contains
 
 ```c
-void catrl_set_contains(
+CATALYST_RESULT catrl_set_contains(
     const CATALYST_SET* set,
     const void* value,
-    CATALYST_BOOL* contains,
-    CATALYST_RESULT* result
+    CATALYST_BOOL* contains
 );
 ```
 
@@ -511,8 +492,7 @@ Reports whether the set contains the specified value.
 
 `set` — Set handle.  
 `value` — Readable value to copy or match.  
-`contains` — Receives `CATALYST_TRUE` or `CATALYST_FALSE`.  
-`result` — Optional result output.
+`contains` — Receives `CATALYST_TRUE` or `CATALYST_FALSE`.
 
 **Context:** `0x0A`
 
@@ -530,16 +510,15 @@ Reports whether the set contains the specified value.
 | `0xC10A0603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
 | `0xC10A0604` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 
-**C++:** `catalyst::set_contains(const SET* set, const void* value, BOOL* contains, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::set_contains(const SET* set, const void* value, BOOL* contains)`.
 
 
 #### catrl_set_count
 
 ```c
-void catrl_set_count(
+CATALYST_RESULT catrl_set_count(
     const CATALYST_SET* set,
-    CATALYST_NUINT* count,
-    CATALYST_RESULT* result
+    CATALYST_NUINT* count
 );
 ```
 
@@ -548,8 +527,7 @@ Writes the number of distinct elements to count.
 **Parameters:**
 
 `set` — Set handle.  
-`count` — Receives the number of elements.  
-`result` — Optional result output.
+`count` — Receives the number of elements.
 
 **Context:** `0x0B`
 
@@ -565,17 +543,16 @@ Writes the number of distinct elements to count.
 | `0xC10B0403` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
 | `0xC10B0404` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 
-**C++:** `catalyst::set_count(const SET* set, NUINT* count, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::set_count(const SET* set, NUINT* count)`.
 
 
 #### catrl_set_at
 
 ```c
-void catrl_set_at(
+CATALYST_RESULT catrl_set_at(
     const CATALYST_SET* set,
     CATALYST_NUINT index,
-    void* value,
-    CATALYST_RESULT* result
+    void* value
 );
 ```
 
@@ -585,8 +562,7 @@ Copies the element at an unordered enumeration index into value.
 
 `set` — Set handle.  
 `index` — Zero-based enumeration index.  
-`value` — Writable buffer receiving the value.  
-`result` — Optional result output.
+`value` — Writable buffer receiving the value.
 
 **Context:** `0x0C`
 
@@ -605,15 +581,14 @@ Copies the element at an unordered enumeration index into value.
 | `0xC10C0603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
 | `0xC10C0604` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 
-**C++:** `catalyst::set_at(const SET* set, NUINT index, void* value, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::set_at(const SET* set, NUINT index, void* value)`.
 
 
 #### catrl_set_clear
 
 ```c
-void catrl_set_clear(
-    CATALYST_SET* set,
-    CATALYST_RESULT* result
+CATALYST_RESULT catrl_set_clear(
+    CATALYST_SET* set
 );
 ```
 
@@ -621,8 +596,7 @@ Removes all elements without releasing `capacity` or zeroing the stored bytes.
 
 **Parameters:**
 
-`set` — Set handle.  
-`result` — Optional result output.
+`set` — Set handle.
 
 **Context:** `0x0D`
 
@@ -638,7 +612,7 @@ Removes all elements without releasing `capacity` or zeroing the stored bytes.
 | `0xC10D0403` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
 | `0xC10D0404` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 
-**C++:** `catalyst::set_clear(SET* set, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::set_clear(SET* set)`.
 
 
 ### Map
@@ -646,11 +620,10 @@ Removes all elements without releasing `capacity` or zeroing the stored bytes.
 #### catrl_map_create
 
 ```c
-void catrl_map_create(
+CATALYST_RESULT catrl_map_create(
     CATALYST_MAP** map,
     CATALYST_NUINT key_size,
-    CATALYST_NUINT value_size,
-    CATALYST_RESULT* result
+    CATALYST_NUINT value_size
 );
 ```
 
@@ -660,8 +633,7 @@ Creates an empty map with fixed `key_size` and `value_size` bytes per associatio
 
 `map` — Receives the new map handle; cleared on failure.  
 `key_size` — Key size in bytes. Must be nonzero.  
-`value_size` — Value size in bytes. Must be nonzero.  
-`result` — Optional result output.
+`value_size` — Value size in bytes. Must be nonzero.
 
 **Context:** `0x0E`
 
@@ -679,15 +651,14 @@ Creates an empty map with fixed `key_size` and `value_size` bytes per associatio
 | `0x910E0502` | `ERROR_ALLOCATION_FAILED` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 | `0xC10E0502` | `FATAL_INVARIANT_VIOLATION` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 
-**C++:** `catalyst::map_create(MAP** map, NUINT key_size, NUINT value_size, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::map_create(MAP** map, NUINT key_size, NUINT value_size)`.
 
 
 #### catrl_map_destroy
 
 ```c
-void catrl_map_destroy(
-    CATALYST_MAP* map,
-    CATALYST_RESULT* result
+CATALYST_RESULT catrl_map_destroy(
+    CATALYST_MAP* map
 );
 ```
 
@@ -695,8 +666,7 @@ Releases map storage and handle.
 
 **Parameters:**
 
-`map` — Map handle.  
-`result` — Optional result output.
+`map` — Map handle.
 
 **Context:** `0x0F`
 
@@ -716,17 +686,16 @@ Releases map storage and handle.
 | `0xC10F0304` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 | `0xC10F0305` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Map key extent is zero or not smaller than the entry stride. |
 
-**C++:** `catalyst::map_destroy(MAP* map, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::map_destroy(MAP* map)`.
 
 
 #### catrl_map_get
 
 ```c
-void catrl_map_get(
+CATALYST_RESULT catrl_map_get(
     const CATALYST_MAP* map,
     const void* key,
-    void* value,
-    CATALYST_RESULT* result
+    void* value
 );
 ```
 
@@ -736,8 +705,7 @@ Retrieves the value associated with a byte-identical key.
 
 `map` — Map handle.  
 `key` — Readable key of the configured key size.  
-`value` — Writable buffer receiving the value.  
-`result` — Optional result output.
+`value` — Writable buffer receiving the value.
 
 **Context:** `0x10`
 
@@ -759,17 +727,16 @@ Retrieves the value associated with a byte-identical key.
 | `0xC1100804` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 | `0xC1100805` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Map key extent is zero or not smaller than the entry stride. |
 
-**C++:** `catalyst::map_get(const MAP* map, const void* key, void* value, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::map_get(const MAP* map, const void* key, void* value)`.
 
 
 #### catrl_map_set
 
 ```c
-void catrl_map_set(
+CATALYST_RESULT catrl_map_set(
     CATALYST_MAP* map,
     const void* key,
-    const void* value,
-    CATALYST_RESULT* result
+    const void* value
 );
 ```
 
@@ -779,8 +746,7 @@ Inserts a key/value association or updates an existing key without increasing th
 
 `map` — Map handle.  
 `key` — Readable key of the configured key size.  
-`value` — Readable value to copy or match.  
-`result` — Optional result output.
+`value` — Readable value to copy or match.
 
 **Context:** `0x11`
 
@@ -809,16 +775,15 @@ Inserts a key/value association or updates an existing key without increasing th
 | `0xC1110905` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Map key extent is zero or not smaller than the entry stride. |
 | `0xC1110504` | `FATAL_INVARIANT_VIOLATION` | Grow storage | Growth helper operation `0x04`: Calculated capacity or extent violated growth bounds. |
 
-**C++:** `catalyst::map_set(MAP* map, const void* key, const void* value, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::map_set(MAP* map, const void* key, const void* value)`.
 
 
 #### catrl_map_remove
 
 ```c
-void catrl_map_remove(
+CATALYST_RESULT catrl_map_remove(
     CATALYST_MAP* map,
-    const void* key,
-    CATALYST_RESULT* result
+    const void* key
 );
 ```
 
@@ -827,8 +792,7 @@ Removes an association with a byte-identical key. Enumeration order may change.
 **Parameters:**
 
 `map` — Map handle.  
-`key` — Readable key of the configured key size.  
-`result` — Optional result output.
+`key` — Readable key of the configured key size.
 
 **Context:** `0x12`
 
@@ -849,17 +813,16 @@ Removes an association with a byte-identical key. Enumeration order may change.
 | `0xC1120704` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 | `0xC1120705` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Map key extent is zero or not smaller than the entry stride. |
 
-**C++:** `catalyst::map_remove(MAP* map, const void* key, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::map_remove(MAP* map, const void* key)`.
 
 
 #### catrl_map_contains
 
 ```c
-void catrl_map_contains(
+CATALYST_RESULT catrl_map_contains(
     const CATALYST_MAP* map,
     const void* key,
-    CATALYST_BOOL* contains,
-    CATALYST_RESULT* result
+    CATALYST_BOOL* contains
 );
 ```
 
@@ -869,8 +832,7 @@ Reports whether the map contains the specified key.
 
 `map` — Map handle.  
 `key` — Readable key of the configured key size.  
-`contains` — Receives `CATALYST_TRUE` or `CATALYST_FALSE`.  
-`result` — Optional result output.
+`contains` — Receives `CATALYST_TRUE` or `CATALYST_FALSE`.
 
 **Context:** `0x13`
 
@@ -889,16 +851,15 @@ Reports whether the map contains the specified key.
 | `0xC1130604` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 | `0xC1130605` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Map key extent is zero or not smaller than the entry stride. |
 
-**C++:** `catalyst::map_contains(const MAP* map, const void* key, BOOL* contains, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::map_contains(const MAP* map, const void* key, BOOL* contains)`.
 
 
 #### catrl_map_count
 
 ```c
-void catrl_map_count(
+CATALYST_RESULT catrl_map_count(
     const CATALYST_MAP* map,
-    CATALYST_NUINT* count,
-    CATALYST_RESULT* result
+    CATALYST_NUINT* count
 );
 ```
 
@@ -907,8 +868,7 @@ Writes the number of key/value associations to count.
 **Parameters:**
 
 `map` — Map handle.  
-`count` — Receives the number of elements.  
-`result` — Optional result output.
+`count` — Receives the number of elements.
 
 **Context:** `0x14`
 
@@ -925,18 +885,17 @@ Writes the number of key/value associations to count.
 | `0xC1140404` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 | `0xC1140405` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Map key extent is zero or not smaller than the entry stride. |
 
-**C++:** `catalyst::map_count(const MAP* map, NUINT* count, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::map_count(const MAP* map, NUINT* count)`.
 
 
 #### catrl_map_at
 
 ```c
-void catrl_map_at(
+CATALYST_RESULT catrl_map_at(
     const CATALYST_MAP* map,
     CATALYST_NUINT index,
     void* key,
-    void* value,
-    CATALYST_RESULT* result
+    void* value
 );
 ```
 
@@ -947,8 +906,7 @@ Copies the key and value at an unordered enumeration index to their respective o
 `map` — Map handle.  
 `index` — Zero-based enumeration index.  
 `key` — Writable buffer receiving the key.  
-`value` — Writable buffer receiving the value.  
-`result` — Optional result output.
+`value` — Writable buffer receiving the value.
 
 **Context:** `0x15`
 
@@ -971,15 +929,14 @@ Copies the key and value at an unordered enumeration index to their respective o
 | `0xC1150804` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 | `0xC1150805` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Map key extent is zero or not smaller than the entry stride. |
 
-**C++:** `catalyst::map_at(const MAP* map, NUINT index, void* key, void* value, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::map_at(const MAP* map, NUINT index, void* key, void* value)`.
 
 
 #### catrl_map_clear
 
 ```c
-void catrl_map_clear(
-    CATALYST_MAP* map,
-    CATALYST_RESULT* result
+CATALYST_RESULT catrl_map_clear(
+    CATALYST_MAP* map
 );
 ```
 
@@ -987,8 +944,7 @@ Removes all associations without releasing `capacity` or zeroing stored bytes.
 
 **Parameters:**
 
-`map` — Map handle.  
-`result` — Optional result output.
+`map` — Map handle.
 
 **Context:** `0x16`
 
@@ -1005,7 +961,7 @@ Removes all associations without releasing `capacity` or zeroing stored bytes.
 | `0xC1160404` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 | `0xC1160405` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Map key extent is zero or not smaller than the entry stride. |
 
-**C++:** `catalyst::map_clear(MAP* map, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::map_clear(MAP* map)`.
 
 
 ### Stack
@@ -1013,10 +969,9 @@ Removes all associations without releasing `capacity` or zeroing stored bytes.
 #### catrl_stack_create
 
 ```c
-void catrl_stack_create(
+CATALYST_RESULT catrl_stack_create(
     CATALYST_STACK** stack,
-    CATALYST_NUINT element_size,
-    CATALYST_RESULT* result
+    CATALYST_NUINT element_size
 );
 ```
 
@@ -1025,8 +980,7 @@ Creates an empty stack with `element_size` bytes per element.
 **Parameters:**
 
 `stack` — Receives the new stack handle; cleared on failure.  
-`element_size` — Element size in bytes. Must be nonzero.  
-`result` — Optional result output.
+`element_size` — Element size in bytes. Must be nonzero.
 
 **Context:** `0x17`
 
@@ -1042,15 +996,14 @@ Creates an empty stack with `element_size` bytes per element.
 | `0x91170302` | `ERROR_ALLOCATION_FAILED` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 | `0xC1170302` | `FATAL_INVARIANT_VIOLATION` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
 
-**C++:** `catalyst::stack_create(STACK** stack, NUINT element_size, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::stack_create(STACK** stack, NUINT element_size)`.
 
 
 #### catrl_stack_destroy
 
 ```c
-void catrl_stack_destroy(
-    CATALYST_STACK* stack,
-    CATALYST_RESULT* result
+CATALYST_RESULT catrl_stack_destroy(
+    CATALYST_STACK* stack
 );
 ```
 
@@ -1058,8 +1011,7 @@ Releases stack storage and handle.
 
 **Parameters:**
 
-`stack` — Stack handle.  
-`result` — Optional result output.
+`stack` — Stack handle.
 
 **Context:** `0x18`
 
@@ -1078,16 +1030,15 @@ Releases stack storage and handle.
 | `0xC1180303` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
 | `0xC1180304` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 
-**C++:** `catalyst::stack_destroy(STACK* stack, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::stack_destroy(STACK* stack)`.
 
 
 #### catrl_stack_push
 
 ```c
-void catrl_stack_push(
+CATALYST_RESULT catrl_stack_push(
     CATALYST_STACK* stack,
-    const void* value,
-    CATALYST_RESULT* result
+    const void* value
 );
 ```
 
@@ -1096,8 +1047,7 @@ Copies value to the top of the stack. Grows storage as needed.
 **Parameters:**
 
 `stack` — Stack handle.  
-`value` — Readable value to copy or match.  
-`result` — Optional result output.
+`value` — Readable value to copy or match.
 
 **Context:** `0x19`
 
@@ -1121,16 +1071,15 @@ Copies value to the top of the stack. Grows storage as needed.
 | `0xC1190604` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 | `0xC1190304` | `FATAL_INVARIANT_VIOLATION` | Grow storage | Growth helper operation `0x04`: Calculated capacity or extent violated growth bounds. |
 
-**C++:** `catalyst::stack_push(STACK* stack, const void* value, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::stack_push(STACK* stack, const void* value)`.
 
 
 #### catrl_stack_pop
 
 ```c
-void catrl_stack_pop(
+CATALYST_RESULT catrl_stack_pop(
     CATALYST_STACK* stack,
-    void* value,
-    CATALYST_RESULT* result
+    void* value
 );
 ```
 
@@ -1139,8 +1088,7 @@ Copies the top element into value and removes it.
 **Parameters:**
 
 `stack` — Stack handle.  
-`value` — Writable buffer receiving the value.  
-`result` — Optional result output.
+`value` — Writable buffer receiving the value.
 
 **Context:** `0x1A`
 
@@ -1159,16 +1107,15 @@ Copies the top element into value and removes it.
 | `0xC11A0603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
 | `0xC11A0604` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 
-**C++:** `catalyst::stack_pop(STACK* stack, void* value, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::stack_pop(STACK* stack, void* value)`.
 
 
 #### catrl_stack_peek
 
 ```c
-void catrl_stack_peek(
+CATALYST_RESULT catrl_stack_peek(
     const CATALYST_STACK* stack,
-    void* value,
-    CATALYST_RESULT* result
+    void* value
 );
 ```
 
@@ -1177,8 +1124,7 @@ Copies the top element into value without removing it.
 **Parameters:**
 
 `stack` — Stack handle.  
-`value` — Writable buffer receiving the value.  
-`result` — Optional result output.
+`value` — Writable buffer receiving the value.
 
 **Context:** `0x1B`
 
@@ -1197,16 +1143,15 @@ Copies the top element into value without removing it.
 | `0xC11B0603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
 | `0xC11B0604` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 
-**C++:** `catalyst::stack_peek(const STACK* stack, void* value, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::stack_peek(const STACK* stack, void* value)`.
 
 
 #### catrl_stack_count
 
 ```c
-void catrl_stack_count(
+CATALYST_RESULT catrl_stack_count(
     const CATALYST_STACK* stack,
-    CATALYST_NUINT* count,
-    CATALYST_RESULT* result
+    CATALYST_NUINT* count
 );
 ```
 
@@ -1215,8 +1160,7 @@ Writes the number of elements to count.
 **Parameters:**
 
 `stack` — Stack handle.  
-`count` — Receives the number of elements.  
-`result` — Optional result output.
+`count` — Receives the number of elements.
 
 **Context:** `0x1C`
 
@@ -1232,15 +1176,14 @@ Writes the number of elements to count.
 | `0xC11C0403` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
 | `0xC11C0404` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 
-**C++:** `catalyst::stack_count(const STACK* stack, NUINT* count, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::stack_count(const STACK* stack, NUINT* count)`.
 
 
 #### catrl_stack_clear
 
 ```c
-void catrl_stack_clear(
-    CATALYST_STACK* stack,
-    CATALYST_RESULT* result
+CATALYST_RESULT catrl_stack_clear(
+    CATALYST_STACK* stack
 );
 ```
 
@@ -1248,8 +1191,7 @@ Removes all elements without releasing `capacity` or zeroing stored bytes.
 
 **Parameters:**
 
-`stack` — Stack handle.  
-`result` — Optional result output.
+`stack` — Stack handle.
 
 **Context:** `0x1D`
 
@@ -1265,4 +1207,4 @@ Removes all elements without releasing `capacity` or zeroing stored bytes.
 | `0xC11D0403` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
 | `0xC11D0404` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
 
-**C++:** `catalyst::stack_clear(STACK* stack, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::stack_clear(STACK* stack)`.

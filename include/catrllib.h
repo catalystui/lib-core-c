@@ -32,103 +32,103 @@ typedef struct CATALYST_STACK CATALYST_STACK;
  * ------------------------------------------------------------------------------------------------- */
 
 /** Create a fixed-length array of zero-filled elements. A zero length is valid. */
-CATRLLIB_API void catrl_array_create(CATALYST_ARRAY** array, CATALYST_NUINT element_size, CATALYST_NUINT length, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_array_create(CATALYST_ARRAY** array, CATALYST_NUINT element_size, CATALYST_NUINT length);
 
 /** Destroy the array and release its storage. */
-CATRLLIB_API void catrl_array_destroy(CATALYST_ARRAY* array, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_array_destroy(CATALYST_ARRAY* array);
 
 /** Copy the element at index into value. */
-CATRLLIB_API void catrl_array_get(const CATALYST_ARRAY* array, CATALYST_NUINT index, void* value, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_array_get(const CATALYST_ARRAY* array, CATALYST_NUINT index, void* value);
 
 /** Replace the element at index. */
-CATRLLIB_API void catrl_array_set(CATALYST_ARRAY* array, CATALYST_NUINT index, const void* value, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_array_set(CATALYST_ARRAY* array, CATALYST_NUINT index, const void* value);
 
 /** Return the fixed number of elements. */
-CATRLLIB_API void catrl_array_length(const CATALYST_ARRAY* array, CATALYST_NUINT* length, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_array_length(const CATALYST_ARRAY* array, CATALYST_NUINT* length);
 
 /* -------------------------------------------------------------------------------------------------
  * C API :: SET
  * ------------------------------------------------------------------------------------------------- */
 
 /** Create an empty set. Element equality is byte-for-byte. */
-CATRLLIB_API void catrl_set_create(CATALYST_SET** set, CATALYST_NUINT element_size, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_set_create(CATALYST_SET** set, CATALYST_NUINT element_size);
 
 /** Destroy the set and release its storage. */
-CATRLLIB_API void catrl_set_destroy(CATALYST_SET* set, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_set_destroy(CATALYST_SET* set);
 
 /** Insert a copy of value. An existing equivalent element returns SUCCESS_NOOP. */
-CATRLLIB_API void catrl_set_add(CATALYST_SET* set, const void* value, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_set_add(CATALYST_SET* set, const void* value);
 
 /** Remove an equivalent element. An absent element returns SUCCESS_NOOP. */
-CATRLLIB_API void catrl_set_remove(CATALYST_SET* set, const void* value, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_set_remove(CATALYST_SET* set, const void* value);
 
 /** Return whether an equivalent element exists. */
-CATRLLIB_API void catrl_set_contains(const CATALYST_SET* set, const void* value, CATALYST_BOOL* contains, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_set_contains(const CATALYST_SET* set, const void* value, CATALYST_BOOL* contains);
 
 /** Return the number of distinct elements. */
-CATRLLIB_API void catrl_set_count(const CATALYST_SET* set, CATALYST_NUINT* count, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_set_count(const CATALYST_SET* set, CATALYST_NUINT* count);
 
 /** Copy an element at an unordered enumeration index. */
-CATRLLIB_API void catrl_set_at(const CATALYST_SET* set, CATALYST_NUINT index, void* value, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_set_at(const CATALYST_SET* set, CATALYST_NUINT index, void* value);
 
 /** Remove all elements, retaining storage. An empty set returns SUCCESS_NOOP. */
-CATRLLIB_API void catrl_set_clear(CATALYST_SET* set, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_set_clear(CATALYST_SET* set);
 
 /* -------------------------------------------------------------------------------------------------
  * C API :: MAP
  * ------------------------------------------------------------------------------------------------- */
 
 /** Create an empty map. Key equality is byte-for-byte. */
-CATRLLIB_API void catrl_map_create(CATALYST_MAP** map, CATALYST_NUINT key_size, CATALYST_NUINT value_size, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_map_create(CATALYST_MAP** map, CATALYST_NUINT key_size, CATALYST_NUINT value_size);
 
 /** Destroy the map and release its storage. */
-CATRLLIB_API void catrl_map_destroy(CATALYST_MAP* map, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_map_destroy(CATALYST_MAP* map);
 
 /** Copy the associated value. An absent key returns ERROR_NOT_FOUND. */
-CATRLLIB_API void catrl_map_get(const CATALYST_MAP* map, const void* key, void* value, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_map_get(const CATALYST_MAP* map, const void* key, void* value);
 
 /** Insert copies of key and value or replace the value of an existing key. */
-CATRLLIB_API void catrl_map_set(CATALYST_MAP* map, const void* key, const void* value, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_map_set(CATALYST_MAP* map, const void* key, const void* value);
 
 /** Remove an association. An absent key returns SUCCESS_NOOP. */
-CATRLLIB_API void catrl_map_remove(CATALYST_MAP* map, const void* key, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_map_remove(CATALYST_MAP* map, const void* key);
 
 /** Return whether an equivalent key exists. */
-CATRLLIB_API void catrl_map_contains(const CATALYST_MAP* map, const void* key, CATALYST_BOOL* contains, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_map_contains(const CATALYST_MAP* map, const void* key, CATALYST_BOOL* contains);
 
 /** Return the number of associations. */
-CATRLLIB_API void catrl_map_count(const CATALYST_MAP* map, CATALYST_NUINT* count, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_map_count(const CATALYST_MAP* map, CATALYST_NUINT* count);
 
 /** Copy the key and value at an unordered enumeration index. */
-CATRLLIB_API void catrl_map_at(const CATALYST_MAP* map, CATALYST_NUINT index, void* key, void* value, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_map_at(const CATALYST_MAP* map, CATALYST_NUINT index, void* key, void* value);
 
 /** Remove all associations, retaining storage. An empty map returns SUCCESS_NOOP. */
-CATRLLIB_API void catrl_map_clear(CATALYST_MAP* map, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_map_clear(CATALYST_MAP* map);
 
 /* -------------------------------------------------------------------------------------------------
  * C API :: STACK
  * ------------------------------------------------------------------------------------------------- */
 
 /** Create an empty last-in, first-out collection. */
-CATRLLIB_API void catrl_stack_create(CATALYST_STACK** stack, CATALYST_NUINT element_size, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_stack_create(CATALYST_STACK** stack, CATALYST_NUINT element_size);
 
 /** Destroy the stack and release its storage. */
-CATRLLIB_API void catrl_stack_destroy(CATALYST_STACK* stack, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_stack_destroy(CATALYST_STACK* stack);
 
 /** Push a copy of value onto the stack. */
-CATRLLIB_API void catrl_stack_push(CATALYST_STACK* stack, const void* value, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_stack_push(CATALYST_STACK* stack, const void* value);
 
 /** Copy and remove the top element. An empty stack returns ERROR_NOT_FOUND. */
-CATRLLIB_API void catrl_stack_pop(CATALYST_STACK* stack, void* value, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_stack_pop(CATALYST_STACK* stack, void* value);
 
 /** Copy the top element. An empty stack returns ERROR_NOT_FOUND. */
-CATRLLIB_API void catrl_stack_peek(const CATALYST_STACK* stack, void* value, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_stack_peek(const CATALYST_STACK* stack, void* value);
 
 /** Return the number of elements. */
-CATRLLIB_API void catrl_stack_count(const CATALYST_STACK* stack, CATALYST_NUINT* count, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_stack_count(const CATALYST_STACK* stack, CATALYST_NUINT* count);
 
 /** Remove all elements, retaining storage. An empty stack returns SUCCESS_NOOP. */
-CATRLLIB_API void catrl_stack_clear(CATALYST_STACK* stack, CATALYST_RESULT* result);
+CATRLLIB_API CATALYST_RESULT catrl_stack_clear(CATALYST_STACK* stack);
 
 #ifdef __cplusplus
 } /* extern C */

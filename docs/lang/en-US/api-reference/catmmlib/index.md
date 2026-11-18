@@ -9,7 +9,7 @@ Provides memory allocation, release, resizing, and byte operations.
 
 ## Conventions
 
-- All sizes are byte counts. `result` may be null; all other pointer parameters must be non-null, even for zero-length byte operations.
+- All sizes are byte counts. Every function returns `CATALYST_RESULT` by value; pointer parameters must be non-null, even for zero-length byte operations.
 - Allocation returns zero-filled payloads; use only the requested extent. The payload is not the original page-aligned allocation base; no adjustable or over-alignment guarantee is provided.
 - Release only live CATMMLIB allocations, through the same allocator backend. Foreign pointers, repeated frees and access during release are outside the contract.
 - Copy, move, compare and set operate on any valid readable/writable byte storage, not just CATMMLIB allocations. They do not check capacity or allocate memory.
@@ -80,10 +80,9 @@ Allocator-owned metadata immediately preceding the payload. Do not modify it.
 #### catmm_alloc
 
 ```c
-void catmm_alloc(
+CATALYST_RESULT catmm_alloc(
     void** memory,
-    CATALYST_NUINT size,
-    CATALYST_RESULT* result
+    CATALYST_NUINT size
 );
 ```
 
@@ -92,8 +91,7 @@ Allocates `size` zero-filled bytes and stores the address in `*memory`. The outp
 **Parameters:**
 
 `memory` — Receives the allocation address; cleared on failure.  
-`size` — Requested allocation size in bytes; must be nonzero.  
-`result` — Optional result output.
+`size` — Requested allocation size in bytes; must be nonzero.
 
 **Context:** `0x01`
 
@@ -109,16 +107,15 @@ Allocates `size` zero-filled bytes and stores the address in `*memory`. The outp
 | `0x90010500` | `ERROR_BUFFER_OVERFLOW` | Check page rounding (Linux) | — |
 | `0x910106DD` | `ERROR_ALLOCATION_FAILED` | Allocate native memory | Linux `errno` if 1–255, otherwise zero; zero on Windows/Darwin. |
 
-**C++:** `catalyst::alloc(void** memory, NUINT size, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::alloc(void** memory, NUINT size)`.
 
 
 #### catmm_realloc
 
 ```c
-void catmm_realloc(
+CATALYST_RESULT catmm_realloc(
     void** memory,
-    CATALYST_NUINT size,
-    CATALYST_RESULT* result
+    CATALYST_NUINT size
 );
 ```
 
@@ -129,8 +126,7 @@ On replacement allocation or old-block release failure, the pointer value is unc
 **Parameters:**
 
 `memory` — Address of the allocation pointer; updated on success.  
-`size` — New allocation size in bytes; zero releases a non-null allocation.  
-`result` — Optional result output.
+`size` — New allocation size in bytes; zero releases a non-null allocation.
 
 **Context:** `0x02`
 
@@ -157,15 +153,14 @@ On replacement allocation or old-block release failure, the pointer value is unc
 
 If the allocation pointer is null and the requested size is zero, the delegated allocation reports argument 1 as invalid.
 
-**C++:** `catalyst::realloc(void** memory, NUINT size, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::realloc(void** memory, NUINT size)`.
 
 
 #### catmm_free
 
 ```c
-void catmm_free(
-    void* memory,
-    CATALYST_RESULT* result
+CATALYST_RESULT catmm_free(
+    void* memory
 );
 ```
 
@@ -173,8 +168,7 @@ Releases a live CATMMLIB allocation at its original payload address. The caller'
 
 **Parameters:**
 
-`memory` — Address of the memory region.  
-`result` — Optional result output.
+`memory` — Address of the memory region.
 
 **Context:** `0x03`
 
@@ -188,7 +182,7 @@ Releases a live CATMMLIB allocation at its original payload address. The caller'
 
 No payload access guarantee after release failure.
 
-**C++:** `catalyst::free(void* memory, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::free(void* memory)`.
 
 
 ### Byte operations
@@ -196,11 +190,10 @@ No payload access guarantee after release failure.
 #### catmm_copy
 
 ```c
-void catmm_copy(
+CATALYST_RESULT catmm_copy(
     void* destination,
     const void* source,
-    CATALYST_NUINT size,
-    CATALYST_RESULT* result
+    CATALYST_NUINT size
 );
 ```
 
@@ -210,8 +203,7 @@ Copies `size` bytes from `source` to `destination`. The regions must not overlap
 
 `destination` — Writable destination region.  
 `source` — Readable source region.  
-`size` — Number of bytes to process.  
-`result` — Optional result output.
+`size` — Number of bytes to process.
 
 **Context:** `0x04`
 
@@ -224,17 +216,16 @@ Copies `size` bytes from `source` to `destination`. The regions must not overlap
 | `0x81040100` | `ERROR_INVALID_ARGUMENT` | Validate `destination` | Argument 0 (`destination`) |
 | `0x81040201` | `ERROR_INVALID_ARGUMENT` | Validate `source` | Argument 1 (`source`) |
 
-**C++:** `catalyst::copy(void* destination, const void* source, NUINT size, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::copy(void* destination, const void* source, NUINT size)`.
 
 
 #### catmm_move
 
 ```c
-void catmm_move(
+CATALYST_RESULT catmm_move(
     void* destination,
     const void* source,
-    CATALYST_NUINT size,
-    CATALYST_RESULT* result
+    CATALYST_NUINT size
 );
 ```
 
@@ -244,8 +235,7 @@ Copies `size` bytes from `source` to `destination`, preserving the original sour
 
 `destination` — Writable destination region.  
 `source` — Readable source region.  
-`size` — Number of bytes to process.  
-`result` — Optional result output.
+`size` — Number of bytes to process.
 
 **Context:** `0x05`
 
@@ -258,18 +248,17 @@ Copies `size` bytes from `source` to `destination`, preserving the original sour
 | `0x81050100` | `ERROR_INVALID_ARGUMENT` | Validate `destination` | Argument 0 (`destination`) |
 | `0x81050201` | `ERROR_INVALID_ARGUMENT` | Validate `source` | Argument 1 (`source`) |
 
-**C++:** `catalyst::move(void* destination, const void* source, NUINT size, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::move(void* destination, const void* source, NUINT size)`.
 
 
 #### catmm_compare
 
 ```c
-void catmm_compare(
+CATALYST_RESULT catmm_compare(
     const void* first,
     const void* second,
     CATALYST_NUINT size,
-    CATALYST_SBYTE* comparison,
-    CATALYST_RESULT* result
+    CATALYST_SBYTE* comparison
 );
 ```
 
@@ -280,8 +269,7 @@ Compares `size` unsigned bytes lexicographically and writes −1, 0, or 1 to `*c
 `first` — First readable region.  
 `second` — Second readable region.  
 `size` — Number of bytes to process.  
-`comparison` — Receives −1, 0, or 1.  
-`result` — Optional result output.
+`comparison` — Receives −1, 0, or 1.
 
 **Context:** `0x06`
 
@@ -296,17 +284,16 @@ Compares `size` unsigned bytes lexicographically and writes −1, 0, or 1 to `*c
 
 Invalid arguments leave the comparison output unchanged.
 
-**C++:** `catalyst::compare(const void* first, const void* second, NUINT size, SBYTE* comparison, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::compare(const void* first, const void* second, NUINT size, SBYTE* comparison)`.
 
 
 #### catmm_set
 
 ```c
-void catmm_set(
+CATALYST_RESULT catmm_set(
     void* memory,
     CATALYST_BYTE value,
-    CATALYST_NUINT size,
-    CATALYST_RESULT* result
+    CATALYST_NUINT size
 );
 ```
 
@@ -316,8 +303,7 @@ Fills the `size`-byte region at `memory` with `value`.
 
 `memory` — Address of the memory region.  
 `value` — Byte to write throughout the region.  
-`size` — Number of bytes to process.  
-`result` — Optional result output.
+`size` — Number of bytes to process.
 
 **Context:** `0x07`
 
@@ -329,7 +315,7 @@ Fills the `size`-byte region at `memory` with `value`.
 | `0x01000200` | `SUCCESS_NOOP` | Skip zero-size fill | — |
 | `0x81070100` | `ERROR_INVALID_ARGUMENT` | Validate `memory` | Argument 0 (`memory`) |
 
-**C++:** `catalyst::set(void* memory, BYTE value, NUINT size, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::set(void* memory, BYTE value, NUINT size)`.
 
 
 ## Allocation backends

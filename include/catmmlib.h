@@ -25,25 +25,25 @@ typedef struct CATALYST_MEMORY_HEADER {
 } CATALYST_MEMORY_HEADER;
 
 /** Allocate a nonzero number of zero-filled bytes; return a null pointer on failure. */
-CATMMLIB_API void catmm_alloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result);
+CATMMLIB_API CATALYST_RESULT catmm_alloc(void** memory, CATALYST_NUINT size);
 
 /** Resize an allocation, preserving existing bytes. A zero size frees a non-null allocation. */
-CATMMLIB_API void catmm_realloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result);
+CATMMLIB_API CATALYST_RESULT catmm_realloc(void** memory, CATALYST_NUINT size);
 
 /** Release an allocation returned by CATMMLIB; the caller's pointer is not cleared. */
-CATMMLIB_API void catmm_free(void* memory, CATALYST_RESULT* result);
+CATMMLIB_API CATALYST_RESULT catmm_free(void* memory);
 
 /** Copy bytes between non-overlapping regions; zero size or identical addresses are a no-op. */
-CATMMLIB_API void catmm_copy(void* destination, const void* source, CATALYST_NUINT size, CATALYST_RESULT* result);
+CATMMLIB_API CATALYST_RESULT catmm_copy(void* destination, const void* source, CATALYST_NUINT size);
 
 /** Move bytes between regions that may overlap; zero size or identical addresses are a no-op. */
-CATMMLIB_API void catmm_move(void* destination, const void* source, CATALYST_NUINT size, CATALYST_RESULT* result);
+CATMMLIB_API CATALYST_RESULT catmm_move(void* destination, const void* source, CATALYST_NUINT size);
 
 /** Compare unsigned bytes lexicographically; comparison receives -1, 0, or 1 (zero for empty regions). */
-CATMMLIB_API void catmm_compare(const void* first, const void* second, CATALYST_NUINT size, CATALYST_SBYTE* comparison, CATALYST_RESULT* result);
+CATMMLIB_API CATALYST_RESULT catmm_compare(const void* first, const void* second, CATALYST_NUINT size, CATALYST_SBYTE* comparison);
 
 /** Fill a region with the specified byte value; zero size is a no-op. */
-CATMMLIB_API void catmm_set(void* memory, CATALYST_BYTE value, CATALYST_NUINT size, CATALYST_RESULT* result);
+CATMMLIB_API CATALYST_RESULT catmm_set(void* memory, CATALYST_BYTE value, CATALYST_NUINT size);
 
 #ifdef __cplusplus
 } /* extern C */

@@ -2,14 +2,14 @@
 
 See [CATTELIB conventions](../index.md#conventions) for buffer requirements and result conventions.
 
-All functions return `void`. Result context, operation and detail default to zero unless indicated.
+All functions return `CATALYST_RESULT` by value. Result context, operation and detail default to zero unless indicated.
 
 ## catte_utf8_encode
 
 Encodes a Unicode scalar as one to four UTF-8 code units. The destination must accommodate four units. After argument validation, `produced` is zero until encoding succeeds; an invalid scalar leaves the destination unchanged.
 
 ```c
-void catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, CATALYST_NUINT* produced, CATALYST_RESULT* result);
+CATALYST_RESULT catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, CATALYST_NUINT* produced);
 ```
 
 | Parameter | Description |
@@ -17,7 +17,6 @@ void catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w,
 | `codepoint` | Codepoint to encode. |
 | `utf8w` | Writable buffer for up to four code units. |
 | `produced` | Receives the number of code units written. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -30,7 +29,7 @@ void catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w,
 Decodes one Unicode scalar from UTF-8 and reports the number of code units consumed (1–4). After argument validation, both `codepoint` and `consumed` are zero on decoding failure.
 
 ```c
-void catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed, CATALYST_RESULT* result);
+CATALYST_RESULT catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed);
 ```
 
 | Parameter | Description |
@@ -38,7 +37,6 @@ void catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALY
 | `utf8` | Readable input containing the complete encoded sequence. |
 | `codepoint` | Receives the decoded codepoint. |
 | `consumed` | Receives the number of code units read. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -51,14 +49,13 @@ void catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALY
 Counts Unicode scalars in a null-terminated UTF-8 string, excluding the terminator and any leading BOM. This is not a byte or grapheme count. After argument validation, `length` is zero on failure.
 
 ```c
-void catte_utf8_length(CATALYST_UTF8 utf8, CATALYST_NUINT* length, CATALYST_RESULT* result);
+CATALYST_RESULT catte_utf8_length(CATALYST_UTF8 utf8, CATALYST_NUINT* length);
 ```
 
 | Parameter | Description |
 | --- | --- |
 | `utf8` | Readable null-terminated input. |
 | `length` | Receives the number of Unicode scalars. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |

@@ -6,32 +6,32 @@ namespace catalyst {
 
 typedef ::CATALYST_MEMORY_HEADER MEMORY_HEADER;
 
-inline void alloc(void** memory, NUINT size, RESULT* result) {
-    ::catmm_alloc(memory, size, result);
+inline RESULT alloc(void** memory, NUINT size) {
+    return ::catmm_alloc(memory, size);
 }
 
-inline void realloc(void** memory, NUINT size, RESULT* result) {
-    ::catmm_realloc(memory, size, result);
+inline RESULT realloc(void** memory, NUINT size) {
+    return ::catmm_realloc(memory, size);
 }
 
-inline void free(void* memory, RESULT* result) {
-    ::catmm_free(memory, result);
+inline RESULT free(void* memory) {
+    return ::catmm_free(memory);
 }
 
-inline void copy(void* destination, const void* source, NUINT size, RESULT* result) {
-    ::catmm_copy(destination, source, size, result);
+inline RESULT copy(void* destination, const void* source, NUINT size) {
+    return ::catmm_copy(destination, source, size);
 }
 
-inline void move(void* destination, const void* source, NUINT size, RESULT* result) {
-    ::catmm_move(destination, source, size, result);
+inline RESULT move(void* destination, const void* source, NUINT size) {
+    return ::catmm_move(destination, source, size);
 }
 
-inline void compare(const void* first, const void* second, NUINT size, SBYTE* comparison, RESULT* result) {
-    ::catmm_compare(first, second, size, comparison, result);
+inline RESULT compare(const void* first, const void* second, NUINT size, SBYTE* comparison) {
+    return ::catmm_compare(first, second, size, comparison);
 }
 
-inline void set(void* memory, BYTE value, NUINT size, RESULT* result) {
-    ::catmm_set(memory, value, size, result);
+inline RESULT set(void* memory, BYTE value, NUINT size) {
+    return ::catmm_set(memory, value, size);
 }
 
 } /* namespace catalyst */

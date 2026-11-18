@@ -9,7 +9,7 @@ Provides encoding, decoding, length, and conversion operations for ASCII, Window
 
 ## Conventions
 
-- All functions return void; `result` may be null. All other pointer arguments require valid readable or writable storage.
+- All functions return `CATALYST_RESULT` by value. All pointer arguments require valid readable or writable storage.
 - Encode/decode process one codepoint, including U+0000. They neither append a separate terminator nor skip a BOM.
 - `produced` counts destination code units; `consumed` counts source code units. UTF-16LE counts two-byte code units, not bytes.
 - Encoders require up to four UTF-8 units or two UTF-16LE units of writable storage. Decoders read the sequence width selected by the leading unit, even for malformed input. Supply that many readable units, including any padding needed beyond a truncated sequence. No input-size parameter or bounds discovery is provided.
@@ -88,10 +88,9 @@ On Windows/Cygwin, expands to `__declspec(dllexport)` with `CATTELIB_EXPORTS`, o
 #### catte_ascii_encode
 
 ```c
-void catte_ascii_encode(
+CATALYST_RESULT catte_ascii_encode(
     const CATALYST_CODEPOINT codepoint,
-    CATALYST_ASCIIW asciiw,
-    CATALYST_RESULT* result
+    CATALYST_ASCIIW asciiw
 );
 ```
 
@@ -100,8 +99,7 @@ Encodes one codepoint as ASCII. Codepoints outside U+0000–U+007F are replaced 
 **Parameters:**
 
 `codepoint` — Codepoint to encode.  
-`asciiw` — Writable buffer for one code unit.  
-`result` — Optional result output.
+`asciiw` — Writable buffer for one code unit.
 
 **Context:** `0x01`
 
@@ -114,16 +112,15 @@ Encodes one codepoint as ASCII. Codepoints outside U+0000–U+007F are replaced 
 | `0x41010200` | `WARNING_PARTIAL` | Substitute unrepresentable codepoint | — |
 | `0x81010101` | `ERROR_INVALID_ARGUMENT` | Validate `asciiw` | Argument 1 (`asciiw`) |
 
-**C++:** `catalyst::ascii_encode(const CODEPOINT codepoint, ASCIIW asciiw, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::ascii_encode(const CODEPOINT codepoint, ASCIIW asciiw)`.
 
 
 #### catte_ascii_decode
 
 ```c
-void catte_ascii_decode(
+CATALYST_RESULT catte_ascii_decode(
     CATALYST_ASCII ascii,
-    CATALYST_CODEPOINT* codepoint,
-    CATALYST_RESULT* result
+    CATALYST_CODEPOINT* codepoint
 );
 ```
 
@@ -132,8 +129,7 @@ Decodes a single ASCII code unit into a codepoint. The input byte becomes the le
 **Parameters:**
 
 `ascii` — Readable input containing one code unit.  
-`codepoint` — Receives the decoded codepoint.  
-`result` — Optional result output.
+`codepoint` — Receives the decoded codepoint.
 
 **Context:** `0x02`
 
@@ -145,16 +141,15 @@ Decodes a single ASCII code unit into a codepoint. The input byte becomes the le
 | `0x81020100` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 0 (`ascii`) |
 | `0x81020201` | `ERROR_INVALID_ARGUMENT` | Validate `codepoint` | Argument 1 (`codepoint`) |
 
-**C++:** `catalyst::ascii_decode(ASCII ascii, CODEPOINT* codepoint, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::ascii_decode(ASCII ascii, CODEPOINT* codepoint)`.
 
 
 #### catte_ascii_length
 
 ```c
-void catte_ascii_length(
+CATALYST_RESULT catte_ascii_length(
     CATALYST_ASCII ascii,
-    CATALYST_NUINT* length,
-    CATALYST_RESULT* result
+    CATALYST_NUINT* length
 );
 ```
 
@@ -163,8 +158,7 @@ Counts the code units in a null-terminated ASCII string, excluding the terminato
 **Parameters:**
 
 `ascii` — Readable null-terminated input.  
-`length` — Receives the number of code units before the terminator.  
-`result` — Optional result output.
+`length` — Receives the number of code units before the terminator.
 
 **Context:** `0x03`
 
@@ -177,7 +171,7 @@ Counts the code units in a null-terminated ASCII string, excluding the terminato
 | `0x81030201` | `ERROR_INVALID_ARGUMENT` | Validate `length` | Argument 1 (`length`) |
 | `0x90030300` | `ERROR_BUFFER_OVERFLOW` | Check count limit | — |
 
-**C++:** `catalyst::ascii_length(ASCII ascii, NUINT* length, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::ascii_length(ASCII ascii, NUINT* length)`.
 
 
 ### Windows-1252
@@ -185,10 +179,9 @@ Counts the code units in a null-terminated ASCII string, excluding the terminato
 #### catte_cp1252_encode
 
 ```c
-void catte_cp1252_encode(
+CATALYST_RESULT catte_cp1252_encode(
     const CATALYST_CODEPOINT codepoint,
-    CATALYST_CP1252W cp1252w,
-    CATALYST_RESULT* result
+    CATALYST_CP1252W cp1252w
 );
 ```
 
@@ -197,8 +190,7 @@ Encodes one codepoint as Windows-1252. Unrepresentable codepoints are replaced w
 **Parameters:**
 
 `codepoint` — Codepoint to encode.  
-`cp1252w` — Writable buffer for one code unit.  
-`result` — Optional result output.
+`cp1252w` — Writable buffer for one code unit.
 
 **Context:** `0x04`
 
@@ -237,16 +229,15 @@ Encodes one codepoint as Windows-1252. Unrepresentable codepoints are replaced w
 | `0x41041E00` | `WARNING_PARTIAL` | Substitute unrepresentable codepoint | — |
 | `0x81040101` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252w` | Argument 1 (`cp1252w`) |
 
-**C++:** `catalyst::cp1252_encode(const CODEPOINT codepoint, CP1252W cp1252w, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::cp1252_encode(const CODEPOINT codepoint, CP1252W cp1252w)`.
 
 
 #### catte_cp1252_decode
 
 ```c
-void catte_cp1252_decode(
+CATALYST_RESULT catte_cp1252_decode(
     CATALYST_CP1252 cp1252,
-    CATALYST_CODEPOINT* codepoint,
-    CATALYST_RESULT* result
+    CATALYST_CODEPOINT* codepoint
 );
 ```
 
@@ -255,8 +246,7 @@ Decodes one Windows-1252 code unit. Undefined bytes (`0x81`, `0x8D`, `0x8F`, `0x
 **Parameters:**
 
 `cp1252` — Readable input containing one code unit.  
-`codepoint` — Receives the decoded codepoint.  
-`result` — Optional result output.
+`codepoint` — Receives the decoded codepoint.
 
 **Context:** `0x05`
 
@@ -296,16 +286,15 @@ Decodes one Windows-1252 code unit. Undefined bytes (`0x81`, `0x8D`, `0x8F`, `0x
 | `0x81050100` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252` | Argument 0 (`cp1252`) |
 | `0x81050201` | `ERROR_INVALID_ARGUMENT` | Validate `codepoint` | Argument 1 (`codepoint`) |
 
-**C++:** `catalyst::cp1252_decode(CP1252 cp1252, CODEPOINT* codepoint, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::cp1252_decode(CP1252 cp1252, CODEPOINT* codepoint)`.
 
 
 #### catte_cp1252_length
 
 ```c
-void catte_cp1252_length(
+CATALYST_RESULT catte_cp1252_length(
     CATALYST_CP1252 cp1252,
-    CATALYST_NUINT* length,
-    CATALYST_RESULT* result
+    CATALYST_NUINT* length
 );
 ```
 
@@ -314,8 +303,7 @@ Counts the code units in a null-terminated Windows-1252 string, excluding the te
 **Parameters:**
 
 `cp1252` — Readable null-terminated input.  
-`length` — Receives the number of code units before the terminator.  
-`result` — Optional result output.
+`length` — Receives the number of code units before the terminator.
 
 **Context:** `0x06`
 
@@ -328,7 +316,7 @@ Counts the code units in a null-terminated Windows-1252 string, excluding the te
 | `0x81060201` | `ERROR_INVALID_ARGUMENT` | Validate `length` | Argument 1 (`length`) |
 | `0x90060300` | `ERROR_BUFFER_OVERFLOW` | Check count limit | — |
 
-**C++:** `catalyst::cp1252_length(CP1252 cp1252, NUINT* length, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::cp1252_length(CP1252 cp1252, NUINT* length)`.
 
 
 ### UTF-8
@@ -336,11 +324,10 @@ Counts the code units in a null-terminated Windows-1252 string, excluding the te
 #### catte_utf8_encode
 
 ```c
-void catte_utf8_encode(
+CATALYST_RESULT catte_utf8_encode(
     const CATALYST_CODEPOINT codepoint,
     CATALYST_UTF8W utf8w,
-    CATALYST_NUINT* produced,
-    CATALYST_RESULT* result
+    CATALYST_NUINT* produced
 );
 ```
 
@@ -350,8 +337,7 @@ Encodes a Unicode scalar as one to four UTF-8 code units. The destination must a
 
 `codepoint` — Codepoint to encode.  
 `utf8w` — Writable buffer for up to four code units.  
-`produced` — Receives the number of code units written.  
-`result` — Optional result output.
+`produced` — Receives the number of code units written.
 
 **Context:** `0x07`
 
@@ -370,17 +356,16 @@ Encodes a Unicode scalar as one to four UTF-8 code units. The destination must a
 | `0xC1070400` | `FATAL_INVARIANT_VIOLATION` | Check two-byte encoding invariant (defensive) | — |
 | `0xC1070600` | `FATAL_INVARIANT_VIOLATION` | Check three-byte encoding invariant (defensive) | — |
 
-**C++:** `catalyst::utf8_encode(const CODEPOINT codepoint, UTF8W utf8w, NUINT* produced, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::utf8_encode(const CODEPOINT codepoint, UTF8W utf8w, NUINT* produced)`.
 
 
 #### catte_utf8_decode
 
 ```c
-void catte_utf8_decode(
+CATALYST_RESULT catte_utf8_decode(
     CATALYST_UTF8 utf8,
     CATALYST_CODEPOINT* codepoint,
-    CATALYST_NUINT* consumed,
-    CATALYST_RESULT* result
+    CATALYST_NUINT* consumed
 );
 ```
 
@@ -390,8 +375,7 @@ Decodes one Unicode scalar from UTF-8 and reports the number of code units consu
 
 `utf8` — Readable input containing the complete encoded sequence.  
 `codepoint` — Receives the decoded codepoint.  
-`consumed` — Receives the number of code units read.  
-`result` — Optional result output.
+`consumed` — Receives the number of code units read.
 
 **Context:** `0x08`
 
@@ -425,16 +409,15 @@ Decodes one Unicode scalar from UTF-8 and reports the number of code units consu
 | `0x83081400` | `ERROR_MALFORMED_INPUT` | Four-byte sequence: above U+10FFFF | — |
 | `0x83081600` | `ERROR_MALFORMED_INPUT` | Invalid leading code unit | — |
 
-**C++:** `catalyst::utf8_decode(UTF8 utf8, CODEPOINT* codepoint, NUINT* consumed, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::utf8_decode(UTF8 utf8, CODEPOINT* codepoint, NUINT* consumed)`.
 
 
 #### catte_utf8_length
 
 ```c
-void catte_utf8_length(
+CATALYST_RESULT catte_utf8_length(
     CATALYST_UTF8 utf8,
-    CATALYST_NUINT* length,
-    CATALYST_RESULT* result
+    CATALYST_NUINT* length
 );
 ```
 
@@ -443,8 +426,7 @@ Counts Unicode scalars in a null-terminated UTF-8 string, excluding the terminat
 **Parameters:**
 
 `utf8` — Readable null-terminated input.  
-`length` — Receives the number of Unicode scalars.  
-`result` — Optional result output.
+`length` — Receives the number of Unicode scalars.
 
 **Context:** `0x09`
 
@@ -474,7 +456,7 @@ Counts Unicode scalars in a null-terminated UTF-8 string, excluding the terminat
 | `0xC1090302` | `FATAL_INVARIANT_VIOLATION` | Decode next codepoint | `catte_utf8_decode` operation `0x02`: Validate `codepoint` (internal argument failure) |
 | `0xC1090303` | `FATAL_INVARIANT_VIOLATION` | Decode next codepoint | `catte_utf8_decode` operation `0x03`: Validate `consumed` (internal argument failure) |
 
-**C++:** `catalyst::utf8_length(UTF8 utf8, NUINT* length, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::utf8_length(UTF8 utf8, NUINT* length)`.
 
 
 ### UTF-16LE
@@ -482,11 +464,10 @@ Counts Unicode scalars in a null-terminated UTF-8 string, excluding the terminat
 #### catte_utf16le_encode
 
 ```c
-void catte_utf16le_encode(
+CATALYST_RESULT catte_utf16le_encode(
     const CATALYST_CODEPOINT codepoint,
     CATALYST_UTF16LEW utf16lew,
-    CATALYST_NUINT* produced,
-    CATALYST_RESULT* result
+    CATALYST_NUINT* produced
 );
 ```
 
@@ -496,8 +477,7 @@ Encodes a Unicode scalar as one UTF-16LE code unit or a surrogate pair. The dest
 
 `codepoint` — Codepoint to encode.  
 `utf16lew` — Writable buffer for up to two code units.  
-`produced` — Receives the number of code units written.  
-`result` — Optional result output.
+`produced` — Receives the number of code units written.
 
 **Context:** `0x0A`
 
@@ -512,17 +492,16 @@ Encodes a Unicode scalar as one UTF-16LE code unit or a surrogate pair. The dest
 | `0x810A0300` | `ERROR_INVALID_ARGUMENT` | Reject codepoint above U+10FFFF | Argument 0 (`codepoint`) |
 | `0x810A0400` | `ERROR_INVALID_ARGUMENT` | Reject surrogate codepoint | Argument 0 (`codepoint`) |
 
-**C++:** `catalyst::utf16le_encode(const CODEPOINT codepoint, UTF16LEW utf16lew, NUINT* produced, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::utf16le_encode(const CODEPOINT codepoint, UTF16LEW utf16lew, NUINT* produced)`.
 
 
 #### catte_utf16le_decode
 
 ```c
-void catte_utf16le_decode(
+CATALYST_RESULT catte_utf16le_decode(
     CATALYST_UTF16LE utf16le,
     CATALYST_CODEPOINT* codepoint,
-    CATALYST_NUINT* consumed,
-    CATALYST_RESULT* result
+    CATALYST_NUINT* consumed
 );
 ```
 
@@ -532,8 +511,7 @@ Decodes one Unicode scalar from UTF-16LE and reports the number of code units co
 
 `utf16le` — Readable input containing the complete encoded sequence.  
 `codepoint` — Receives the decoded codepoint.  
-`consumed` — Receives the number of code units read.  
-`result` — Optional result output.
+`consumed` — Receives the number of code units read.
 
 **Context:** `0x0B`
 
@@ -550,16 +528,15 @@ Decodes one Unicode scalar from UTF-16LE and reports the number of code units co
 | `0x830B0500` | `ERROR_MALFORMED_INPUT` | Reject isolated low surrogate | — |
 | `0x830B0700` | `ERROR_MALFORMED_INPUT` | Reject missing low surrogate | — |
 
-**C++:** `catalyst::utf16le_decode(UTF16LE utf16le, CODEPOINT* codepoint, NUINT* consumed, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::utf16le_decode(UTF16LE utf16le, CODEPOINT* codepoint, NUINT* consumed)`.
 
 
 #### catte_utf16le_length
 
 ```c
-void catte_utf16le_length(
+CATALYST_RESULT catte_utf16le_length(
     CATALYST_UTF16LE utf16le,
-    CATALYST_NUINT* length,
-    CATALYST_RESULT* result
+    CATALYST_NUINT* length
 );
 ```
 
@@ -568,8 +545,7 @@ Counts Unicode scalars in a null-terminated UTF-16LE string, excluding the termi
 **Parameters:**
 
 `utf16le` — Readable null-terminated input.  
-`length` — Receives the number of Unicode scalars.  
-`result` — Optional result output.
+`length` — Receives the number of Unicode scalars.
 
 **Context:** `0x0C`
 
@@ -587,7 +563,7 @@ Counts Unicode scalars in a null-terminated UTF-16LE string, excluding the termi
 | `0xC10C0302` | `FATAL_INVARIANT_VIOLATION` | Decode next codepoint | `catte_utf16le_decode` operation `0x02`: Validate `codepoint` (internal argument failure) |
 | `0xC10C0303` | `FATAL_INVARIANT_VIOLATION` | Decode next codepoint | `catte_utf16le_decode` operation `0x03`: Validate `consumed` (internal argument failure) |
 
-**C++:** `catalyst::utf16le_length(UTF16LE utf16le, NUINT* length, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::utf16le_length(UTF16LE utf16le, NUINT* length)`.
 
 
 ### String conversions
@@ -597,10 +573,9 @@ Conversions write a destination terminator on success or warning; no destination
 #### catte_ascii_to_cp1252
 
 ```c
-void catte_ascii_to_cp1252(
+CATALYST_RESULT catte_ascii_to_cp1252(
     CATALYST_ASCII ascii,
-    CATALYST_CP1252W cp1252w,
-    CATALYST_RESULT* result
+    CATALYST_CP1252W cp1252w
 );
 ```
 
@@ -609,8 +584,7 @@ Destination must hold at least the source byte count plus one terminator; no cap
 **Parameters:**
 
 `ascii` — Readable null-terminated input.  
-`cp1252w` — Writable destination buffer.  
-`result` — Optional result output.
+`cp1252w` — Writable destination buffer.
 
 **Context:** `0x0D`
 
@@ -624,17 +598,16 @@ Destination must hold at least the source byte count plus one terminator; no cap
 | `0x810D0201` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252w` | Argument 1 (`cp1252w`) |
 | `0x900D0300` | `ERROR_BUFFER_OVERFLOW` | Check index limit | — |
 
-**C++:** `catalyst::ascii_to_cp1252(ASCII ascii, CP1252W cp1252w, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::ascii_to_cp1252(ASCII ascii, CP1252W cp1252w)`.
 
 
 #### catte_ascii_to_utf8
 
 ```c
-void catte_ascii_to_utf8(
+CATALYST_RESULT catte_ascii_to_utf8(
     CATALYST_ASCII ascii,
     CATALYST_UTF8W utf8w,
-    CATALYST_NUINT capacity,
-    CATALYST_RESULT* result
+    CATALYST_NUINT capacity
 );
 ```
 
@@ -644,8 +617,7 @@ Source bytes above 0x7F are replaced by '?'.
 
 `ascii` — Readable null-terminated input.  
 `utf8w` — Writable destination buffer.  
-`capacity` — Destination capacity in code units, including the terminator.  
-`result` — Optional result output.
+`capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x0E`
 
@@ -660,17 +632,16 @@ Source bytes above 0x7F are replaced by '?'.
 | `0x900E0300` | `ERROR_BUFFER_OVERFLOW` | Check destination capacity | — |
 | `0x900E0400` | `ERROR_BUFFER_OVERFLOW` | Check remaining destination capacity | — |
 
-**C++:** `catalyst::ascii_to_utf8(ASCII ascii, UTF8W utf8w, NUINT capacity, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::ascii_to_utf8(ASCII ascii, UTF8W utf8w, NUINT capacity)`.
 
 
 #### catte_ascii_to_utf16le
 
 ```c
-void catte_ascii_to_utf16le(
+CATALYST_RESULT catte_ascii_to_utf16le(
     CATALYST_ASCII ascii,
     CATALYST_UTF16LEW utf16lew,
-    CATALYST_NUINT capacity,
-    CATALYST_RESULT* result
+    CATALYST_NUINT capacity
 );
 ```
 
@@ -680,8 +651,7 @@ Source bytes above 0x7F are replaced by '?'.
 
 `ascii` — Readable null-terminated input.  
 `utf16lew` — Writable destination buffer.  
-`capacity` — Destination capacity in code units, including the terminator.  
-`result` — Optional result output.
+`capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x0F`
 
@@ -696,16 +666,15 @@ Source bytes above 0x7F are replaced by '?'.
 | `0x900F0300` | `ERROR_BUFFER_OVERFLOW` | Check destination capacity | — |
 | `0x900F0400` | `ERROR_BUFFER_OVERFLOW` | Check remaining destination capacity | — |
 
-**C++:** `catalyst::ascii_to_utf16le(ASCII ascii, UTF16LEW utf16lew, NUINT capacity, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::ascii_to_utf16le(ASCII ascii, UTF16LEW utf16lew, NUINT capacity)`.
 
 
 #### catte_cp1252_to_ascii
 
 ```c
-void catte_cp1252_to_ascii(
+CATALYST_RESULT catte_cp1252_to_ascii(
     CATALYST_CP1252 cp1252,
-    CATALYST_ASCIIW ascii,
-    CATALYST_RESULT* result
+    CATALYST_ASCIIW ascii
 );
 ```
 
@@ -714,8 +683,7 @@ Destination must hold at least the source byte count plus one terminator; no cap
 **Parameters:**
 
 `cp1252` — Readable null-terminated input.  
-`ascii` — Writable destination buffer.  
-`result` — Optional result output.
+`ascii` — Writable destination buffer.
 
 **Context:** `0x10`
 
@@ -732,17 +700,16 @@ Destination must hold at least the source byte count plus one terminator; no cap
 | `0xC1100302` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_cp1252_decode` operation `0x02`: Validate `codepoint` (internal argument failure) |
 | `0xC1100401` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_ascii_encode` operation `0x01`: Validate `asciiw` (internal argument failure) |
 
-**C++:** `catalyst::cp1252_to_ascii(CP1252 cp1252, ASCIIW ascii, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::cp1252_to_ascii(CP1252 cp1252, ASCIIW ascii)`.
 
 
 #### catte_cp1252_to_utf8
 
 ```c
-void catte_cp1252_to_utf8(
+CATALYST_RESULT catte_cp1252_to_utf8(
     CATALYST_CP1252 cp1252,
     CATALYST_UTF8W utf8w,
-    CATALYST_NUINT capacity,
-    CATALYST_RESULT* result
+    CATALYST_NUINT capacity
 );
 ```
 
@@ -752,8 +719,7 @@ Undefined source bytes are replaced by '?'.
 
 `cp1252` — Readable null-terminated input.  
 `utf8w` — Writable destination buffer.  
-`capacity` — Destination capacity in code units, including the terminator.  
-`result` — Optional result output.
+`capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x11`
 
@@ -776,17 +742,16 @@ Undefined source bytes are replaced by '?'.
 | `0xC1110507` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf8_encode` operation `0x07`: Reject surrogate codepoint (internal argument failure) |
 | `0xC111050A` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf8_encode` operation `0x0A`: Reject codepoint outside Unicode range (internal argument failure) |
 
-**C++:** `catalyst::cp1252_to_utf8(CP1252 cp1252, UTF8W utf8w, NUINT capacity, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::cp1252_to_utf8(CP1252 cp1252, UTF8W utf8w, NUINT capacity)`.
 
 
 #### catte_cp1252_to_utf16le
 
 ```c
-void catte_cp1252_to_utf16le(
+CATALYST_RESULT catte_cp1252_to_utf16le(
     CATALYST_CP1252 cp1252,
     CATALYST_UTF16LEW utf16lew,
-    CATALYST_NUINT capacity,
-    CATALYST_RESULT* result
+    CATALYST_NUINT capacity
 );
 ```
 
@@ -796,8 +761,7 @@ Undefined source bytes are replaced by '?'.
 
 `cp1252` — Readable null-terminated input.  
 `utf16lew` — Writable destination buffer.  
-`capacity` — Destination capacity in code units, including the terminator.  
-`result` — Optional result output.
+`capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x12`
 
@@ -818,17 +782,16 @@ Undefined source bytes are replaced by '?'.
 | `0xC1120503` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf16le_encode` operation `0x03`: Reject codepoint above U+10FFFF (internal argument failure) |
 | `0xC1120504` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf16le_encode` operation `0x04`: Reject surrogate codepoint (internal argument failure) |
 
-**C++:** `catalyst::cp1252_to_utf16le(CP1252 cp1252, UTF16LEW utf16lew, NUINT capacity, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::cp1252_to_utf16le(CP1252 cp1252, UTF16LEW utf16lew, NUINT capacity)`.
 
 
 #### catte_utf8_to_ascii
 
 ```c
-void catte_utf8_to_ascii(
+CATALYST_RESULT catte_utf8_to_ascii(
     CATALYST_UTF8 utf8,
     CATALYST_ASCIIW ascii,
-    CATALYST_NUINT capacity,
-    CATALYST_RESULT* result
+    CATALYST_NUINT capacity
 );
 ```
 
@@ -838,8 +801,7 @@ Unrepresentable values are replaced by '?'.
 
 `utf8` — Readable null-terminated input.  
 `ascii` — Writable destination buffer.  
-`capacity` — Destination capacity in code units, including the terminator.  
-`result` — Optional result output.
+`capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x13`
 
@@ -872,17 +834,16 @@ Unrepresentable values are replaced by '?'.
 | `0xC1130403` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf8_decode` operation `0x03`: Validate `consumed` (internal argument failure) |
 | `0xC1130501` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_ascii_encode` operation `0x01`: Validate `asciiw` (internal argument failure) |
 
-**C++:** `catalyst::utf8_to_ascii(UTF8 utf8, ASCIIW ascii, NUINT capacity, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::utf8_to_ascii(UTF8 utf8, ASCIIW ascii, NUINT capacity)`.
 
 
 #### catte_utf8_to_cp1252
 
 ```c
-void catte_utf8_to_cp1252(
+CATALYST_RESULT catte_utf8_to_cp1252(
     CATALYST_UTF8 utf8,
     CATALYST_CP1252W cp1252w,
-    CATALYST_NUINT capacity,
-    CATALYST_RESULT* result
+    CATALYST_NUINT capacity
 );
 ```
 
@@ -892,8 +853,7 @@ Unrepresentable values are replaced by '?'.
 
 `utf8` — Readable null-terminated input.  
 `cp1252w` — Writable destination buffer.  
-`capacity` — Destination capacity in code units, including the terminator.  
-`result` — Optional result output.
+`capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x14`
 
@@ -926,17 +886,16 @@ Unrepresentable values are replaced by '?'.
 | `0xC1140403` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf8_decode` operation `0x03`: Validate `consumed` (internal argument failure) |
 | `0xC1140501` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_cp1252_encode` operation `0x01`: Validate `cp1252w` (internal argument failure) |
 
-**C++:** `catalyst::utf8_to_cp1252(UTF8 utf8, CP1252W cp1252w, NUINT capacity, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::utf8_to_cp1252(UTF8 utf8, CP1252W cp1252w, NUINT capacity)`.
 
 
 #### catte_utf8_to_utf16le
 
 ```c
-void catte_utf8_to_utf16le(
+CATALYST_RESULT catte_utf8_to_utf16le(
     CATALYST_UTF8 utf8,
     CATALYST_UTF16LEW utf16lew,
-    CATALYST_NUINT capacity,
-    CATALYST_RESULT* result
+    CATALYST_NUINT capacity
 );
 ```
 
@@ -946,8 +905,7 @@ All valid Unicode scalars are preserved.
 
 `utf8` — Readable null-terminated input.  
 `utf16lew` — Writable destination buffer.  
-`capacity` — Destination capacity in code units, including the terminator.  
-`result` — Optional result output.
+`capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x15`
 
@@ -982,17 +940,16 @@ All valid Unicode scalars are preserved.
 | `0xC1150503` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf16le_encode` operation `0x03`: Reject codepoint above U+10FFFF (internal argument failure) |
 | `0xC1150504` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf16le_encode` operation `0x04`: Reject surrogate codepoint (internal argument failure) |
 
-**C++:** `catalyst::utf8_to_utf16le(UTF8 utf8, UTF16LEW utf16lew, NUINT capacity, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::utf8_to_utf16le(UTF8 utf8, UTF16LEW utf16lew, NUINT capacity)`.
 
 
 #### catte_utf16le_to_ascii
 
 ```c
-void catte_utf16le_to_ascii(
+CATALYST_RESULT catte_utf16le_to_ascii(
     CATALYST_UTF16LE utf16le,
     CATALYST_ASCIIW ascii,
-    CATALYST_NUINT capacity,
-    CATALYST_RESULT* result
+    CATALYST_NUINT capacity
 );
 ```
 
@@ -1002,8 +959,7 @@ Unrepresentable values are replaced by '?'.
 
 `utf16le` — Readable null-terminated input.  
 `ascii` — Writable destination buffer.  
-`capacity` — Destination capacity in code units, including the terminator.  
-`result` — Optional result output.
+`capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x16`
 
@@ -1024,17 +980,16 @@ Unrepresentable values are replaced by '?'.
 | `0xC1160403` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf16le_decode` operation `0x03`: Validate `consumed` (internal argument failure) |
 | `0xC1160501` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_ascii_encode` operation `0x01`: Validate `asciiw` (internal argument failure) |
 
-**C++:** `catalyst::utf16le_to_ascii(UTF16LE utf16le, ASCIIW ascii, NUINT capacity, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::utf16le_to_ascii(UTF16LE utf16le, ASCIIW ascii, NUINT capacity)`.
 
 
 #### catte_utf16le_to_cp1252
 
 ```c
-void catte_utf16le_to_cp1252(
+CATALYST_RESULT catte_utf16le_to_cp1252(
     CATALYST_UTF16LE utf16le,
     CATALYST_CP1252W cp1252w,
-    CATALYST_NUINT capacity,
-    CATALYST_RESULT* result
+    CATALYST_NUINT capacity
 );
 ```
 
@@ -1044,8 +999,7 @@ Unrepresentable values are replaced by '?'.
 
 `utf16le` — Readable null-terminated input.  
 `cp1252w` — Writable destination buffer.  
-`capacity` — Destination capacity in code units, including the terminator.  
-`result` — Optional result output.
+`capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x17`
 
@@ -1066,17 +1020,16 @@ Unrepresentable values are replaced by '?'.
 | `0xC1170403` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf16le_decode` operation `0x03`: Validate `consumed` (internal argument failure) |
 | `0xC1170501` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_cp1252_encode` operation `0x01`: Validate `cp1252w` (internal argument failure) |
 
-**C++:** `catalyst::utf16le_to_cp1252(UTF16LE utf16le, CP1252W cp1252w, NUINT capacity, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::utf16le_to_cp1252(UTF16LE utf16le, CP1252W cp1252w, NUINT capacity)`.
 
 
 #### catte_utf16le_to_utf8
 
 ```c
-void catte_utf16le_to_utf8(
+CATALYST_RESULT catte_utf16le_to_utf8(
     CATALYST_UTF16LE utf16le,
     CATALYST_UTF8W utf8w,
-    CATALYST_NUINT capacity,
-    CATALYST_RESULT* result
+    CATALYST_NUINT capacity
 );
 ```
 
@@ -1086,8 +1039,7 @@ All valid Unicode scalars are preserved.
 
 `utf16le` — Readable null-terminated input.  
 `utf8w` — Writable destination buffer.  
-`capacity` — Destination capacity in code units, including the terminator.  
-`result` — Optional result output.
+`capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x18`
 
@@ -1112,4 +1064,4 @@ All valid Unicode scalars are preserved.
 | `0xC1180507` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf8_encode` operation `0x07`: Reject surrogate codepoint (internal argument failure) |
 | `0xC118050A` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf8_encode` operation `0x0A`: Reject codepoint outside Unicode range (internal argument failure) |
 
-**C++:** `catalyst::utf16le_to_utf8(UTF16LE utf16le, UTF8W utf8w, NUINT capacity, RESULT* result)`.
+**C++:** `catalyst::RESULT catalyst::utf16le_to_utf8(UTF16LE utf16le, UTF8W utf8w, NUINT capacity)`.

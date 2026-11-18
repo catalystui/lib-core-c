@@ -2,21 +2,20 @@
 
 See [CATMMLIB conventions](../index.md#conventions) for shared requirements and result conventions.
 
-All functions return `void`. Result context, operation and detail default to zero unless indicated.
+All functions return `CATALYST_RESULT` by value. Result context, operation and detail default to zero unless indicated.
 
 ## catmm_alloc
 
 Allocates `size` zero-filled bytes and stores the address in `*memory`. The output is cleared before allocation and remains null on failure. An existing pointer is replaced without releasing its allocation.
 
 ```c
-void catmm_alloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result);
+CATALYST_RESULT catmm_alloc(void** memory, CATALYST_NUINT size);
 ```
 
 | Parameter | Description |
 | --- | --- |
 | `memory` | Receives the allocation address; cleared on failure. |
 | `size` | Requested allocation size in bytes; must be nonzero. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -33,14 +32,13 @@ Resizes the allocation at `*memory`, preserving the smaller of the original and 
 On replacement allocation or old-block release failure, the pointer value is unchanged. The replacement is released on a best-effort basis; the old allocation may no longer be usable after a release failure. On successful replacement, old pointers are invalid.
 
 ```c
-void catmm_realloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result);
+CATALYST_RESULT catmm_realloc(void** memory, CATALYST_NUINT size);
 ```
 
 | Parameter | Description |
 | --- | --- |
 | `memory` | Address of the allocation pointer; updated on success. |
 | `size` | New allocation size in bytes; zero releases a non-null allocation. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -57,13 +55,12 @@ Allocation and release results are propagated from [`catmm_alloc`](#catmm_alloc)
 Releases a live CATMMLIB allocation at its original payload address. The caller's pointer is not cleared, and the allocation metadata must be intact.
 
 ```c
-void catmm_free(void* memory, CATALYST_RESULT* result);
+CATALYST_RESULT catmm_free(void* memory);
 ```
 
 | Parameter | Description |
 | --- | --- |
 | `memory` | Address of the memory region. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |

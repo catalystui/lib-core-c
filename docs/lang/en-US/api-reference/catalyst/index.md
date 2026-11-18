@@ -612,7 +612,7 @@ Represents a result as four ordered byte fields.
 
 Results are written in this reference as `0xSSCCOODD`, where `SS`, `CC`, `OO`, and `DD` are the status, context, operation, and detail bytes, respectively. The notation expresses field significance, not a requirement to pack the fields into a native integer.
 
-Core functions that accept a final `CATALYST_RESULT* result` parameter write their result there when non-null. Passing null discards the result. A C aggregate has no automatic default initialization unless initialized by its declaration or storage duration.
+Reporting Core functions return `CATALYST_RESULT` by value (C++ wrappers return `RESULT`); callers may ignore the returned value. Non-reporting functions return their ordinary value or `void`. A C aggregate has no automatic default initialization unless initialized by its declaration or storage duration.
 
 **C++:** `catalyst::RESULT` publicly derives from this structure. See [RESULT members](#result-members).
 

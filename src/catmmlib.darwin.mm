@@ -17,28 +17,24 @@ using namespace catalyst;
 // Alloc: 01 output, 02 size, 03 page query, 04 extent, 05 rounding, 06 OS allocation, 07 success.
 // Free: 01 pointer, 02 OS release, 03 success.
 
-extern "C" void catmm_alloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result) {
+extern "C" CATALYST_RESULT catmm_alloc(void** memory, CATALYST_NUINT size) {
     // Validate, initialize parameters
     if (memory == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x01, 0x01, 0);
-        return;
+        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x01, 0x01, 0);
     }
     *memory = 0;
     if (size == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x01, 0x02, 1);
-        return;
+        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x01, 0x02, 1);
     }
 
     // Check against overflow, then allocate
     NUINT totalSize = (NUINT) sizeof(CATALYST_MEMORY_HEADER) + size;
     if (totalSize < size) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x01, 0x04, 0);
-        return;
+        return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x01, 0x04, 0);
     }
     vm_address_t address = 0;
     if (vm_allocate(mach_task_self(), &address, (vm_size_t) totalSize, VM_FLAGS_ANYWHERE) != KERN_SUCCESS) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_ALLOCATION_FAILED, 0x01, 0x06, 0);
-        return;
+        return RESULT(STATUS_CODE_ERROR_ALLOCATION_FAILED, 0x01, 0x06, 0);
     }
 
     // Initialize header and return
@@ -46,14 +42,13 @@ extern "C" void catmm_alloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT*
     header->requested_size = size;
     header->allocated_size = totalSize;
     *memory = (void*) (((BYTE*) address) + sizeof(CATALYST_MEMORY_HEADER));
-    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x07, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0, 0x07, 0);
 }
 
-extern "C" void catmm_free(void* memory, CATALYST_RESULT* result) {
+extern "C" CATALYST_RESULT catmm_free(void* memory) {
     // Validate, initialize parameters
     if (memory == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x03, 0x01, 0);
-        return;
+        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x03, 0x01, 0);
     }
 
     // Get header then deallocate
@@ -61,10 +56,9 @@ extern "C" void catmm_free(void* memory, CATALYST_RESULT* result) {
     CATALYST_MEMORY_HEADER* header = (CATALYST_MEMORY_HEADER*) (bytes - sizeof(CATALYST_MEMORY_HEADER));
     kern_return_t deallocResult = vm_deallocate(mach_task_self(), (vm_address_t) header, (vm_size_t) header->allocated_size);
     if (deallocResult != KERN_SUCCESS) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x03, 0x02, 0);
-        return;
+        return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x03, 0x02, 0);
     }
-    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
 }
 
 #endif /* TARGET_PLATFORM_DARWIN */

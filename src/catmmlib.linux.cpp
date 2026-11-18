@@ -19,23 +19,20 @@ using namespace catalyst;
 // Alloc: 01 output, 02 size, 03 page query, 04 extent, 05 rounding, 06 OS allocation, 07 success.
 // Free: 01 pointer, 02 OS release, 03 success.
 
-extern "C" void catmm_alloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT* result) {
+extern "C" CATALYST_RESULT catmm_alloc(void** memory, CATALYST_NUINT size) {
     // Validate, initialize parameters
     if (memory == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x01, 0x01, 0);
-        return;
+        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x01, 0x01, 0);
     }
     *memory = 0;
     if (size == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x01, 0x02, 1);
-        return;
+        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x01, 0x02, 1);
     }
 
     // Get system page size
     long pageSizeLong = sysconf(_SC_PAGESIZE);
     if (pageSizeLong <= 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x01, 0x03, errno > 0 && errno <= 0xFF ? (BYTE) errno : 0);
-        return;
+        return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x01, 0x03, errno > 0 && errno <= 0xFF ? (BYTE) errno : 0);
     }
 
     // Check against overflow, then allocate
@@ -43,20 +40,17 @@ extern "C" void catmm_alloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT*
     NUINT headerSize = (NUINT) sizeof(CATALYST_MEMORY_HEADER);
     NUINT totalSize = headerSize + size;
     if (totalSize < size || totalSize < headerSize) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x01, 0x04, 0);
-        return;
+        return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x01, 0x04, 0);
     }
     if (totalSize > ((NUINT) ~0) - (pageSize - 1)) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x01, 0x05, 0);
-        return;
+        return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x01, 0x05, 0);
     }
     NUINT allocatedSize = ((totalSize + pageSize - 1) / pageSize) * pageSize;
 
     // Allocate memory
     void* address = mmap(0, (size_t) allocatedSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (address == MAP_FAILED) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_ALLOCATION_FAILED, 0x01, 0x06, errno > 0 && errno <= 0xFF ? (BYTE) errno : 0);
-        return;
+        return RESULT(STATUS_CODE_ERROR_ALLOCATION_FAILED, 0x01, 0x06, errno > 0 && errno <= 0xFF ? (BYTE) errno : 0);
     }
 
     // Initialize header and return
@@ -64,24 +58,22 @@ extern "C" void catmm_alloc(void** memory, CATALYST_NUINT size, CATALYST_RESULT*
     header->requested_size = size;
     header->allocated_size = allocatedSize;
     *memory = (void*) (((BYTE*) address) + sizeof(CATALYST_MEMORY_HEADER));
-    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x07, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0, 0x07, 0);
 }
 
-extern "C" void catmm_free(void* memory, CATALYST_RESULT* result) {
+extern "C" CATALYST_RESULT catmm_free(void* memory) {
     // Validate, initialize parameters
     if (memory == 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x03, 0x01, 0);
-        return;
+        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x03, 0x01, 0);
     }
 
     // Get header then deallocate
     BYTE* bytes = (BYTE*) memory;
     CATALYST_MEMORY_HEADER* header = (CATALYST_MEMORY_HEADER*) (bytes - sizeof(CATALYST_MEMORY_HEADER));
     if (munmap((void*) header, (size_t) header->allocated_size) != 0) {
-        if (result != 0) *result = RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x03, 0x02, errno > 0 && errno <= 0xFF ? (BYTE) errno : 0);
-        return;
+        return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x03, 0x02, errno > 0 && errno <= 0xFF ? (BYTE) errno : 0);
     }
-    if (result != 0) *result = RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
 }
 
 #endif /* TARGET_PLATFORM_LINUX */

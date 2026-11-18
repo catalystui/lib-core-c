@@ -99,7 +99,7 @@ int main() {
         CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
         BYTE output[1] = { 0 };
 
-        ascii_encode(codepoint, output, &result);
+        result = ascii_encode(codepoint, output);
 
         if (
             output[0] != (BYTE) 'A' ||
@@ -116,7 +116,7 @@ int main() {
         CODEPOINT codepoint = { 0, 0, 0, (BYTE) 0x80 };
         BYTE output[1] = { 0 };
 
-        ascii_encode(codepoint, output, &result);
+        result = ascii_encode(codepoint, output);
 
         if (
             output[0] != (BYTE) '?' ||
@@ -136,7 +136,7 @@ int main() {
         BYTE input[1] = { (BYTE) 'Z' };
         CODEPOINT codepoint = { 0xFF, 0xFF, 0xFF, 0xFF };
 
-        ascii_decode(input, &codepoint, &result);
+        result = ascii_decode(input, &codepoint);
 
         if (
             codepoint.byte0 != 0 ||
@@ -159,7 +159,7 @@ int main() {
         BYTE input[] = { 'H', 'e', 'l', 'l', 'o', '\0' };
         NUINT length = 0;
 
-        ascii_length(input, &length, &result);
+        result = ascii_length(input, &length);
 
         if (
             length != 5 ||
@@ -230,7 +230,7 @@ int main() {
             codepoint.byte3 = tests[i].byte3;
             output[0] = 0;
 
-            cp1252_encode(codepoint, output, &result);
+            result = cp1252_encode(codepoint, output);
 
             if (
                 output[0] != tests[i].expectedCodeunit ||
@@ -253,7 +253,7 @@ int main() {
     {
         CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
 
-        cp1252_encode(codepoint, 0, &result);
+        result = cp1252_encode(codepoint, 0);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x04 || result.operation != 0x01 || result.detail != 0x01
@@ -325,7 +325,7 @@ int main() {
             codepoint.byte2 = 0xFF;
             codepoint.byte3 = 0xFF;
 
-            cp1252_decode(input, &codepoint, &result);
+            result = cp1252_decode(input, &codepoint);
 
             if (
                 codepoint.byte0 != tests[i].expectedByte0 ||
@@ -368,7 +368,7 @@ int main() {
     {
         CODEPOINT codepoint = { 0xFF, 0xFF, 0xFF, 0xFF };
 
-        cp1252_decode(0, &codepoint, &result);
+        result = cp1252_decode(0, &codepoint);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x05 || result.operation != 0x01 || result.detail != 0x00
@@ -383,7 +383,7 @@ int main() {
     {
         BYTE input[1] = { (BYTE) 'A' };
 
-        cp1252_decode(input, 0, &result);
+        result = cp1252_decode(input, 0);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x05 || result.operation != 0x02 || result.detail != 0x01
@@ -402,7 +402,7 @@ int main() {
         BYTE input[] = { 'H', 'e', (BYTE) 0x80, (BYTE) 0xA0, '!', '\0' };
         NUINT length = 0;
 
-        cp1252_length(input, &length, &result);
+        result = cp1252_length(input, &length);
 
         if (
             length != 5 ||
@@ -420,7 +420,7 @@ int main() {
         BYTE input[] = { '\0' };
         NUINT length = 123;
 
-        cp1252_length(input, &length, &result);
+        result = cp1252_length(input, &length);
 
         if (
             length != 0 ||
@@ -438,7 +438,7 @@ int main() {
         BYTE input[] = { 'A', '\0', 'B', '\0' };
         NUINT length = 0;
 
-        cp1252_length(input, &length, &result);
+        result = cp1252_length(input, &length);
 
         if (
             length != 1 ||
@@ -455,7 +455,7 @@ int main() {
     {
         NUINT length = 123;
 
-        cp1252_length(0, &length, &result);
+        result = cp1252_length(0, &length);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x06 || result.operation != 0x01 || result.detail != 0x00
@@ -470,7 +470,7 @@ int main() {
     {
         BYTE input[] = { 'A', '\0' };
 
-        cp1252_length(input, 0, &result);
+        result = cp1252_length(input, 0);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x06 || result.operation != 0x02 || result.detail != 0x01
@@ -528,7 +528,7 @@ int main() {
             output[3] = 0;
             produced = 123;
 
-            utf8_encode(codepoint, output, &produced, &result);
+            result = utf8_encode(codepoint, output, &produced);
 
             if (
                 output[0] != tests[i].expected0 ||
@@ -576,7 +576,7 @@ int main() {
         CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
         NUINT produced = 123;
 
-        utf8_encode(codepoint, 0, &produced, &result);
+        result = utf8_encode(codepoint, 0, &produced);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x07 || result.operation != 0x01 || result.detail != 0x01
@@ -592,7 +592,7 @@ int main() {
         CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
         BYTE output[4];
 
-        utf8_encode(codepoint, output, 0, &result);
+        result = utf8_encode(codepoint, output, 0);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x07 || result.operation != 0x02 || result.detail != 0x02
@@ -665,7 +665,7 @@ int main() {
             codepoint.byte3 = 0xFF;
             consumed = 123;
 
-            utf8_decode(input, &codepoint, &consumed, &result);
+            result = utf8_decode(input, &codepoint, &consumed);
 
             if (
                 codepoint.byte0 != tests[i].expectedByte0 ||
@@ -713,7 +713,7 @@ int main() {
         CODEPOINT codepoint = { 0xFF, 0xFF, 0xFF, 0xFF };
         NUINT consumed = 123;
 
-        utf8_decode(0, &codepoint, &consumed, &result);
+        result = utf8_decode(0, &codepoint, &consumed);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x08 || result.operation != 0x01 || result.detail != 0x00
@@ -729,7 +729,7 @@ int main() {
         BYTE input[] = { 'A', '\0' };
         NUINT consumed = 123;
 
-        utf8_decode(input, 0, &consumed, &result);
+        result = utf8_decode(input, 0, &consumed);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x08 || result.operation != 0x02 || result.detail != 0x01
@@ -745,7 +745,7 @@ int main() {
         BYTE input[] = { 'A', '\0' };
         CODEPOINT codepoint = { 0xFF, 0xFF, 0xFF, 0xFF };
 
-        utf8_decode(input, &codepoint, 0, &result);
+        result = utf8_decode(input, &codepoint, 0);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x08 || result.operation != 0x03 || result.detail != 0x02
@@ -771,7 +771,7 @@ int main() {
         };
         NUINT length = 0;
 
-        utf8_length(input, &length, &result);
+        result = utf8_length(input, &length);
 
         if (
             length != 5 ||
@@ -797,7 +797,7 @@ int main() {
         };
         NUINT length = 0;
 
-        utf8_length(input, &length, &result);
+        result = utf8_length(input, &length);
 
         if (
             length != 2 ||
@@ -822,7 +822,7 @@ int main() {
         };
         NUINT length = 123;
 
-        utf8_length(input, &length, &result);
+        result = utf8_length(input, &length);
 
         if (
             result.status != STATUS_CODE_ERROR_MALFORMED_INPUT || result.context != 0x09 || result.operation != 0x03 || result.detail != 0x0C
@@ -842,7 +842,7 @@ int main() {
     {
         NUINT length = 123;
 
-        utf8_length(0, &length, &result);
+        result = utf8_length(0, &length);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x09 || result.operation != 0x01 || result.detail != 0x00
@@ -857,7 +857,7 @@ int main() {
     {
         BYTE input[] = { 'A', '\0' };
 
-        utf8_length(input, 0, &result);
+        result = utf8_length(input, 0);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x09 || result.operation != 0x02 || result.detail != 0x01
@@ -910,7 +910,7 @@ int main() {
             output[1].lsb = 0;
             produced = 123;
 
-            utf16le_encode(codepoint, output, &produced, &result);
+            result = utf16le_encode(codepoint, output, &produced);
 
             if (
                 output[0].msb != tests[i].expected0msb ||
@@ -958,7 +958,7 @@ int main() {
         CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
         NUINT produced = 123;
 
-        utf16le_encode(codepoint, 0, &produced, &result);
+        result = utf16le_encode(codepoint, 0, &produced);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0A || result.operation != 0x01 || result.detail != 0x01
@@ -974,7 +974,7 @@ int main() {
         CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
         UTF16LE_CODE_UNIT output[2];
 
-        utf16le_encode(codepoint, output, 0, &result);
+        result = utf16le_encode(codepoint, output, 0);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0A || result.operation != 0x02 || result.detail != 0x02
@@ -1026,7 +1026,7 @@ int main() {
             codepoint.byte3 = 0xFF;
             consumed = 123;
 
-            utf16le_decode(input, &codepoint, &consumed, &result);
+            result = utf16le_decode(input, &codepoint, &consumed);
 
             if (
                 codepoint.byte0 != tests[i].expectedByte0 ||
@@ -1074,7 +1074,7 @@ int main() {
         CODEPOINT codepoint = { 0xFF, 0xFF, 0xFF, 0xFF };
         NUINT consumed = 123;
 
-        utf16le_decode(0, &codepoint, &consumed, &result);
+        result = utf16le_decode(0, &codepoint, &consumed);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0B || result.operation != 0x01 || result.detail != 0x00
@@ -1095,7 +1095,7 @@ int main() {
         input[1].msb = 0;
         input[1].lsb = 0;
 
-        utf16le_decode(input, 0, &consumed, &result);
+        result = utf16le_decode(input, 0, &consumed);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0B || result.operation != 0x02 || result.detail != 0x01
@@ -1116,7 +1116,7 @@ int main() {
         input[1].msb = 0;
         input[1].lsb = 0;
 
-        utf16le_decode(input, &codepoint, 0, &result);
+        result = utf16le_decode(input, &codepoint, 0);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0B || result.operation != 0x03 || result.detail != 0x02
@@ -1144,7 +1144,7 @@ int main() {
         input[6].msb = 0x00; input[6].lsb = 0x00; // NUL
         input[7].msb = 0x00; input[7].lsb = 0x00;
 
-        utf16le_length(input, &length, &result);
+        result = utf16le_length(input, &length);
 
         if (
             length != 4 ||
@@ -1171,7 +1171,7 @@ int main() {
         input[3].msb = 0xDE; input[3].lsb = 0x00; // U+1F600 low
         input[4].msb = 0x00; input[4].lsb = 0x00; // NUL
 
-        utf16le_length(input, &length, &result);
+        result = utf16le_length(input, &length);
 
         if (
             length != 2 ||
@@ -1196,7 +1196,7 @@ int main() {
         input[1].msb = 0xD8; input[1].lsb = 0x3D; // high surrogate without valid low surrogate
         input[2].msb = 0x00; input[2].lsb = 0x00;
 
-        utf16le_length(input, &length, &result);
+        result = utf16le_length(input, &length);
 
         if (
             result.status != STATUS_CODE_ERROR_MALFORMED_INPUT || result.context != 0x0C || result.operation != 0x03 || result.detail != 0x07
@@ -1216,7 +1216,7 @@ int main() {
     {
         NUINT length = 123;
 
-        utf16le_length(0, &length, &result);
+        result = utf16le_length(0, &length);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0C || result.operation != 0x01 || result.detail != 0x00
@@ -1236,7 +1236,7 @@ int main() {
         input[1].msb = 0;
         input[1].lsb = 0;
 
-        utf16le_length(input, 0, &result);
+        result = utf16le_length(input, 0);
 
         if (
             result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0C || result.operation != 0x02 || result.detail != 0x01
@@ -1260,7 +1260,7 @@ int main() {
         output[2] = 0;
         output[3] = 0;
 
-        ascii_to_cp1252(input, output, &result);
+        result = ascii_to_cp1252(input, output);
 
         if (
             output[0] != 'A' ||
@@ -1285,7 +1285,7 @@ int main() {
         output[2] = 0;
         output[3] = 0;
 
-        ascii_to_cp1252(input, output, &result);
+        result = ascii_to_cp1252(input, output);
 
         if (
             output[0] != 'A' ||
@@ -1304,7 +1304,7 @@ int main() {
     {
         BYTE output[4];
 
-        ascii_to_cp1252(0, output, &result);
+        result = ascii_to_cp1252(0, output);
 
         if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0D || result.operation != 0x01 || result.detail != 0x00) {
             std::printf("FAIL: catte_ascii_to_cp1252 null input\n");
@@ -1317,7 +1317,7 @@ int main() {
     {
         BYTE input[] = { 'A', '\0' };
 
-        ascii_to_cp1252(input, 0, &result);
+        result = ascii_to_cp1252(input, 0);
 
         if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0D || result.operation != 0x02 || result.detail != 0x01) {
             std::printf("FAIL: catte_ascii_to_cp1252 null output\n");
@@ -1339,7 +1339,7 @@ int main() {
         output[2] = 0;
         output[3] = 0;
 
-        ascii_to_utf8(input, output, 4, &result);
+        result = ascii_to_utf8(input, output, 4);
 
         if (
             output[0] != 'A' ||
@@ -1359,7 +1359,7 @@ int main() {
         BYTE input[] = { 'A', (BYTE) 0x80u, 'B', '\0' };
         BYTE output[4];
 
-        ascii_to_utf8(input, output, 4, &result);
+        result = ascii_to_utf8(input, output, 4);
 
         if (
             output[0] != 'A' ||
@@ -1379,7 +1379,7 @@ int main() {
         BYTE input[] = { 'A', 'B', '\0' };
         BYTE output[2];
 
-        ascii_to_utf8(input, output, 2, &result);
+        result = ascii_to_utf8(input, output, 2);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x0E || result.operation != 0x04 || result.detail != 0) {
             std::printf("FAIL: catte_ascii_to_utf8 buffer overflow\n");
@@ -1393,7 +1393,7 @@ int main() {
         BYTE input[] = { 'A', '\0' };
         BYTE output[2];
 
-        ascii_to_utf8(0, output, 2, &result);
+        result = ascii_to_utf8(0, output, 2);
 
         if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0E || result.operation != 0x01 || result.detail != 0x00) {
             std::printf("FAIL: catte_ascii_to_utf8 null input\n");
@@ -1402,7 +1402,7 @@ int main() {
             std::printf("PASS: catte_ascii_to_utf8 null input -> invalid argument detail 0\n");
         }
 
-        ascii_to_utf8(input, 0, 2, &result);
+        result = ascii_to_utf8(input, 0, 2);
 
         if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0E || result.operation != 0x02 || result.detail != 0x01) {
             std::printf("FAIL: catte_ascii_to_utf8 null output\n");
@@ -1411,7 +1411,7 @@ int main() {
             std::printf("PASS: catte_ascii_to_utf8 null output -> invalid argument detail 1\n");
         }
 
-        ascii_to_utf8(input, output, 0, &result);
+        result = ascii_to_utf8(input, output, 0);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x0E || result.operation != 0x03 || result.detail != 0) {
             std::printf("FAIL: catte_ascii_to_utf8 zero capacity\n");
@@ -1428,7 +1428,7 @@ int main() {
         BYTE input[] = { 'A', 'B', '\0' };
         UTF16LE_CODE_UNIT output[3];
 
-        ascii_to_utf16le(input, output, 3, &result);
+        result = ascii_to_utf16le(input, output, 3);
 
         if (
             output[0].msb != 0x00 || output[0].lsb != 'A' ||
@@ -1447,7 +1447,7 @@ int main() {
         BYTE input[] = { 'A', (BYTE) 0x80u, '\0' };
         UTF16LE_CODE_UNIT output[3];
 
-        ascii_to_utf16le(input, output, 3, &result);
+        result = ascii_to_utf16le(input, output, 3);
 
         if (
             output[0].msb != 0x00 || output[0].lsb != 'A' ||
@@ -1466,7 +1466,7 @@ int main() {
         BYTE input[] = { 'A', 'B', '\0' };
         UTF16LE_CODE_UNIT output[2];
 
-        ascii_to_utf16le(input, output, 2, &result);
+        result = ascii_to_utf16le(input, output, 2);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x0F || result.operation != 0x04 || result.detail != 0) {
             std::printf("FAIL: catte_ascii_to_utf16le buffer overflow\n");
@@ -1483,7 +1483,7 @@ int main() {
         BYTE input[] = { 'A', (BYTE) 0x80u, (BYTE) 0x81u, '\0' };
         BYTE output[4];
 
-        cp1252_to_ascii(input, output, &result);
+        result = cp1252_to_ascii(input, output);
 
         if (
             output[0] != 'A' ||
@@ -1502,7 +1502,7 @@ int main() {
     {
         BYTE output[2];
 
-        cp1252_to_ascii(0, output, &result);
+        result = cp1252_to_ascii(0, output);
 
         if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x10 || result.operation != 0x01 || result.detail != 0x00) {
             std::printf("FAIL: catte_cp1252_to_ascii null input\n");
@@ -1515,7 +1515,7 @@ int main() {
     {
         BYTE input[] = { 'A', '\0' };
 
-        cp1252_to_ascii(input, 0, &result);
+        result = cp1252_to_ascii(input, 0);
 
         if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x10 || result.operation != 0x02 || result.detail != 0x01) {
             std::printf("FAIL: catte_cp1252_to_ascii null output\n");
@@ -1532,7 +1532,7 @@ int main() {
         BYTE input[] = { 'A', (BYTE) 0x80u, (BYTE) 0x81u, '\0' };
         BYTE output[8];
 
-        cp1252_to_utf8(input, output, 8, &result);
+        result = cp1252_to_utf8(input, output, 8);
 
         if (
             output[0] != 'A' ||
@@ -1554,7 +1554,7 @@ int main() {
         BYTE input[] = { (BYTE) 0x80u, '\0' };
         BYTE output[3];
 
-        cp1252_to_utf8(input, output, 3, &result);
+        result = cp1252_to_utf8(input, output, 3);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x11 || result.operation != 0x06 || result.detail != 0) {
             std::printf("FAIL: catte_cp1252_to_utf8 buffer overflow\n");
@@ -1571,7 +1571,7 @@ int main() {
         BYTE input[] = { 'A', (BYTE) 0x80u, (BYTE) 0x81u, '\0' };
         UTF16LE_CODE_UNIT output[4];
 
-        cp1252_to_utf16le(input, output, 4, &result);
+        result = cp1252_to_utf16le(input, output, 4);
 
         if (
             output[0].msb != 0x00 || output[0].lsb != 'A' ||
@@ -1591,7 +1591,7 @@ int main() {
         BYTE input[] = { 'A', 'B', '\0' };
         UTF16LE_CODE_UNIT output[2];
 
-        cp1252_to_utf16le(input, output, 2, &result);
+        result = cp1252_to_utf16le(input, output, 2);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x12 || result.operation != 0x06 || result.detail != 0) {
             std::printf("FAIL: catte_cp1252_to_utf16le buffer overflow\n");
@@ -1614,7 +1614,7 @@ int main() {
         };
         BYTE output[4];
 
-        utf8_to_ascii(input, output, 4, &result);
+        result = utf8_to_ascii(input, output, 4);
 
         if (
             output[0] != 'A' ||
@@ -1634,7 +1634,7 @@ int main() {
         BYTE input[] = { 'A', 'B', '\0' };
         BYTE output[2];
 
-        utf8_to_ascii(input, output, 2, &result);
+        result = utf8_to_ascii(input, output, 2);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x13 || result.operation != 0x06 || result.detail != 0) {
             std::printf("FAIL: catte_utf8_to_ascii buffer overflow\n");
@@ -1657,7 +1657,7 @@ int main() {
         };
         BYTE output[4];
 
-        utf8_to_cp1252(input, output, 4, &result);
+        result = utf8_to_cp1252(input, output, 4);
 
         if (
             output[0] != 'A' ||
@@ -1677,7 +1677,7 @@ int main() {
         BYTE input[] = { 'A', 'B', '\0' };
         BYTE output[2];
 
-        utf8_to_cp1252(input, output, 2, &result);
+        result = utf8_to_cp1252(input, output, 2);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x14 || result.operation != 0x06 || result.detail != 0) {
             std::printf("FAIL: catte_utf8_to_cp1252 buffer overflow\n");
@@ -1701,7 +1701,7 @@ int main() {
         };
         UTF16LE_CODE_UNIT output[7];
 
-        utf8_to_utf16le(input, output, 7, &result);
+        result = utf8_to_utf16le(input, output, 7);
 
         if (
             output[0].msb != 0x00 || output[0].lsb != 'A' ||
@@ -1727,7 +1727,7 @@ int main() {
         };
         UTF16LE_CODE_UNIT output[2];
 
-        utf8_to_utf16le(input, output, 2, &result);
+        result = utf8_to_utf16le(input, output, 2);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x15 || result.operation != 0x06 || result.detail != 0) {
             std::printf("FAIL: catte_utf8_to_utf16le buffer overflow\n");
@@ -1751,7 +1751,7 @@ int main() {
         input[4].msb = 0xDE; input[4].lsb = 0x00;
         input[5].msb = 0x00; input[5].lsb = 0x00;
 
-        utf16le_to_ascii(input, output, 4, &result);
+        result = utf16le_to_ascii(input, output, 4);
 
         if (
             output[0] != 'A' ||
@@ -1775,7 +1775,7 @@ int main() {
         input[1].msb = 0x00; input[1].lsb = 'B';
         input[2].msb = 0x00; input[2].lsb = 0x00;
 
-        utf16le_to_ascii(input, output, 2, &result);
+        result = utf16le_to_ascii(input, output, 2);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x16 || result.operation != 0x06 || result.detail != 0) {
             std::printf("FAIL: catte_utf16le_to_ascii buffer overflow\n");
@@ -1799,7 +1799,7 @@ int main() {
         input[4].msb = 0xDE; input[4].lsb = 0x00;
         input[5].msb = 0x00; input[5].lsb = 0x00;
 
-        utf16le_to_cp1252(input, output, 4, &result);
+        result = utf16le_to_cp1252(input, output, 4);
 
         if (
             output[0] != 'A' ||
@@ -1823,7 +1823,7 @@ int main() {
         input[1].msb = 0x00; input[1].lsb = 'B';
         input[2].msb = 0x00; input[2].lsb = 0x00;
 
-        utf16le_to_cp1252(input, output, 2, &result);
+        result = utf16le_to_cp1252(input, output, 2);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x17 || result.operation != 0x06 || result.detail != 0) {
             std::printf("FAIL: catte_utf16le_to_cp1252 buffer overflow\n");
@@ -1859,7 +1859,7 @@ int main() {
             terminated[7].msb = 0x00;
             terminated[7].lsb = 0x00;
 
-            utf16le_to_utf8(terminated, output, 13, &result);
+            result = utf16le_to_utf8(terminated, output, 13);
         }
 
         if (
@@ -1893,7 +1893,7 @@ int main() {
         input[1].msb = 0xDE; input[1].lsb = 0x00;
         input[2].msb = 0x00; input[2].lsb = 0x00;
 
-        utf16le_to_utf8(input, output, 4, &result);
+        result = utf16le_to_utf8(input, output, 4);
 
         if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x18 || result.operation != 0x06 || result.detail != 0) {
             std::printf("FAIL: catte_utf16le_to_utf8 buffer overflow\n");
@@ -1914,7 +1914,7 @@ int main() {
         };
         BYTE output[4];
 
-        utf8_to_ascii(input, output, 4, &result);
+        result = utf8_to_ascii(input, output, 4);
 
         if (
             result.status != STATUS_CODE_ERROR_MALFORMED_INPUT || result.context != 0x13 || result.operation != 0x04 || result.detail != 0x0C
@@ -1938,7 +1938,7 @@ int main() {
         };
         BYTE output[4];
 
-        utf8_to_cp1252(input, output, 4, &result);
+        result = utf8_to_cp1252(input, output, 4);
 
         if (
             result.status != STATUS_CODE_ERROR_MALFORMED_INPUT || result.context != 0x14 || result.operation != 0x04 || result.detail != 0x0C
@@ -1962,7 +1962,7 @@ int main() {
         };
         UTF16LE_CODE_UNIT output[4];
 
-        utf8_to_utf16le(input, output, 4, &result);
+        result = utf8_to_utf16le(input, output, 4);
 
         if (
             result.status != STATUS_CODE_ERROR_MALFORMED_INPUT || result.context != 0x15 || result.operation != 0x04 || result.detail != 0x0C
@@ -1987,7 +1987,7 @@ int main() {
         input[1].msb = 0x00; input[1].lsb = 'A';  // invalid low surrogate
         input[2].msb = 0x00; input[2].lsb = 0x00;
 
-        utf16le_to_ascii(input, output, 4, &result);
+        result = utf16le_to_ascii(input, output, 4);
 
         if (
             result.status != STATUS_CODE_ERROR_MALFORMED_INPUT || result.context != 0x16 || result.operation != 0x04 || result.detail != 0x07
@@ -2012,7 +2012,7 @@ int main() {
         input[1].msb = 0x00; input[1].lsb = 'A';  // invalid low surrogate
         input[2].msb = 0x00; input[2].lsb = 0x00;
 
-        utf16le_to_cp1252(input, output, 4, &result);
+        result = utf16le_to_cp1252(input, output, 4);
 
         if (
             result.status != STATUS_CODE_ERROR_MALFORMED_INPUT || result.context != 0x17 || result.operation != 0x04 || result.detail != 0x07
@@ -2037,7 +2037,7 @@ int main() {
         input[1].msb = 0x00; input[1].lsb = 'A';  // invalid low surrogate
         input[2].msb = 0x00; input[2].lsb = 0x00;
 
-        utf16le_to_utf8(input, output, 4, &result);
+        result = utf16le_to_utf8(input, output, 4);
 
         if (
             result.status != STATUS_CODE_ERROR_MALFORMED_INPUT || result.context != 0x18 || result.operation != 0x04 || result.detail != 0x07
@@ -2057,12 +2057,12 @@ int main() {
     {
         CODEPOINT codepoint = { 0, 0, 0, 0 };
         BYTE output[1] = { 0xFF };
-        ascii_encode(codepoint, output, &result);
+        result = ascii_encode(codepoint, output);
         if (output[0] != 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x03 || result.detail != 0) failed++;
-        ascii_encode(codepoint, 0, &result);
+        result = ascii_encode(codepoint, 0);
         if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x01 || result.operation != 0x01 || result.detail != 1) failed++;
         output[0] = 0xFF;
-        ascii_encode(codepoint, output, 0);
+        ascii_encode(codepoint, output);
         if (output[0] != 0) failed++;
     }
 

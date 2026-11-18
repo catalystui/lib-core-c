@@ -1,10 +1,10 @@
 # Memory management (CATMMLIB)
 
-Headers: `catmmlib.h` and `catmmlib.hpp`. Link CATMMLIB. The C++ wrappers have the same behavior and accept `catalyst::RESULT*`.
+Headers: `catmmlib.h` and `catmmlib.hpp`. Link CATMMLIB. The C++ wrappers have the same behavior and return `catalyst::RESULT` by value.
 
 ## Conventions
 
-- All sizes are byte counts. `result` may be null; all other pointer parameters must be non-null, even for zero-length byte operations.
+- All sizes are byte counts. Pointer parameters must be non-null, even for zero-length byte operations.
 - Allocation returns zero-filled payloads; use only the requested extent. The payload is not the original page-aligned allocation base; no adjustable or over-alignment guarantee is provided.
 - Release only live CATMMLIB allocations, through the same allocator backend. Foreign pointers, repeated frees and access during release are outside the contract.
 - Copy, move, compare and set operate on any valid readable/writable byte storage, not just CATMMLIB allocations. They do not check capacity or allocate memory.

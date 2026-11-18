@@ -9,120 +9,120 @@ typedef ::CATALYST_SET SET;
 typedef ::CATALYST_MAP MAP;
 typedef ::CATALYST_STACK STACK;
 
-inline void array_create(ARRAY** array, NUINT element_size, NUINT length, RESULT* result) {
-    ::catrl_array_create(array, element_size, length, result);
+inline RESULT array_create(ARRAY** array, NUINT element_size, NUINT length) {
+    return ::catrl_array_create(array, element_size, length);
 }
 
-inline void array_destroy(ARRAY* array, RESULT* result) {
-    ::catrl_array_destroy(array, result);
+inline RESULT array_destroy(ARRAY* array) {
+    return ::catrl_array_destroy(array);
 }
 
-inline void array_get(const ARRAY* array, NUINT index, void* value, RESULT* result) {
-    ::catrl_array_get(array, index, value, result);
+inline RESULT array_get(const ARRAY* array, NUINT index, void* value) {
+    return ::catrl_array_get(array, index, value);
 }
 
-inline void array_set(ARRAY* array, NUINT index, const void* value, RESULT* result) {
-    ::catrl_array_set(array, index, value, result);
+inline RESULT array_set(ARRAY* array, NUINT index, const void* value) {
+    return ::catrl_array_set(array, index, value);
 }
 
-inline void array_length(const ARRAY* array, NUINT* length, RESULT* result) {
-    ::catrl_array_length(array, length, result);
+inline RESULT array_length(const ARRAY* array, NUINT* length) {
+    return ::catrl_array_length(array, length);
 }
 
-inline void set_create(SET** set, NUINT element_size, RESULT* result) {
-    ::catrl_set_create(set, element_size, result);
+inline RESULT set_create(SET** set, NUINT element_size) {
+    return ::catrl_set_create(set, element_size);
 }
 
-inline void set_destroy(SET* set, RESULT* result) {
-    ::catrl_set_destroy(set, result);
+inline RESULT set_destroy(SET* set) {
+    return ::catrl_set_destroy(set);
 }
 
-inline void set_add(SET* set, const void* value, RESULT* result) {
-    ::catrl_set_add(set, value, result);
+inline RESULT set_add(SET* set, const void* value) {
+    return ::catrl_set_add(set, value);
 }
 
-inline void set_remove(SET* set, const void* value, RESULT* result) {
-    ::catrl_set_remove(set, value, result);
+inline RESULT set_remove(SET* set, const void* value) {
+    return ::catrl_set_remove(set, value);
 }
 
-inline void set_contains(const SET* set, const void* value, BOOL* contains, RESULT* result) {
-    ::catrl_set_contains(set, value, contains, result);
+inline RESULT set_contains(const SET* set, const void* value, BOOL* contains) {
+    return ::catrl_set_contains(set, value, contains);
 }
 
-inline void set_count(const SET* set, NUINT* count, RESULT* result) {
-    ::catrl_set_count(set, count, result);
+inline RESULT set_count(const SET* set, NUINT* count) {
+    return ::catrl_set_count(set, count);
 }
 
-inline void set_at(const SET* set, NUINT index, void* value, RESULT* result) {
-    ::catrl_set_at(set, index, value, result);
+inline RESULT set_at(const SET* set, NUINT index, void* value) {
+    return ::catrl_set_at(set, index, value);
 }
 
-inline void set_clear(SET* set, RESULT* result) {
-    ::catrl_set_clear(set, result);
+inline RESULT set_clear(SET* set) {
+    return ::catrl_set_clear(set);
 }
 
-inline void map_create(MAP** map, NUINT key_size, NUINT value_size, RESULT* result) {
-    ::catrl_map_create(map, key_size, value_size, result);
+inline RESULT map_create(MAP** map, NUINT key_size, NUINT value_size) {
+    return ::catrl_map_create(map, key_size, value_size);
 }
 
-inline void map_destroy(MAP* map, RESULT* result) {
-    ::catrl_map_destroy(map, result);
+inline RESULT map_destroy(MAP* map) {
+    return ::catrl_map_destroy(map);
 }
 
-inline void map_get(const MAP* map, const void* key, void* value, RESULT* result) {
-    ::catrl_map_get(map, key, value, result);
+inline RESULT map_get(const MAP* map, const void* key, void* value) {
+    return ::catrl_map_get(map, key, value);
 }
 
-inline void map_set(MAP* map, const void* key, const void* value, RESULT* result) {
-    ::catrl_map_set(map, key, value, result);
+inline RESULT map_set(MAP* map, const void* key, const void* value) {
+    return ::catrl_map_set(map, key, value);
 }
 
-inline void map_remove(MAP* map, const void* key, RESULT* result) {
-    ::catrl_map_remove(map, key, result);
+inline RESULT map_remove(MAP* map, const void* key) {
+    return ::catrl_map_remove(map, key);
 }
 
-inline void map_contains(const MAP* map, const void* key, BOOL* contains, RESULT* result) {
-    ::catrl_map_contains(map, key, contains, result);
+inline RESULT map_contains(const MAP* map, const void* key, BOOL* contains) {
+    return ::catrl_map_contains(map, key, contains);
 }
 
-inline void map_count(const MAP* map, NUINT* count, RESULT* result) {
-    ::catrl_map_count(map, count, result);
+inline RESULT map_count(const MAP* map, NUINT* count) {
+    return ::catrl_map_count(map, count);
 }
 
-inline void map_at(const MAP* map, NUINT index, void* key, void* value, RESULT* result) {
-    ::catrl_map_at(map, index, key, value, result);
+inline RESULT map_at(const MAP* map, NUINT index, void* key, void* value) {
+    return ::catrl_map_at(map, index, key, value);
 }
 
-inline void map_clear(MAP* map, RESULT* result) {
-    ::catrl_map_clear(map, result);
+inline RESULT map_clear(MAP* map) {
+    return ::catrl_map_clear(map);
 }
 
-inline void stack_create(STACK** stack, NUINT element_size, RESULT* result) {
-    ::catrl_stack_create(stack, element_size, result);
+inline RESULT stack_create(STACK** stack, NUINT element_size) {
+    return ::catrl_stack_create(stack, element_size);
 }
 
-inline void stack_destroy(STACK* stack, RESULT* result) {
-    ::catrl_stack_destroy(stack, result);
+inline RESULT stack_destroy(STACK* stack) {
+    return ::catrl_stack_destroy(stack);
 }
 
-inline void stack_push(STACK* stack, const void* value, RESULT* result) {
-    ::catrl_stack_push(stack, value, result);
+inline RESULT stack_push(STACK* stack, const void* value) {
+    return ::catrl_stack_push(stack, value);
 }
 
-inline void stack_pop(STACK* stack, void* value, RESULT* result) {
-    ::catrl_stack_pop(stack, value, result);
+inline RESULT stack_pop(STACK* stack, void* value) {
+    return ::catrl_stack_pop(stack, value);
 }
 
-inline void stack_peek(const STACK* stack, void* value, RESULT* result) {
-    ::catrl_stack_peek(stack, value, result);
+inline RESULT stack_peek(const STACK* stack, void* value) {
+    return ::catrl_stack_peek(stack, value);
 }
 
-inline void stack_count(const STACK* stack, NUINT* count, RESULT* result) {
-    ::catrl_stack_count(stack, count, result);
+inline RESULT stack_count(const STACK* stack, NUINT* count) {
+    return ::catrl_stack_count(stack, count);
 }
 
-inline void stack_clear(STACK* stack, RESULT* result) {
-    ::catrl_stack_clear(stack, result);
+inline RESULT stack_clear(STACK* stack) {
+    return ::catrl_stack_clear(stack);
 }
 
 } /* namespace catalyst */

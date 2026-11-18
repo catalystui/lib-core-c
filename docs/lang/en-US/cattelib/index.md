@@ -4,7 +4,7 @@ Headers: `cattelib.h`, `cattelib.hpp`. Link CATTELIB. The codepoint, code-unit, 
 
 ## Conventions
 
-- All functions return void; `result` may be null. All other pointer arguments require valid readable or writable storage.
+- All functions return `CATALYST_RESULT` by value. All pointer arguments require valid readable or writable storage.
 - Encode/decode process one codepoint, including U+0000. They neither append a separate terminator nor skip a BOM.
 - `produced` counts destination code units; `consumed` counts source code units. UTF-16LE counts two-byte code units, not bytes.
 - Encoders require up to four UTF-8 units or two UTF-16LE units of writable storage. Decoders read the sequence width selected by the leading unit, even for malformed input. Supply that many readable units, including any padding needed beyond a truncated sequence. No input-size parameter or bounds discovery is provided.

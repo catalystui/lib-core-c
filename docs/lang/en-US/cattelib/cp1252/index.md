@@ -2,21 +2,20 @@
 
 See [CATTELIB conventions](../index.md#conventions) for buffer requirements and result conventions.
 
-All functions return `void`. Result context, operation and detail default to zero unless indicated.
+All functions return `CATALYST_RESULT` by value. Result context, operation and detail default to zero unless indicated.
 
 ## catte_cp1252_encode
 
 Encodes one codepoint as Windows-1252. Unrepresentable codepoints are replaced with `?`.
 
 ```c
-void catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp1252w, CATALYST_RESULT* result);
+CATALYST_RESULT catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp1252w);
 ```
 
 | Parameter | Description |
 | --- | --- |
 | `codepoint` | Codepoint to encode. |
 | `cp1252w` | Writable buffer for one code unit. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -29,14 +28,13 @@ void catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp
 Decodes one Windows-1252 code unit. Undefined bytes (`0x81`, `0x8D`, `0x8F`, `0x90`, `0x9D`) are replaced with U+003F (`?`).
 
 ```c
-void catte_cp1252_decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* codepoint, CATALYST_RESULT* result);
+CATALYST_RESULT catte_cp1252_decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* codepoint);
 ```
 
 | Parameter | Description |
 | --- | --- |
 | `cp1252` | Readable input containing one code unit. |
 | `codepoint` | Receives the decoded codepoint. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -49,14 +47,13 @@ void catte_cp1252_decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* codepoint, 
 Counts the code units in a null-terminated Windows-1252 string, excluding the terminator. Undefined bytes are counted without warning. `length` is written only on success.
 
 ```c
-void catte_cp1252_length(CATALYST_CP1252 cp1252, CATALYST_NUINT* length, CATALYST_RESULT* result);
+CATALYST_RESULT catte_cp1252_length(CATALYST_CP1252 cp1252, CATALYST_NUINT* length);
 ```
 
 | Parameter | Description |
 | --- | --- |
 | `cp1252` | Readable null-terminated input. |
 | `length` | Receives the number of code units before the terminator. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |

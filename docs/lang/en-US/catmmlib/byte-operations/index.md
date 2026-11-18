@@ -2,14 +2,14 @@
 
 See [CATMMLIB conventions](../index.md#conventions) for shared requirements and result conventions.
 
-All functions return `void`. Result context, operation and detail default to zero unless indicated.
+All functions return `CATALYST_RESULT` by value. Result context, operation and detail default to zero unless indicated.
 
 ## catmm_copy
 
 Copies `size` bytes from `source` to `destination`. The regions must not overlap unless both pointers are identical.
 
 ```c
-void catmm_copy(void* destination, const void* source, CATALYST_NUINT size, CATALYST_RESULT* result);
+CATALYST_RESULT catmm_copy(void* destination, const void* source, CATALYST_NUINT size);
 ```
 
 | Parameter | Description |
@@ -17,7 +17,6 @@ void catmm_copy(void* destination, const void* source, CATALYST_NUINT size, CATA
 | `destination` | Writable destination region. |
 | `source` | Readable source region. |
 | `size` | Number of bytes to process. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -30,7 +29,7 @@ void catmm_copy(void* destination, const void* source, CATALYST_NUINT size, CATA
 Copies `size` bytes from `source` to `destination`, preserving the original source bytes even when the regions overlap.
 
 ```c
-void catmm_move(void* destination, const void* source, CATALYST_NUINT size, CATALYST_RESULT* result);
+CATALYST_RESULT catmm_move(void* destination, const void* source, CATALYST_NUINT size);
 ```
 
 | Parameter | Description |
@@ -38,7 +37,6 @@ void catmm_move(void* destination, const void* source, CATALYST_NUINT size, CATA
 | `destination` | Writable destination region. |
 | `source` | Readable source region. |
 | `size` | Number of bytes to process. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -51,7 +49,7 @@ void catmm_move(void* destination, const void* source, CATALYST_NUINT size, CATA
 Compares `size` unsigned bytes lexicographically and writes −1, 0, or 1 to `*comparison` according to whether the first region precedes, equals, or follows the second. Empty regions and identical addresses compare equal. The output must not overlap either input region.
 
 ```c
-void catmm_compare(const void* first, const void* second, CATALYST_NUINT size, CATALYST_SBYTE* comparison, CATALYST_RESULT* result);
+CATALYST_RESULT catmm_compare(const void* first, const void* second, CATALYST_NUINT size, CATALYST_SBYTE* comparison);
 ```
 
 | Parameter | Description |
@@ -60,7 +58,6 @@ void catmm_compare(const void* first, const void* second, CATALYST_NUINT size, C
 | `second` | Second readable region. |
 | `size` | Number of bytes to process. |
 | `comparison` | Receives −1, 0, or 1. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |
@@ -74,7 +71,7 @@ Invalid arguments leave the comparison output unchanged.
 Fills the `size`-byte region at `memory` with `value`.
 
 ```c
-void catmm_set(void* memory, CATALYST_BYTE value, CATALYST_NUINT size, CATALYST_RESULT* result);
+CATALYST_RESULT catmm_set(void* memory, CATALYST_BYTE value, CATALYST_NUINT size);
 ```
 
 | Parameter | Description |
@@ -82,7 +79,6 @@ void catmm_set(void* memory, CATALYST_BYTE value, CATALYST_NUINT size, CATALYST_
 | `memory` | Address of the memory region. |
 | `value` | Byte to write throughout the region. |
 | `size` | Number of bytes to process. |
-| `result` | Optional result output. |
 
 | Status | Meaning |
 | --- | --- |

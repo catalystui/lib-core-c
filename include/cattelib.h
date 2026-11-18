@@ -19,76 +19,76 @@ extern "C" {
 #endif
 
 /** Encode one codepoint as ASCII, substituting '?' if unrepresentable. */
-CATTELIB_API void catte_ascii_encode(const CATALYST_CODEPOINT codepoint, CATALYST_ASCIIW asciiw, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_ascii_encode(const CATALYST_CODEPOINT codepoint, CATALYST_ASCIIW asciiw);
 
 /** Decode one ASCII unit without validating its range. */
-CATTELIB_API void catte_ascii_decode(CATALYST_ASCII ascii, CATALYST_CODEPOINT* codepoint, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_ascii_decode(CATALYST_ASCII ascii, CATALYST_CODEPOINT* codepoint);
 
 /** Count nonzero ASCII units before the terminator. */
-CATTELIB_API void catte_ascii_length(CATALYST_ASCII ascii, CATALYST_NUINT* length, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_ascii_length(CATALYST_ASCII ascii, CATALYST_NUINT* length);
 
 /** Encode one codepoint as CP1252, substituting '?' if unrepresentable. */
-CATTELIB_API void catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp1252w, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp1252w);
 
 /** Decode one CP1252 unit, substituting '?' for undefined bytes. */
-CATTELIB_API void catte_cp1252_decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* codepoint, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_cp1252_decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* codepoint);
 
 /** Count nonzero CP1252 units before the terminator. */
-CATTELIB_API void catte_cp1252_length(CATALYST_CP1252 cp1252, CATALYST_NUINT* length, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_cp1252_length(CATALYST_CP1252 cp1252, CATALYST_NUINT* length);
 
 /** Encode one Unicode scalar into UTF-8; output must hold four code units. */
-CATTELIB_API void catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, CATALYST_NUINT* produced, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, CATALYST_NUINT* produced);
 
 /** Decode one UTF-8 scalar; input must hold its full sequence. */
-CATTELIB_API void catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed);
 
 /** Count decoded scalars in terminated UTF-8, excluding a leading BOM. */
-CATTELIB_API void catte_utf8_length(CATALYST_UTF8 utf8, CATALYST_NUINT* length, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_utf8_length(CATALYST_UTF8 utf8, CATALYST_NUINT* length);
 
 /** Encode one Unicode scalar into UTF-16LE; output must hold two code units. */
-CATTELIB_API void catte_utf16le_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT* produced, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_utf16le_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT* produced);
 
 /** Decode one UTF-16LE scalar; input must hold its full sequence. */
-CATTELIB_API void catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed);
 
 /** Count decoded scalars in terminated UTF-16LE, excluding a leading BOM. */
-CATTELIB_API void catte_utf16le_length(CATALYST_UTF16LE utf16le, CATALYST_NUINT* length, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_utf16le_length(CATALYST_UTF16LE utf16le, CATALYST_NUINT* length);
 
 /** Convert a terminated ASCII string to CP1252. Destination must hold source length plus one unit. */
-CATTELIB_API void catte_ascii_to_cp1252(CATALYST_ASCII ascii, CATALYST_CP1252W cp1252w, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_ascii_to_cp1252(CATALYST_ASCII ascii, CATALYST_CP1252W cp1252w);
 
 /** Convert a terminated ASCII string to UTF-8. Capacity includes the destination terminator. */
-CATTELIB_API void catte_ascii_to_utf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_ascii_to_utf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity);
 
 /** Convert a terminated ASCII string to UTF-16LE. Capacity includes the destination terminator. */
-CATTELIB_API void catte_ascii_to_utf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_ascii_to_utf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity);
 
 /** Convert a terminated CP1252 string to ASCII. Destination must hold source length plus one unit. */
-CATTELIB_API void catte_cp1252_to_ascii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW ascii, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_cp1252_to_ascii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW ascii);
 
 /** Convert a terminated CP1252 string to UTF-8. Capacity includes the destination terminator. */
-CATTELIB_API void catte_cp1252_to_utf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_cp1252_to_utf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity);
 
 /** Convert a terminated CP1252 string to UTF-16LE. Capacity includes the destination terminator. */
-CATTELIB_API void catte_cp1252_to_utf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_cp1252_to_utf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity);
 
 /** Convert a terminated UTF-8 string to ASCII. Capacity includes the destination terminator. */
-CATTELIB_API void catte_utf8_to_ascii(CATALYST_UTF8 utf8, CATALYST_ASCIIW ascii, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_utf8_to_ascii(CATALYST_UTF8 utf8, CATALYST_ASCIIW ascii, CATALYST_NUINT capacity);
 
 /** Convert a terminated UTF-8 string to CP1252. Capacity includes the destination terminator. */
-CATTELIB_API void catte_utf8_to_cp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_utf8_to_cp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity);
 
 /** Convert a terminated UTF-8 string to UTF-16LE. Capacity includes the destination terminator. */
-CATTELIB_API void catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity);
 
 /** Convert a terminated UTF-16LE string to ASCII. Capacity includes the destination terminator. */
-CATTELIB_API void catte_utf16le_to_ascii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW ascii, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_utf16le_to_ascii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW ascii, CATALYST_NUINT capacity);
 
 /** Convert a terminated UTF-16LE string to CP1252. Capacity includes the destination terminator. */
-CATTELIB_API void catte_utf16le_to_cp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_utf16le_to_cp1252(CATALYST_UTF16LE utf16le, CATALYST_CP1252W cp1252w, CATALYST_NUINT capacity);
 
 /** Convert a terminated UTF-16LE string to UTF-8. Capacity includes the destination terminator. */
-CATTELIB_API void catte_utf16le_to_utf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity, CATALYST_RESULT* result);
+CATTELIB_API CATALYST_RESULT catte_utf16le_to_utf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity);
 
 #ifdef __cplusplus
 } /* extern C */

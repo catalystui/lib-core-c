@@ -9,7 +9,7 @@
 | `operation` | `CATALYST_OPERATION_CODE` | `OPERATION_CODE` | Function-specific stage |
 | `detail` | `CATALYST_DETAIL_CODE` | `DETAIL_CODE` | Status-specific detail |
 
-C++ constants `CONTEXT_CODE_NONE`, `OPERATION_CODE_NONE` and `DETAIL_CODE_NONE` are zero. Each library documents its own metadata. A null result pointer discards status information; a non-null pointer receives all four fields. Library functions return `void`; other output parameters carry operation data.
+C++ constants `CONTEXT_CODE_NONE`, `OPERATION_CODE_NONE` and `DETAIL_CODE_NONE` are zero. Each library documents its own metadata. Reporting functions return all four bytes by value. Additional operation data uses output parameters. Callers may ignore the returned Result. Non-reporting functions return their ordinary value or `void`, according to their contract.
 
 ## Status codes
 
