@@ -18,23 +18,31 @@ These principles apply to public C functions, C++ wrappers, and internal helpers
 **A function performs validation if, and only if, that validation is necessary to determine or safely produce the outcome of its operation when all caller preconditions are satisfied.**
 
 <div style="display:flex;flex-wrap:wrap;gap:0.85rem;margin:0.8rem 0 1rem;">
-<div style="flex:1 1 38%;min-width:min(100%, 14rem);box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);">
-<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin-bottom:0.55rem;opacity:0.85;"><circle cx="12" cy="7" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>
-<small style="opacity:0.8;">Caller responsibility</small>
+<div style="flex:1 1 calc(50% - 0.5rem);min-width:min(100%, 15rem);box-sizing:border-box;padding:1.2rem;border:1px solid color-mix(in srgb, currentColor 19%, transparent);border-radius:12px;background:color-mix(in srgb, currentColor 3%, transparent);">
+<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;width:32px;height:32px;margin:0.15rem auto 0.65rem;opacity:0.9;"><circle cx="12" cy="7" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>
+<small style="display:block;text-align:center;opacity:0.8;">Caller responsibility</small>
+
+<div style="text-align:center;">
 
 ### Contract Validation
 
-<p><strong>Can the function be invoked correctly?</strong></p>
+</div>
+
+<p style="text-align:center;"><strong>Can the function be invoked correctly?</strong></p>
 <p>Establish valid pointers, accessible extents, initialization, lifetime, alignment, synchronization, and other documented preconditions (such as valid direct-access indices).</p>
 <p style="margin-bottom:0;">Core assumes these conditions hold. Violating them is outside the function's guarantees, not a reportable outcome.</p>
 </div>
-<div style="flex:1 1 38%;min-width:min(100%, 14rem);box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);">
-<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin-bottom:0.55rem;opacity:0.85;"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M8 12l3 3 5-6M9 2v3m6-3v3M9 19v3m6-3v3M2 9h3m-3 6h3m14-6h3m-3 6h3"/></svg>
-<small style="opacity:0.8;">Function responsibility</small>
+<div style="flex:1 1 calc(50% - 0.5rem);min-width:min(100%, 15rem);box-sizing:border-box;padding:1.2rem;border:1px solid color-mix(in srgb, currentColor 19%, transparent);border-radius:12px;background:color-mix(in srgb, currentColor 3%, transparent);">
+<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;width:32px;height:32px;margin:0.15rem auto 0.65rem;opacity:0.9;"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M8 12l3 3 5-6M9 2v3m6-3v3M9 19v3m6-3v3M2 9h3m-3 6h3m14-6h3m-3 6h3"/></svg>
+<small style="display:block;text-align:center;opacity:0.8;">Function responsibility</small>
+
+<div style="text-align:center;">
 
 ### Operational Validation
 
-<p><strong>Can the operation succeed?</strong></p>
+</div>
+
+<p style="text-align:center;"><strong>Can the operation succeed?</strong></p>
 <p>Detect malformed data, unrepresentable values, insufficient supplied capacity, extent overflow, allocation or I/O failure, and other reportable operational conditions.</p>
 <p style="margin-bottom:0;">Check as part of the operation, before unsafe access or irreversible changes. Never read beyond the caller's accessible extent.</p>
 </div>
@@ -43,7 +51,7 @@ These principles apply to public C functions, C++ wrappers, and internal helpers
 **Why?** Establish preconditions once, then compose operations without repeatedly checking them. Valid internal state is established during creation and preserved through mutation. This avoids redundant work without hiding genuine operational failures as caller preconditions.
 
 <div style="box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);margin:1rem 0;">
-<strong>Example · Decoding UTF-8</strong>
+<div style="text-align:center;font-weight:600;">Example · Decoding UTF-8</div>
 <div style="text-align:center;margin:0.9rem 0 0.4rem;">
 <code>E2 82 AC</code> <span style="opacity:0.75;">or</span> <code>E2 00</code>
 <div style="margin-top:0.3rem;">Caller provides accessible input and valid, separate output storage.</div>

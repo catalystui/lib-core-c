@@ -1,10 +1,11 @@
+<div style="text-align:center;padding:1.4rem 0.65rem 1.15rem;margin-bottom:1.2rem;border-bottom:1px solid color-mix(in srgb, currentColor 15%, transparent);">
+
 # Core
 
-**The universal translator between computers and people.**
+<p style="font-size:1.22em;font-weight:600;line-height:1.4;margin:0.75rem 0 0.35rem;">The universal translator between computers and people.</p>
+<p style="font-style:italic;opacity:0.85;margin:0 0 1.2rem;">The native foundational C ABI libraries for CatalystUI.</p>
 
-*The native foundational C ABI libraries for CatalystUI.*
-
-<div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.4rem;margin:0.35rem 0 1rem;">
+<div style="display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:0.4rem;margin:0.4rem auto 1.2rem;">
 <a href="https://github.com/catalystui/lib-core-c/blob/main/LICENSE"><img style="display:block;width:auto;height:20px;max-width:100% !important;padding:0 !important;margin:0;" src="https://img.shields.io/badge/License-Apache--2.0-blue?style=flat-square&amp;logo=apache&amp;logoColor=white" alt="License: Apache-2.0"></a>
 <img style="display:block;width:auto;height:20px;max-width:100% !important;padding:0 !important;margin:0;" src="https://img.shields.io/badge/Interface-C%20ABI-00599C?style=flat-square&amp;logo=c&amp;logoColor=white" alt="Interface: C ABI">
 <img style="display:block;width:auto;height:20px;max-width:100% !important;padding:0 !important;margin:0;" src="https://img.shields.io/badge/Build-CMake%204.3%2B-064F8C?style=flat-square&amp;logo=cmake&amp;logoColor=white" alt="Build: CMake 4.3+">
@@ -12,11 +13,20 @@
 <a href="https://github.com/catalystui/lib-core-c/actions/workflows/compile.yml"><img style="display:block;width:auto;height:20px;max-width:100% !important;padding:0 !important;margin:0;" src="https://img.shields.io/github/actions/workflow/status/catalystui/lib-core-c/compile.yml?branch=main&amp;style=flat-square&amp;logo=github&amp;logoColor=white" alt="Compile status"></a>
 </div>
 
+<div style="display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:0.5rem 1.35rem;font-weight:600;margin:0.5rem 0 0.2rem;">
+
+[View source on GitHub](https://github.com/catalystui/lib-core-c)
+
+[Understand the design](assumptions/index.md)
+
+[API Reference](api-reference/index.md)
+
+</div>
+</div>
+
 Core provides portable building blocks based on the [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/specifications/languages/fdefspec/) and [Foundational Relations Specification (FRELSPEC)](https://catalystui.org/specifications/languages/frelspec/). Its native C ABI allows libraries to share data representations and operations independently of programming language, operating system, or hardware.
 
 Core is designed to be implementable even on 8-bit systems. It is independent of every layer and sensory domain of the CatalystUI model, and exists to support them all.
-
-[View source on GitHub](https://github.com/catalystui/lib-core-c) · [Understand the design](assumptions/index.md) · [API Reference](api-reference/index.md)
 
 > [!NOTE]
 > Core is in early development (1.0.0-alpha.2). Memory allocation has Windows, macOS, and Linux backends. API and ABI stability are not yet guaranteed.
@@ -24,37 +34,37 @@ Core is designed to be implementable even on 8-bit systems. It is independent of
 ## Libraries
 
 <div style="display:flex;flex-wrap:wrap;gap:0.85rem;margin:0.8rem 0 1rem;">
-<div style="flex:1 1 38%;min-width:min(100%, 14rem);box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);">
-<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin-bottom:0.55rem;opacity:0.85;"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+<div style="flex:1 1 calc(50% - 0.5rem);min-width:min(100%, 15rem);box-sizing:border-box;padding:1.2rem;border:1px solid color-mix(in srgb, currentColor 19%, transparent);border-radius:12px;background:color-mix(in srgb, currentColor 3%, transparent);display:flex;flex-direction:column;align-items:center;text-align:center;">
+<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;width:32px;height:32px;margin:0.15rem auto 0.8rem;opacity:0.9;"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
 
 **[CATALYST](api-reference/catalyst/index.md)**
 
-<p style="margin:0 0 0.6rem;">Foundational types and operation results.</p>
-<small style="opacity:0.8;">Header-only</small>
+<p style="margin:0 0 0.85rem;max-width:20rem;">Foundational types and operation results.</p>
+<small style="opacity:0.8;margin-top:auto;">Header-only</small>
 </div>
-<div style="flex:1 1 38%;min-width:min(100%, 14rem);box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);">
-<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin-bottom:0.55rem;opacity:0.85;"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M8 2v3m4-3v3m4-3v3M8 19v3m4-3v3m4-3v3M2 8h3m-3 4h3m-3 4h3m14-8h3m-3 4h3m-3 4h3"/></svg>
+<div style="flex:1 1 calc(50% - 0.5rem);min-width:min(100%, 15rem);box-sizing:border-box;padding:1.2rem;border:1px solid color-mix(in srgb, currentColor 19%, transparent);border-radius:12px;background:color-mix(in srgb, currentColor 3%, transparent);display:flex;flex-direction:column;align-items:center;text-align:center;">
+<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;width:32px;height:32px;margin:0.15rem auto 0.8rem;opacity:0.9;"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M8 2v3m4-3v3m4-3v3M8 19v3m4-3v3m4-3v3M2 8h3m-3 4h3m-3 4h3m14-8h3m-3 4h3m-3 4h3"/></svg>
 
 **[CATMMLIB](api-reference/catmmlib/index.md)**
 
-<p style="margin:0 0 0.6rem;">Allocate, release, resize, and manipulate memory.</p>
-<small style="opacity:0.8;">Link: <code>catmm</code></small>
+<p style="margin:0 0 0.85rem;max-width:20rem;">Allocate, release, resize, and manipulate memory.</p>
+<small style="opacity:0.8;margin-top:auto;">Link: <code>catmm</code></small>
 </div>
-<div style="flex:1 1 38%;min-width:min(100%, 14rem);box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);">
-<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin-bottom:0.55rem;opacity:0.85;"><path d="M3 19L9 5l6 14M5 14h8M17 7h4m-2 0v12m-2 0h4"/></svg>
+<div style="flex:1 1 calc(50% - 0.5rem);min-width:min(100%, 15rem);box-sizing:border-box;padding:1.2rem;border:1px solid color-mix(in srgb, currentColor 19%, transparent);border-radius:12px;background:color-mix(in srgb, currentColor 3%, transparent);display:flex;flex-direction:column;align-items:center;text-align:center;">
+<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;width:32px;height:32px;margin:0.15rem auto 0.8rem;opacity:0.9;"><path d="M3 19L9 5l6 14M5 14h8M17 7h4m-2 0v12m-2 0h4"/></svg>
 
 **[CATTELIB](api-reference/cattelib/index.md)**
 
-<p style="margin:0 0 0.6rem;">Encode, decode, measure, and convert text.</p>
-<small style="opacity:0.8;">Link: <code>catte</code></small>
+<p style="margin:0 0 0.85rem;max-width:20rem;">Encode, decode, measure, and convert text.</p>
+<small style="opacity:0.8;margin-top:auto;">Link: <code>catte</code></small>
 </div>
-<div style="flex:1 1 38%;min-width:min(100%, 14rem);box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);">
-<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin-bottom:0.55rem;opacity:0.85;"><rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><path d="M12 8v4m-7 4v-4h14v4"/></svg>
+<div style="flex:1 1 calc(50% - 0.5rem);min-width:min(100%, 15rem);box-sizing:border-box;padding:1.2rem;border:1px solid color-mix(in srgb, currentColor 19%, transparent);border-radius:12px;background:color-mix(in srgb, currentColor 3%, transparent);display:flex;flex-direction:column;align-items:center;text-align:center;">
+<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;width:32px;height:32px;margin:0.15rem auto 0.8rem;opacity:0.9;"><rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><path d="M12 8v4m-7 4v-4h14v4"/></svg>
 
 **[CATRLLIB](api-reference/catrllib/index.md)**
 
-<p style="margin:0 0 0.6rem;">Arrays, sets, maps, files, and streams.</p>
-<small style="opacity:0.8;">Link: <code>catrl</code></small>
+<p style="margin:0 0 0.85rem;max-width:20rem;">Arrays, sets, maps, files, and streams.</p>
+<small style="opacity:0.8;margin-top:auto;">Link: <code>catrl</code></small>
 </div>
 </div>
 
