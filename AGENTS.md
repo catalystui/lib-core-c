@@ -6,6 +6,7 @@ Repository-wide requirements for CatalystUI Core, including implementation, docu
 
 - Core provides foundational, language-independent C ABI libraries based on FDEFSPEC (Foundational Definitions Specification), independent of CatalystUI layers, domains, operating systems, and languages.
 - The owner defines architecture and contracts. Do not invent or reinterpret them. Before changing existing foundational code, APIs, representations, or behavior (including fixes, refactors, signatures, and new helpers), explain the change, necessity, and consequences and obtain explicit approval. Approval covers only the requested scope.
+- Core is in early development. Backwards compatibility with earlier Core revisions is not required: existing source signatures, binary layouts/exports, result codes, and behavior are not frozen solely because they already exist. Prefer the correct approved design over legacy compatibility; do not add compatibility shims, deprecated variants, or parallel APIs merely to preserve old callers. Update affected implementations, callers, tests, and documentation together. This does not waive FDEFSPEC, C interoperability, 8-bit compatibility, or owner approval for changes to foundational contracts.
 - Never modify or bypass Numeric Definitions, Codepoint, Text Encoding, or Operation Status to simplify another implementation without approval.
 - Prefer simple, direct, explicit code; avoid speculative abstractions, unnecessary dependencies, convenience APIs, duplicated algorithms, and unrelated cleanup.
 - `README.md` is for humans only; neither use it as development context nor edit it without explicit request. Consult specifications, headers, implementations, references, and tests.
@@ -25,7 +26,7 @@ Every Core library MUST be implementable and usable on an 8-bit system.
 ## Language and ABI
 
 - Public C headers: C90. Implementations/wrappers: C++98. Newer standards are optional through existing guards.
-- Preserve C ABI: `include/<library>.h`, `src/<library>.cpp`, thin inline `include/<library>.hpp` wrappers; retain include guards, `extern "C"`, and export macros.
+- Maintain a C ABI (not backwards binary compatibility between development revisions): `include/<library>.h`, `src/<library>.cpp`, thin inline `include/<library>.hpp` wrappers; retain include guards, `extern "C"`, and export macros.
 - Use Catalyst types, not language-specific containers, exceptions, references, native booleans, or unguarded fixed-width types. Use `CATALYST_BOOL` / `BOOL` and `TRUE` / `FALSE`.
 - Select return conventions using the mandatory Function classification and reporting rules below. C++ wrappers preserve the C contract and forward without duplicating logic.
 - Preserve read/write pointer distinctions (`const`, e.g. `CATALYST_UTF8` vs. `CATALYST_UTF8W`), opaque handles with private implementation storage, ownership, lifetime, alignment, allocation, and buffer contracts.
@@ -41,7 +42,7 @@ Every Core library MUST be implementable and usable on an 8-bit system.
 
 ## Function classification and reporting
 
-Classify every public function and private helper by its documented contract, in this order. Apply the first matching rule:
+Classify every public function and private helper by its intended, approved contract, in this order. Existing signatures, result assignments, and tests are evidence of current behavior, not justification for retaining unnecessary reporting. When a better contract would remove an existing public validation guarantee or change behavior, explain the proposed contract and obtain owner approval; backwards compatibility alone is not a reason to reject it. Apply the first matching rule:
 
 1. **Reportable operation:** If the function must distinguish a warning, error, or fatal outcome from ordinary successful behavior, return `CATALYST_RESULT` (C++ wrapper: `RESULT`) by value. Return any additional data through output arguments.
 2. **Non-reporting value function:** Otherwise, if the function produces a single ordinary value, return that value directly using its Catalyst type. This includes computations, predicates, accessors, comparisons, and conversions that are total over their documented input domain.
@@ -65,7 +66,7 @@ Apply these rules consistently:
 
 - **Status (universal):** Outcome, analogous to HTTP status. Use the most specific applicable FDEFSPEC code. Undefined codes are reserved; never add or redefine them without approval.
 - **Context (unique per module):** Execution context, normally a stable ID identifying the method within its library/module. Locates the result's origin, not the internal failure stage. MUST identify the reporting method on every returned Result, including all Success-level statuses (including no-op), warnings, errors, and fatal outcomes. Use the same assigned context ID on every return path; zero is reserved for an unspecified context, not for successful outcomes.
-- **Operation (unique per method):** Identifies the precise internal operation/result-reporting site, not the public method or a generic error category. Assign a different opcode to every distinct result assignment site within a method, including success paths; never reuse an opcode across sites even when their statuses or failure reasons match. A single site may report multiple detail values. Keep IDs stable and documented.
+- **Operation (unique per method):** Identifies the precise internal operation/result-reporting site, not the public method or a generic error category. Assign a different opcode to every distinct result assignment site within a method, including success paths; never reuse an opcode across sites even when their statuses or failure reasons match. A single site may report multiple detail values. Keep IDs consistent and documented within the current revision; backwards compatibility does not require retaining obsolete IDs or gaps.
 - **Detail (scoped to operation):** Additional useful information for the status/context/operation combination. May be symbolic, a literal byte value, an index, a count, or zero when nothing further is needed. Meaning precedence: status > context > operation; never override a higher-priority definition. Do not duplicate information already conveyed by other bytes or force runtime data into detail.
 - `ERROR_INVALID_ARGUMENT` detail MUST be the zero-based argument index from the full public function signature (including by-value arguments). Zero is meaningful here.
 - Define/document context IDs, opcodes, and applicable detail meanings consistently within their scopes before implementation. Example: UTF-8 decoder context identifies the method; each continuation check has its own opcode; detail may be zero or the offending byte if useful. Distinct missing-unit cases at one unexpected-end check may use distinct symbolic details.
