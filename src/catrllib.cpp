@@ -312,7 +312,7 @@ static NUINT map_value_size(const CATALYST_MAP* map) {
 }
 
 // Context IDs follow CATRLLIB public declaration order (0x01 through 0x1D).
-// Private helpers use 0x1E through 0x21.
+// Reporting private helpers use 0x1E through 0x20; 0x21 is retired.
 // A caller reports its own operation and uses the helper opcode as failure detail.
 static CATALYST_RESULT create_storage(NUINT objectSize, const catrl_size* stride, const catrl_size* count, void** output) {
     *output = 0;
@@ -399,17 +399,15 @@ static CATALYST_RESULT grow(catrl_storage* storage) {
     return RESULT(STATUS_CODE_SUCCESS, 0x20, 0x03, 0);
 }
 
-/* Write count when the key or element is absent. */
-static inline CATALYST_RESULT find(const catrl_storage* storage, const void* value, const catrl_size* size, catrl_size* output) {
+/* Search validated storage with a non-null value and a nonzero size no
+ * greater than the stride. Return the matching index, or count if absent.
+ * Callers establish storage invariants and validate the search argument.
+ */
+static inline catrl_size find(const catrl_storage* storage, const void* value, const catrl_size* size) {
     catrl_size i = size_byte(0);
     const BYTE* element = storage->bytes;
     NUINT stride = size_to_abi(&storage->stride);
     NUINT length = size_to_abi(size);
-    // Validate search inputs once; every element lies within the validated storage.
-    if (!size_zero(&storage->count) && (element == 0 || value == 0)) {
-        *output = storage->count;
-        return RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x21, 0x01, element == 0 ? 0x01 : 0x02);
-    }
     while (size_compare(&i, &storage->count) < 0) {
         // Equality is an ordinary value; no Result is needed for each comparison.
         const BYTE* first = element;
@@ -422,14 +420,12 @@ static inline CATALYST_RESULT find(const catrl_storage* storage, const void* val
             }
         }
         if (element == value || first == end) {
-            *output = i;
-            return RESULT(STATUS_CODE_SUCCESS, 0x21, 0x02, 0);
+            return i;
         }
         size_increment(&i);
         if (size_compare(&i, &storage->count) < 0) element += stride;
     }
-    *output = storage->count;
-    return RESULT(STATUS_CODE_SUCCESS, 0x21, 0x03, 0);
+    return storage->count;
 }
 
 /* ARRAY */
@@ -566,12 +562,7 @@ CATALYST_RESULT catrl_set_add(CATALYST_SET* set, const void* value) {
     if (value == 0) {
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x08, 0x02, 1);
     }
-    RESULT findResult;
-    catrl_size index;
-    findResult = find(&set->storage, value, &set->storage.stride, &index);
-    if (!status_code_is_success(findResult.status)) {
-        return RESULT(findResult.status, 0x08, 0x03, findResult.operation);
-    }
+    catrl_size index = find(&set->storage, value, &set->storage.stride);
     if (size_compare(&index, &set->storage.count) != 0) {
         return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x08, 0x04, 0);
     }
@@ -602,12 +593,7 @@ CATALYST_RESULT catrl_set_remove(CATALYST_SET* set, const void* value) {
     if (value == 0) {
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x09, 0x02, 1);
     }
-    RESULT findResult;
-    catrl_size index;
-    findResult = find(&set->storage, value, &set->storage.stride, &index);
-    if (!status_code_is_success(findResult.status)) {
-        return RESULT(findResult.status, 0x09, 0x03, findResult.operation);
-    }
+    catrl_size index = find(&set->storage, value, &set->storage.stride);
     if (size_compare(&index, &set->storage.count) == 0) {
         return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x09, 0x04, 0);
     }
@@ -637,12 +623,7 @@ CATALYST_RESULT catrl_set_contains(const CATALYST_SET* set, const void* value, C
     if (contains == 0) {
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0A, 0x03, 2);
     }
-    RESULT findResult;
-    catrl_size index;
-    findResult = find(&set->storage, value, &set->storage.stride, &index);
-    if (!status_code_is_success(findResult.status)) {
-        return RESULT(findResult.status, 0x0A, 0x04, findResult.operation);
-    }
+    catrl_size index = find(&set->storage, value, &set->storage.stride);
     *contains = size_compare(&index, &set->storage.count) != 0 ? TRUE : FALSE;
     return RESULT(STATUS_CODE_SUCCESS, 0x0A, 0x05, 0);
 }
@@ -754,12 +735,7 @@ CATALYST_RESULT catrl_map_get(const CATALYST_MAP* map, const void* key, void* va
     if (value == 0) {
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x10, 0x03, 2);
     }
-    RESULT findResult;
-    catrl_size index;
-    findResult = find(&map->storage, key, &map->key_size, &index);
-    if (!status_code_is_success(findResult.status)) {
-        return RESULT(findResult.status, 0x10, 0x04, findResult.operation);
-    }
+    catrl_size index = find(&map->storage, key, &map->key_size);
     if (size_compare(&index, &map->storage.count) == 0) {
         return RESULT(STATUS_CODE_ERROR_NOT_FOUND, 0x10, 0x05, 0);
     }
@@ -786,12 +762,7 @@ CATALYST_RESULT catrl_map_set(CATALYST_MAP* map, const void* key, const void* va
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x11, 0x03, 2);
     }
     BYTE* entry;
-    RESULT findResult;
-    catrl_size index;
-    findResult = find(&map->storage, key, &map->key_size, &index);
-    if (!status_code_is_success(findResult.status)) {
-        return RESULT(findResult.status, 0x11, 0x04, findResult.operation);
-    }
+    catrl_size index = find(&map->storage, key, &map->key_size);
     BOOL insert = size_compare(&index, &map->storage.count) == 0 ? TRUE : FALSE;
     if (insert) {
         if (size_compare(&map->storage.count, &map->storage.capacity) == 0) {
@@ -834,12 +805,7 @@ CATALYST_RESULT catrl_map_remove(CATALYST_MAP* map, const void* key) {
     if (key == 0) {
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x12, 0x02, 1);
     }
-    RESULT findResult;
-    catrl_size index;
-    findResult = find(&map->storage, key, &map->key_size, &index);
-    if (!status_code_is_success(findResult.status)) {
-        return RESULT(findResult.status, 0x12, 0x03, findResult.operation);
-    }
+    catrl_size index = find(&map->storage, key, &map->key_size);
     if (size_compare(&index, &map->storage.count) == 0) {
         return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x12, 0x04, 0);
     }
@@ -869,12 +835,7 @@ CATALYST_RESULT catrl_map_contains(const CATALYST_MAP* map, const void* key, CAT
     if (contains == 0) {
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x13, 0x03, 2);
     }
-    RESULT findResult;
-    catrl_size index;
-    findResult = find(&map->storage, key, &map->key_size, &index);
-    if (!status_code_is_success(findResult.status)) {
-        return RESULT(findResult.status, 0x13, 0x04, findResult.operation);
-    }
+    catrl_size index = find(&map->storage, key, &map->key_size);
     *contains = size_compare(&index, &map->storage.count) != 0 ? TRUE : FALSE;
     return RESULT(STATUS_CODE_SUCCESS, 0x13, 0x05, 0);
 }

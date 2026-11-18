@@ -18,7 +18,7 @@ Provides fixed-length arrays, sets, maps, and stacks of byte-represented element
 - Query outputs are unchanged on recoverable failure and may be unspecified after fatal failure. Recoverable mutation failures leave logical contents unchanged. Set/map enumeration order is unspecified and can change on mutation.
 - Clear retains capacity and does not securely erase bytes. After destroy is attempted, the handle must not be reused, even if cleanup reports failure. Foreign, stale or incorrectly typed handles are outside the contract. Concurrent access involving mutation or destruction requires external synchronization.
 
-On failure, detail may identify an internal helper or CATMMLIB operation. Defensive invariant failures are listed even when unreachable with valid arguments and intact storage. Fatal results indicate that the affected collection or outputs cannot safely be assumed usable.
+On failure, detail may identify an internal helper or CATMMLIB operation. Set and map searches use validated storage and return an ordinary index internally; argument and invariant failures are reported by the public method. Defensive invariant failures are listed even when unreachable with valid arguments and intact storage. Fatal results indicate that the affected collection or outputs cannot safely be assumed usable.
 
 ## Type Summary
 
@@ -426,7 +426,6 @@ Copies value into the set if no byte-identical element exists. Grows storage as 
 | `0x90080501` | `ERROR_BUFFER_OVERFLOW` | Grow storage | Growth helper operation `0x01`: Check collection growth limit. |
 | `0x90080502` | `ERROR_BUFFER_OVERFLOW` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0x91080502` | `ERROR_ALLOCATION_FAILED` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
-| `0xC1080301` | `FATAL_INVARIANT_VIOLATION` | Search collection | Search helper operation `0x01`: Compare stored element or key (internal argument failure). |
 | `0xC1080502` | `FATAL_INVARIANT_VIOLATION` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0xC1080601` | `FATAL_INVARIANT_VIOLATION` | Copy stored bytes | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
 | `0xC1080602` | `FATAL_INVARIANT_VIOLATION` | Copy stored bytes | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
@@ -465,7 +464,6 @@ Removes a byte-identical element. Enumeration order may change.
 | `0x01090400` | `SUCCESS_NOOP` | Skip absent entry | — |
 | `0x81090100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
 | `0x81090201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
-| `0xC1090301` | `FATAL_INVARIANT_VIOLATION` | Search collection | Search helper operation `0x01`: Compare stored element or key (internal argument failure). |
 | `0xC1090501` | `FATAL_INVARIANT_VIOLATION` | Move last entry into removed slot | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
 | `0xC1090502` | `FATAL_INVARIANT_VIOLATION` | Move last entry into removed slot | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
 | `0xC1090701` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
@@ -504,7 +502,6 @@ Reports whether the set contains the specified value.
 | `0x810A0100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
 | `0x810A0201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
 | `0x810A0302` | `ERROR_INVALID_ARGUMENT` | Validate `contains` | Argument 2 (`contains`) |
-| `0xC10A0401` | `FATAL_INVARIANT_VIOLATION` | Search collection | Search helper operation `0x01`: Compare stored element or key (internal argument failure). |
 | `0xC10A0601` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC10A0602` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
 | `0xC10A0603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
@@ -718,7 +715,6 @@ Retrieves the value associated with a byte-identical key.
 | `0x81100201` | `ERROR_INVALID_ARGUMENT` | Validate `key` | Argument 1 (`key`) |
 | `0x81100302` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 2 (`value`) |
 | `0x88100500` | `ERROR_NOT_FOUND` | Locate key | — |
-| `0xC1100401` | `FATAL_INVARIANT_VIOLATION` | Search collection | Search helper operation `0x01`: Compare stored element or key (internal argument failure). |
 | `0xC1100601` | `FATAL_INVARIANT_VIOLATION` | Copy value to output | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
 | `0xC1100602` | `FATAL_INVARIANT_VIOLATION` | Copy value to output | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
 | `0xC1100801` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
@@ -762,7 +758,6 @@ Inserts a key/value association or updates an existing key without increasing th
 | `0x90110501` | `ERROR_BUFFER_OVERFLOW` | Grow storage | Growth helper operation `0x01`: Check collection growth limit. |
 | `0x90110502` | `ERROR_BUFFER_OVERFLOW` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0x91110502` | `ERROR_ALLOCATION_FAILED` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
-| `0xC1110401` | `FATAL_INVARIANT_VIOLATION` | Search collection | Search helper operation `0x01`: Compare stored element or key (internal argument failure). |
 | `0xC1110502` | `FATAL_INVARIANT_VIOLATION` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0xC1110601` | `FATAL_INVARIANT_VIOLATION` | Copy new key | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
 | `0xC1110602` | `FATAL_INVARIANT_VIOLATION` | Copy new key | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
@@ -804,7 +799,6 @@ Removes an association with a byte-identical key. Enumeration order may change.
 | `0x01120400` | `SUCCESS_NOOP` | Skip absent entry | — |
 | `0x81120100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
 | `0x81120201` | `ERROR_INVALID_ARGUMENT` | Validate `key` | Argument 1 (`key`) |
-| `0xC1120301` | `FATAL_INVARIANT_VIOLATION` | Search collection | Search helper operation `0x01`: Compare stored element or key (internal argument failure). |
 | `0xC1120501` | `FATAL_INVARIANT_VIOLATION` | Move last entry into removed slot | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
 | `0xC1120502` | `FATAL_INVARIANT_VIOLATION` | Move last entry into removed slot | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
 | `0xC1120701` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
@@ -844,7 +838,6 @@ Reports whether the map contains the specified key.
 | `0x81130100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
 | `0x81130201` | `ERROR_INVALID_ARGUMENT` | Validate `key` | Argument 1 (`key`) |
 | `0x81130302` | `ERROR_INVALID_ARGUMENT` | Validate `contains` | Argument 2 (`contains`) |
-| `0xC1130401` | `FATAL_INVARIANT_VIOLATION` | Search collection | Search helper operation `0x01`: Compare stored element or key (internal argument failure). |
 | `0xC1130601` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC1130602` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
 | `0xC1130603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |

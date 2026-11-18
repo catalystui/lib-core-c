@@ -562,6 +562,46 @@ int main() {
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x18 || result.operation != 0x02 || result.detail != 0) return 89;
 #endif
 
+    // Search preconditions remain checked at each public boundary.
+    result = set_create(&set, 1);
+    if (set == 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0x06 || result.operation != 0x03 || result.detail != 0) return 90;
+    contains = TRUE;
+    result = set_contains(set, &item, &contains);
+    if (contains != FALSE || result.status != STATUS_CODE_SUCCESS || result.context != 0x0A || result.operation != 0x05 || result.detail != 0) return 91;
+    result = set_add(set, 0);
+    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x08 || result.operation != 0x02 || result.detail != 1) return 92;
+    result = set_remove(set, 0);
+    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x09 || result.operation != 0x02 || result.detail != 1) return 93;
+    contains = TRUE;
+    result = set_contains(set, 0, &contains);
+    if (contains != TRUE || result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0A || result.operation != 0x02 || result.detail != 1) return 94;
+    result = set_contains(set, &item, 0);
+    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x0A || result.operation != 0x03 || result.detail != 2) return 95;
+    result = set_destroy(set);
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x07 || result.operation != 0x02 || result.detail != 0) return 96;
+
+    result = map_create(&map, 1, 1);
+    if (map == 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0x0E || result.operation != 0x05 || result.detail != 0) return 97;
+    contains = TRUE;
+    result = map_contains(map, &item, &contains);
+    if (contains != FALSE || result.status != STATUS_CODE_SUCCESS || result.context != 0x13 || result.operation != 0x05 || result.detail != 0) return 98;
+    value = 99;
+    result = map_get(map, &item, &value);
+    if (value != 99 || result.status != STATUS_CODE_ERROR_NOT_FOUND || result.context != 0x10 || result.operation != 0x05 || result.detail != 0) return 99;
+    result = map_get(map, 0, &value);
+    if (value != 99 || result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x10 || result.operation != 0x02 || result.detail != 1) return 100;
+    result = map_set(map, 0, &item);
+    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x11 || result.operation != 0x02 || result.detail != 1) return 101;
+    result = map_remove(map, 0);
+    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x12 || result.operation != 0x02 || result.detail != 1) return 102;
+    contains = TRUE;
+    result = map_contains(map, 0, &contains);
+    if (contains != TRUE || result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x13 || result.operation != 0x02 || result.detail != 1) return 103;
+    result = map_contains(map, &item, 0);
+    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x13 || result.operation != 0x03 || result.detail != 2) return 104;
+    result = map_destroy(map);
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x0F || result.operation != 0x02 || result.detail != 0) return 105;
+
     printf("CATRLTEST :: All relational collection tests passed. 🔥\n");
 
     return 0;
