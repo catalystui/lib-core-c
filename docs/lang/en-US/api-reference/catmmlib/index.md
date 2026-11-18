@@ -51,14 +51,14 @@ In result patterns, `DD` is a runtime detail byte (`0x00`–`0xFF`). Allocation 
 
 ### CATALYST_MEMORY_HEADER
 
+Allocator-owned metadata immediately preceding the payload. Do not modify it.
+
 ```c
 typedef struct CATALYST_MEMORY_HEADER {
     CATALYST_NUINT requested_size;
     CATALYST_NUINT allocated_size;
 } CATALYST_MEMORY_HEADER;
 ```
-
-Allocator-owned metadata immediately preceding the payload. Do not modify it.
 
 **Fields:**
 
@@ -119,9 +119,9 @@ CATALYST_RESULT catmm_realloc(
 );
 ```
 
-Resizes the allocation at `*memory`, preserving the smaller of the original and requested byte counts. New bytes are zero-filled. A null allocation is treated as an allocation request; a zero size releases a non-null allocation and clears its pointer on success. Even an unchanged size replaces the allocation.
+Resizes the allocation at `*memory`, preserving the smaller of the original and requested byte counts. New bytes are zero-filled. A null allocation is treated as an allocation request, which requires a nonzero size. A zero size releases a non-null allocation and clears its pointer on success. Even an unchanged size replaces the allocation.
 
-On replacement allocation or old-block release failure, the pointer value is unchanged. The replacement is released on a best-effort basis; the old allocation may no longer be usable after a release failure. On successful replacement, old pointers are invalid.
+If replacement allocation fails, the existing allocation and pointer remain unchanged. If releasing the old block fails, the pointer value is unchanged. The replacement is released on a best-effort basis; the old allocation may no longer be usable after a release failure. On successful replacement, old pointers are invalid.
 
 **Parameters:**
 
@@ -168,7 +168,7 @@ Releases a live CATMMLIB allocation at its original payload address. The caller'
 
 **Parameters:**
 
-`memory` — Address of the memory region.
+`memory` — Original payload address of a live CATMMLIB allocation; must not be null.
 
 **Context:** `0x03`
 

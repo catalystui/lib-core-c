@@ -11,10 +11,10 @@ Provides fixed-length arrays, sets, maps, and stacks of byte-represented element
 ## Conventions
 
 - Reporting functions return `CATALYST_RESULT` by value. Length and count accessors return `CATALYST_NUINT` directly and require valid live handles. Pointers must be non-null and refer to live handles or valid readable/writable storage.
-- Sizes are nonzero byte counts. Lengths, counts and indices count elements or associations; indices start at zero.
+- Element, key and value sizes are nonzero byte counts. Lengths, counts and indices count elements or associations; indices start at zero. An array may have zero elements.
 - Collections copy exactly the configured number of bytes. Pointers embedded in stored values are shallow copies; referenced resources remain caller-owned. Set and map key equality compares every byte, including padding. Supply consistent byte representations.
 - Inputs and outputs must not overlap. Provide buffers of the configured sizes; no typed alignment of internal bytes is promised.
-- Creation clears a non-null output handle before validating sizes or allocating. Any existing handle is replaced, not destroyed.
+- Creation clears a non-null output handle before validating sizes or allocating. Any existing handle is replaced, not destroyed. Arrays allocate element storage at creation when their length is nonzero; sets, maps and stacks start without element storage and allocate it as needed.
 - Query outputs are unchanged on recoverable failure and may be unspecified after fatal failure. Recoverable mutation failures leave logical contents unchanged. Set/map enumeration order is unspecified and can change on mutation.
 - Clear retains capacity and does not securely erase bytes. After destroy is attempted, the handle must not be reused, even if cleanup reports failure. Foreign, stale or incorrectly typed handles are outside the contract. Concurrent access involving mutation or destruction requires external synchronization.
 
@@ -90,41 +90,41 @@ On failure, detail may identify an internal helper or CATMMLIB operation. Set an
 
 ### CATALYST_ARRAY
 
+Opaque handle to a fixed-length array. Create with [`catrl_array_create`](#catrl_array_create) and release with [`catrl_array_destroy`](#catrl_array_destroy).
+
 ```c
 typedef struct CATALYST_ARRAY CATALYST_ARRAY;
 ```
-
-Opaque handle to a fixed-length array. Create with [`catrl_array_create`](#catrl_array_create) and release with [`catrl_array_destroy`](#catrl_array_destroy).
 
 **C++:** `catalyst::ARRAY`.
 
 ### CATALYST_SET
 
+Opaque handle to a set of distinct byte values. Create with [`catrl_set_create`](#catrl_set_create) and release with [`catrl_set_destroy`](#catrl_set_destroy).
+
 ```c
 typedef struct CATALYST_SET CATALYST_SET;
 ```
-
-Opaque handle to a set of distinct byte values. Create with [`catrl_set_create`](#catrl_set_create) and release with [`catrl_set_destroy`](#catrl_set_destroy).
 
 **C++:** `catalyst::SET`.
 
 ### CATALYST_MAP
 
+Opaque handle to a map of unique byte keys and associated values. Create with [`catrl_map_create`](#catrl_map_create) and release with [`catrl_map_destroy`](#catrl_map_destroy).
+
 ```c
 typedef struct CATALYST_MAP CATALYST_MAP;
 ```
-
-Opaque handle to a map of unique byte keys and associated values. Create with [`catrl_map_create`](#catrl_map_create) and release with [`catrl_map_destroy`](#catrl_map_destroy).
 
 **C++:** `catalyst::MAP`.
 
 ### CATALYST_STACK
 
+Opaque handle to a last-in, first-out stack. Create with [`catrl_stack_create`](#catrl_stack_create) and release with [`catrl_stack_destroy`](#catrl_stack_destroy).
+
 ```c
 typedef struct CATALYST_STACK CATALYST_STACK;
 ```
-
-Opaque handle to a last-in, first-out stack. Create with [`catrl_stack_create`](#catrl_stack_create) and release with [`catrl_stack_destroy`](#catrl_stack_destroy).
 
 **C++:** `catalyst::STACK`.
 
@@ -384,7 +384,7 @@ CATALYST_RESULT catrl_set_add(
 );
 ```
 
-Copies value into the set if no byte-identical element exists. Grows storage as needed.
+Copies `value` into the set if no byte-identical element exists. Grows storage as needed. An existing element leaves the set unchanged and returns `SUCCESS_NOOP`.
 
 **Parameters:**
 
@@ -424,7 +424,7 @@ CATALYST_RESULT catrl_set_remove(
 );
 ```
 
-Removes a byte-identical element. Enumeration order may change.
+Removes a byte-identical element. An absent element leaves the set unchanged and returns `SUCCESS_NOOP`. Enumeration order may change.
 
 **Parameters:**
 
@@ -653,7 +653,7 @@ CATALYST_RESULT catrl_map_get(
 );
 ```
 
-Retrieves the value associated with a byte-identical key.
+Retrieves the value associated with a byte-identical key. If the key is absent, returns `ERROR_NOT_FOUND` without modifying the output buffer.
 
 **Parameters:**
 
@@ -733,7 +733,7 @@ CATALYST_RESULT catrl_map_remove(
 );
 ```
 
-Removes an association with a byte-identical key. Enumeration order may change.
+Removes an association with a byte-identical key. An absent key leaves the map unchanged and returns `SUCCESS_NOOP`. Enumeration order may change.
 
 **Parameters:**
 
@@ -1002,7 +1002,7 @@ CATALYST_RESULT catrl_stack_pop(
 );
 ```
 
-Copies the top element into value and removes it.
+Copies the top element into `value` and removes it. An empty stack returns `ERROR_NOT_FOUND` without modifying `value`.
 
 **Parameters:**
 
@@ -1036,7 +1036,7 @@ CATALYST_RESULT catrl_stack_peek(
 );
 ```
 
-Copies the top element into value without removing it.
+Copies the top element into `value` without removing it. An empty stack returns `ERROR_NOT_FOUND` without modifying `value`.
 
 **Parameters:**
 

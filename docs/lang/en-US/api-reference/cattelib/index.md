@@ -13,7 +13,8 @@ Provides encoding, decoding, length, and conversion operations for ASCII, Window
 - Encode/decode process one codepoint, including U+0000. They neither append a separate terminator nor skip a BOM.
 - `produced` counts destination code units; `consumed` counts source code units. UTF-16LE counts two-byte code units, not bytes.
 - Encoders require up to four UTF-8 units or two UTF-16LE units of writable storage. Decoders read the sequence width selected by the leading unit, even for malformed input. Supply that many readable units, including any padding needed beyond a truncated sequence. No input-size parameter or bounds discovery is provided.
-- Length and conversion functions consume null-terminated input; lengths exclude the terminator. UTF-8 and UTF-16LE length/conversion functions skip an initial BOM (EF BB BF or FF FE), not internal U+FEFF.
+- Length and conversion functions consume null-terminated input; lengths exclude the terminator. UTF-8 and UTF-16LE length/conversion functions skip an initial BOM (EF BB BF or FF FE), not internal U+FEFF. The full-sequence readable-storage requirement also applies to malformed input encountered by these functions, not just direct decoder calls.
+- Conversions write a zero code-unit terminator on `SUCCESS` or `WARNING_PARTIAL`. A warning indicates substitution with `?`. On error or fatal failure, the destination may contain a converted prefix without a terminator; the function does not roll back earlier writes. A zero capacity is rejected before writing. The two conversions without a capacity argument require a destination large enough for the entire converted string and its terminator.
 - Use separate storage for input and output and for distinct output arguments. Reporting functions detect null arguments before output writes; non-reporting functions require valid non-null input.
 
 Defensive failure paths are included even when unreachable with valid input and intact invariants. When an internal call fails, detail identifies its operation code unless a status-specific detail takes precedence.
@@ -62,18 +63,18 @@ Defensive failure paths are included even when unreachable with valid input and 
 
 | Function | Description |
 | --- | --- |
-| [`catte_ascii_to_cp1252`](#catte_ascii_to_cp1252) | Destination must hold at least the source byte count plus one terminator; no capacity parameter is provided. |
-| [`catte_ascii_to_utf8`](#catte_ascii_to_utf8) | `capacity` specifies writable destination code units, including the terminator. |
-| [`catte_ascii_to_utf16le`](#catte_ascii_to_utf16le) | `capacity` specifies writable destination code units, including the terminator. |
-| [`catte_cp1252_to_ascii`](#catte_cp1252_to_ascii) | Destination must hold at least the source byte count plus one terminator; no capacity parameter is provided. |
-| [`catte_cp1252_to_utf8`](#catte_cp1252_to_utf8) | `capacity` specifies writable destination code units, including the terminator. |
-| [`catte_cp1252_to_utf16le`](#catte_cp1252_to_utf16le) | `capacity` specifies writable destination code units, including the terminator. |
-| [`catte_utf8_to_ascii`](#catte_utf8_to_ascii) | `capacity` specifies writable destination code units, including the terminator. |
-| [`catte_utf8_to_cp1252`](#catte_utf8_to_cp1252) | `capacity` specifies writable destination code units, including the terminator. |
-| [`catte_utf8_to_utf16le`](#catte_utf8_to_utf16le) | `capacity` specifies writable destination code units, including the terminator. |
-| [`catte_utf16le_to_ascii`](#catte_utf16le_to_ascii) | `capacity` specifies writable destination code units, including the terminator. |
-| [`catte_utf16le_to_cp1252`](#catte_utf16le_to_cp1252) | `capacity` specifies writable destination code units, including the terminator. |
-| [`catte_utf16le_to_utf8`](#catte_utf16le_to_utf8) | `capacity` specifies writable destination code units, including the terminator. |
+| [`catte_ascii_to_cp1252`](#catte_ascii_to_cp1252) | Converts a null-terminated ASCII string to Windows-1252. |
+| [`catte_ascii_to_utf8`](#catte_ascii_to_utf8) | Converts a null-terminated ASCII string to UTF-8. |
+| [`catte_ascii_to_utf16le`](#catte_ascii_to_utf16le) | Converts a null-terminated ASCII string to UTF-16LE. |
+| [`catte_cp1252_to_ascii`](#catte_cp1252_to_ascii) | Converts a null-terminated Windows-1252 string to ASCII. |
+| [`catte_cp1252_to_utf8`](#catte_cp1252_to_utf8) | Converts a null-terminated Windows-1252 string to UTF-8. |
+| [`catte_cp1252_to_utf16le`](#catte_cp1252_to_utf16le) | Converts a null-terminated Windows-1252 string to UTF-16LE. |
+| [`catte_utf8_to_ascii`](#catte_utf8_to_ascii) | Converts a null-terminated UTF-8 string to ASCII. |
+| [`catte_utf8_to_cp1252`](#catte_utf8_to_cp1252) | Converts a null-terminated UTF-8 string to Windows-1252. |
+| [`catte_utf8_to_utf16le`](#catte_utf8_to_utf16le) | Converts a null-terminated UTF-8 string to UTF-16LE. |
+| [`catte_utf16le_to_ascii`](#catte_utf16le_to_ascii) | Converts a null-terminated UTF-16LE string to ASCII. |
+| [`catte_utf16le_to_cp1252`](#catte_utf16le_to_cp1252) | Converts a null-terminated UTF-16LE string to Windows-1252. |
+| [`catte_utf16le_to_utf8`](#catte_utf16le_to_utf8) | Converts a null-terminated UTF-16LE string to UTF-8. |
 
 ## Constant Details
 
@@ -541,7 +542,7 @@ CATALYST_RESULT catte_ascii_to_cp1252(
 );
 ```
 
-Destination must hold at least the source byte count plus one terminator; no capacity parameter is provided. Source bytes above 0x7F are replaced by '?'.
+Converts a null-terminated ASCII string to Windows-1252. Destination must hold at least the source byte count plus one terminator; no capacity parameter is provided. Source bytes above 0x7F are replaced by '?'.
 
 **Parameters:**
 
@@ -573,7 +574,7 @@ CATALYST_RESULT catte_ascii_to_utf8(
 );
 ```
 
-Source bytes above 0x7F are replaced by '?'.
+Converts a null-terminated ASCII string to UTF-8. Source bytes above 0x7F are replaced by '?'.
 
 **Parameters:**
 
@@ -607,7 +608,7 @@ CATALYST_RESULT catte_ascii_to_utf16le(
 );
 ```
 
-Source bytes above 0x7F are replaced by '?'.
+Converts a null-terminated ASCII string to UTF-16LE. Source bytes above 0x7F are replaced by '?'.
 
 **Parameters:**
 
@@ -640,7 +641,7 @@ CATALYST_RESULT catte_cp1252_to_ascii(
 );
 ```
 
-Destination must hold at least the source byte count plus one terminator; no capacity parameter is provided. Undefined source bytes and values not representable in ASCII are replaced by '?'.
+Converts a null-terminated Windows-1252 string to ASCII. Destination must hold at least the source byte count plus one terminator; no capacity parameter is provided. Undefined source bytes and values not representable in ASCII are replaced by '?'.
 
 **Parameters:**
 
@@ -675,7 +676,7 @@ CATALYST_RESULT catte_cp1252_to_utf8(
 );
 ```
 
-Undefined source bytes are replaced by '?'.
+Converts a null-terminated Windows-1252 string to UTF-8. Undefined source bytes are replaced by '?'.
 
 **Parameters:**
 
@@ -717,7 +718,7 @@ CATALYST_RESULT catte_cp1252_to_utf16le(
 );
 ```
 
-Undefined source bytes are replaced by '?'.
+Converts a null-terminated Windows-1252 string to UTF-16LE. Undefined source bytes are replaced by '?'.
 
 **Parameters:**
 
@@ -757,7 +758,7 @@ CATALYST_RESULT catte_utf8_to_ascii(
 );
 ```
 
-Unrepresentable values are replaced by '?'.
+Converts a null-terminated UTF-8 string to ASCII. Unrepresentable values are replaced by '?'.
 
 **Parameters:**
 
@@ -809,7 +810,7 @@ CATALYST_RESULT catte_utf8_to_cp1252(
 );
 ```
 
-Unrepresentable values are replaced by '?'.
+Converts a null-terminated UTF-8 string to Windows-1252. Unrepresentable values are replaced by '?'.
 
 **Parameters:**
 
@@ -861,7 +862,7 @@ CATALYST_RESULT catte_utf8_to_utf16le(
 );
 ```
 
-All valid Unicode scalars are preserved.
+Converts a null-terminated UTF-8 string to UTF-16LE. All valid Unicode scalars are preserved.
 
 **Parameters:**
 
@@ -915,7 +916,7 @@ CATALYST_RESULT catte_utf16le_to_ascii(
 );
 ```
 
-Unrepresentable values are replaced by '?'.
+Converts a null-terminated UTF-16LE string to ASCII. Unrepresentable values are replaced by '?'.
 
 **Parameters:**
 
@@ -955,7 +956,7 @@ CATALYST_RESULT catte_utf16le_to_cp1252(
 );
 ```
 
-Unrepresentable values are replaced by '?'.
+Converts a null-terminated UTF-16LE string to Windows-1252. Unrepresentable values are replaced by '?'.
 
 **Parameters:**
 
@@ -995,7 +996,7 @@ CATALYST_RESULT catte_utf16le_to_utf8(
 );
 ```
 
-All valid Unicode scalars are preserved.
+Converts a null-terminated UTF-16LE string to UTF-8. All valid Unicode scalars are preserved.
 
 **Parameters:**
 

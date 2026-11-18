@@ -7,7 +7,7 @@ Provides the foundational numeric types, text representations, and operation res
 **Namespace:** `catalyst`  
 **Library:** Header-only.
 
-The definitions correspond to the [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/specifications/languages/fdefspec/).
+The definitions are based on the [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/specifications/languages/fdefspec/). This reference describes the actual Core API; see [Context code](#catalyst_context_code) and [Status code constants](#status-code-constants) for Core-specific result conventions.
 
 ## Contents
 
@@ -128,11 +128,11 @@ All supported targets provide eight-bit byte types. Wider integer and floating-p
 
 #### CATALYST_BIT
 
+Represents a bit with the values 0 and 1. The underlying byte does not enforce this range.
+
 ```c
 typedef CATALYST_BYTE CATALYST_BIT;
 ```
-
-Represents a bit with the values 0 and 1. The underlying byte does not enforce this range.
 
 **C++:** `catalyst::BIT`.
 
@@ -140,11 +140,11 @@ Represents a bit with the values 0 and 1. The underlying byte does not enforce t
 
 #### CATALYST_NIBBLE
 
+Represents four bits with values from 0 through 15. The underlying byte does not enforce this range.
+
 ```c
 typedef CATALYST_BYTE CATALYST_NIBBLE;
 ```
-
-Represents four bits with values from 0 through 15. The underlying byte does not enforce this range.
 
 **C++:** `catalyst::NIBBLE`.
 
@@ -306,19 +306,23 @@ typedef uint64_t CATALYST_ULONG;
 
 #### CATALYST_SINGLE
 
+A binary floating-point type with 24 bits of significand precision, exponent limits −125 through 128 as defined by the corresponding `<float.h>` macros, and storage of 4 bytes. Storage size is checked at compile time.
+
+<span data-heading-badge="CATALYST_SUPPORTS_SINGLE" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_SINGLE to be 1"></span>
+
 ```c
 #if CATALYST_SUPPORTS_SINGLE
 typedef float CATALYST_SINGLE;
 #endif
 ```
 
-A binary floating-point type with 24 bits of significand precision, exponent limits −125 through 128 as defined by the corresponding `<float.h>` macros, and storage of 4 bytes. Storage size is checked at compile time.
-
-<span data-heading-badge="CATALYST_SUPPORTS_SINGLE" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_SINGLE to be 1"></span>
-
 **C++:** `catalyst::SINGLE`.
 
 #### CATALYST_DOUBLE
+
+A binary floating-point type with 53 bits of significand precision, exponent limits −1021 through 1024 as defined by the corresponding `<float.h>` macros, and storage of 8 bytes. Storage size is checked at compile time.
+
+<span data-heading-badge="CATALYST_SUPPORTS_DOUBLE" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_DOUBLE to be 1"></span>
 
 ```c
 #if CATALYST_SUPPORTS_DOUBLE
@@ -326,19 +330,15 @@ typedef double CATALYST_DOUBLE;
 #endif
 ```
 
-A binary floating-point type with 53 bits of significand precision, exponent limits −1021 through 1024 as defined by the corresponding `<float.h>` macros, and storage of 8 bytes. Storage size is checked at compile time.
-
-<span data-heading-badge="CATALYST_SUPPORTS_DOUBLE" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_DOUBLE to be 1"></span>
-
 **C++:** `catalyst::DOUBLE`.
 
 #### CATALYST_BOOL
 
+Represents a Boolean value. `CATALYST_FALSE` is 0 and `CATALYST_TRUE` is 1. The underlying byte does not enforce these two values.
+
 ```c
 typedef CATALYST_BYTE CATALYST_BOOL;
 ```
-
-Represents a Boolean value. `CATALYST_FALSE` is 0 and `CATALYST_TRUE` is 1. The underlying byte does not enforce these two values.
 
 **C++:** `catalyst::BOOL`.
 
@@ -384,15 +384,17 @@ String pointer types do not carry length, capacity, or ownership information or 
 
 #### CATALYST_TEXT_ENCODING
 
+Identifies the encoding of text data. The defined values are listed under [Text encoding constants](#text-encoding-constants).
+
 ```c
 typedef CATALYST_BYTE CATALYST_TEXT_ENCODING;
 ```
 
-Identifies the encoding of text data. The defined values are listed under [Text encoding constants](#text-encoding-constants).
-
 **C++:** `catalyst::TEXT_ENCODING`.
 
 #### CATALYST_CODEPOINT
+
+Represents a Unicode codepoint using four ordered bytes, independent of native integer byte order. Unicode codepoints range from U+0000 through U+10FFFF; Unicode scalar values exclude the surrogate range U+D800–U+DFFF. The structure itself does not validate these ranges.
 
 ```c
 typedef struct CATALYST_CODEPOINT {
@@ -403,110 +405,108 @@ typedef struct CATALYST_CODEPOINT {
 } CATALYST_CODEPOINT;
 ```
 
-Represents a Unicode codepoint using four ordered bytes, independent of native integer byte order. Unicode codepoints range from U+0000 through U+10FFFF; Unicode scalar values exclude the surrogate range U+D800–U+DFFF. The structure itself does not validate these ranges.
-
 **Fields:**
 
-| Field | Description |
-| --- | --- |
-| `byte0` | Bits 31–24 (most significant byte). |
-| `byte1` | Bits 23–16. |
-| `byte2` | Bits 15–8. |
-| `byte3` | Bits 7–0 (least significant byte). |
+`byte0` — Bits 31–24 (most significant byte).  
+`byte1` — Bits 23–16.  
+`byte2` — Bits 15–8.  
+`byte3` — Bits 7–0 (least significant byte).
 
 **C++:** `catalyst::CODEPOINT` publicly derives from this structure. See [CODEPOINT members](#codepoint-members).
 
 #### CATALYST_ASCII_CODE_UNIT
 
+Represents a seven-bit ASCII code unit in a byte. Valid ASCII values are 0x00–0x7F; the byte type itself does not enforce this range.
+
 ```c
 typedef CATALYST_BYTE CATALYST_ASCII_CODE_UNIT;
 ```
-
-Represents a seven-bit ASCII code unit in a byte. Valid ASCII values are 0x00–0x7F; the byte type itself does not enforce this range.
 
 **C++:** `catalyst::ASCII_CODE_UNIT`.
 
 #### CATALYST_ASCII
 
+Pointer to read-only ASCII code units.
+
 ```c
 typedef const CATALYST_ASCII_CODE_UNIT* CATALYST_ASCII;
 ```
-
-Pointer to read-only ASCII code units.
 
 **C++:** `catalyst::ASCII`.
 
 #### CATALYST_ASCIIW
 
+Pointer to writable ASCII code units.
+
 ```c
 typedef CATALYST_ASCII_CODE_UNIT* CATALYST_ASCIIW;
 ```
-
-Pointer to writable ASCII code units.
 
 **C++:** `catalyst::ASCIIW`.
 
 #### CATALYST_CP1252_CODE_UNIT
 
+Represents one Windows-1252 code unit as a byte. The type does not distinguish assigned from unassigned encoding values.
+
 ```c
 typedef CATALYST_BYTE CATALYST_CP1252_CODE_UNIT;
 ```
-
-Represents one Windows-1252 code unit as a byte. The type does not distinguish assigned from unassigned encoding values.
 
 **C++:** `catalyst::CP1252_CODE_UNIT`.
 
 #### CATALYST_CP1252
 
+Pointer to read-only Windows-1252 code units.
+
 ```c
 typedef const CATALYST_CP1252_CODE_UNIT* CATALYST_CP1252;
 ```
-
-Pointer to read-only Windows-1252 code units.
 
 **C++:** `catalyst::CP1252`.
 
 #### CATALYST_CP1252W
 
+Pointer to writable Windows-1252 code units.
+
 ```c
 typedef CATALYST_CP1252_CODE_UNIT* CATALYST_CP1252W;
 ```
-
-Pointer to writable Windows-1252 code units.
 
 **C++:** `catalyst::CP1252W`.
 
 #### CATALYST_UTF8_CODE_UNIT
 
+Represents one UTF-8 code unit as a byte. A Unicode scalar may occupy one to four code units; an individual unit is not necessarily a complete scalar.
+
 ```c
 typedef CATALYST_BYTE CATALYST_UTF8_CODE_UNIT;
 ```
-
-Represents one UTF-8 code unit as a byte. A Unicode scalar may occupy one to four code units; an individual unit is not necessarily a complete scalar.
 
 **C++:** `catalyst::UTF8_CODE_UNIT`.
 
 #### CATALYST_UTF8
 
+Pointer to read-only UTF-8 code units.
+
 ```c
 typedef const CATALYST_UTF8_CODE_UNIT* CATALYST_UTF8;
 ```
-
-Pointer to read-only UTF-8 code units.
 
 **C++:** `catalyst::UTF8`.
 
 #### CATALYST_UTF8W
 
+Pointer to writable UTF-8 code units.
+
 ```c
 typedef CATALYST_UTF8_CODE_UNIT* CATALYST_UTF8W;
 ```
 
-Pointer to writable UTF-8 code units.
-
 **C++:** `catalyst::UTF8W`.
 
 #### CATALYST_UTF16LE_CODE_UNIT
+
+Represents one sixteen-bit UTF-16LE code unit as two bytes in little-endian significance order. A supplementary Unicode scalar requires a pair of code units.
 
 ```c
 typedef struct CATALYST_UTF16LE_CODE_UNIT {
@@ -515,34 +515,30 @@ typedef struct CATALYST_UTF16LE_CODE_UNIT {
 } CATALYST_UTF16LE_CODE_UNIT;
 ```
 
-Represents one sixteen-bit UTF-16LE code unit as two bytes in little-endian significance order. A supplementary Unicode scalar requires a pair of code units.
-
 **Fields:**
 
-| Field | Description |
-| --- | --- |
-| `lsb` | Least significant byte, stored first. |
-| `msb` | Most significant byte, stored second. |
+`lsb` — Least significant byte, stored first.  
+`msb` — Most significant byte, stored second.
 
 **C++:** `catalyst::UTF16LE_CODE_UNIT` publicly derives from this structure. See [UTF16LE_CODE_UNIT members](#utf16le_code_unit-members).
 
 #### CATALYST_UTF16LE
 
+Pointer to read-only UTF-16LE code units.
+
 ```c
 typedef const CATALYST_UTF16LE_CODE_UNIT* CATALYST_UTF16LE;
 ```
-
-Pointer to read-only UTF-16LE code units.
 
 **C++:** `catalyst::UTF16LE`.
 
 #### CATALYST_UTF16LEW
 
+Pointer to writable UTF-16LE code units.
+
 ```c
 typedef CATALYST_UTF16LE_CODE_UNIT* CATALYST_UTF16LEW;
 ```
-
-Pointer to writable UTF-16LE code units.
 
 **C++:** `catalyst::UTF16LEW`.
 
@@ -550,45 +546,47 @@ Pointer to writable UTF-16LE code units.
 
 #### CATALYST_STATUS_CODE
 
+Represents the outcome of a completed operation. Its meaning is independent of the context, operation, and detail values. The status code definitions and severity ranges are listed under [Status code constants](#status-code-constants) and [Status level mask](#status-level-mask).
+
 ```c
 typedef CATALYST_BYTE CATALYST_STATUS_CODE;
 ```
-
-Represents the outcome of a completed operation. Its meaning is independent of the context, operation, and detail values. The status code definitions and severity ranges are listed under [Status code constants](#status-code-constants) and [Status level mask](#status-level-mask).
 
 **C++:** `catalyst::STATUS_CODE`.
 
 #### CATALYST_CONTEXT_CODE
 
+Identifies the context in which an operation was performed. Its meaning is unique within the associated implementation’s scope. Within Core, a context normally identifies a method within its module. The value is implementation-defined for every status level, including `SUCCESS_NOOP`. Core reporting methods use their assigned context ID on every outcome, including successful results. This differs from FDEFSPEC Revision 1, which requires a zero context for Success-level results.
+
 ```c
 typedef CATALYST_BYTE CATALYST_CONTEXT_CODE;
 ```
-
-Identifies the context in which an operation was performed. Its meaning is unique within the associated implementation’s scope. Within Core, a context normally identifies a method within its module. The value is implementation-defined for every status level, including `SUCCESS_NOOP`. Core reporting methods use their assigned context ID on every outcome.
 
 **C++:** `catalyst::CONTEXT_CODE`.
 
 #### CATALYST_OPERATION_CODE
 
+Identifies a distinct operation within an execution context. Within a Core method, each distinct result-reporting site has its own operation code, including successful sites. Meanings are local to that context; consult the reporting method’s reference. Undefined values are unknown. The returned context identifies the reporting method on success as well as on other outcomes.
+
 ```c
 typedef CATALYST_BYTE CATALYST_OPERATION_CODE;
 ```
-
-Identifies a distinct operation within an execution context. Within a Core method, each distinct result-reporting site has its own operation code, including successful sites. Meanings are local to that context; consult the reporting method’s reference. Undefined values are unknown. The returned context identifies the reporting method on success as well as on other outcomes.
 
 **C++:** `catalyst::OPERATION_CODE`.
 
 #### CATALYST_DETAIL_CODE
 
+Represents additional information about a completed operation. Its meaning is specific to the associated operation unless a status or context definition takes precedence (status first, then context). It may be a symbolic value or actual operation data. Zero may be a meaningful value, or indicate no additional detail; undefined values are unknown.
+
 ```c
 typedef CATALYST_BYTE CATALYST_DETAIL_CODE;
 ```
 
-Represents additional information about a completed operation. Its meaning is specific to the associated operation unless a status or context definition takes precedence (status first, then context). It may be a symbolic value or actual operation data. Zero may be a meaningful value, or indicate no additional detail; undefined values are unknown.
-
 **C++:** `catalyst::DETAIL_CODE`.
 
 #### CATALYST_RESULT
+
+Represents a result as four ordered byte fields.
 
 ```c
 typedef struct CATALYST_RESULT {
@@ -599,16 +597,12 @@ typedef struct CATALYST_RESULT {
 } CATALYST_RESULT;
 ```
 
-Represents a result as four ordered byte fields.
-
 **Fields:**
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `status` | [`CATALYST_STATUS_CODE`](#catalyst_status_code) | Outcome of the operation. |
-| `context` | [`CATALYST_CONTEXT_CODE`](#catalyst_context_code) | Execution context. |
-| `operation` | [`CATALYST_OPERATION_CODE`](#catalyst_operation_code) | Distinct operation within that context. |
-| `detail` | [`CATALYST_DETAIL_CODE`](#catalyst_detail_code) | Additional information, when defined. |
+`status` ([`CATALYST_STATUS_CODE`](#catalyst_status_code)) — Outcome of the operation.  
+`context` ([`CATALYST_CONTEXT_CODE`](#catalyst_context_code)) — Execution context.  
+`operation` ([`CATALYST_OPERATION_CODE`](#catalyst_operation_code)) — Distinct operation within that context.  
+`detail` ([`CATALYST_DETAIL_CODE`](#catalyst_detail_code)) — Additional information, when defined.
 
 Results are written in this reference as `0xSSCCOODD`, where `SS`, `CC`, `OO`, and `DD` are the status, context, operation, and detail bytes, respectively. The notation expresses field significance, not a requirement to pack the fields into a native integer.
 
@@ -658,7 +652,7 @@ For `SBYTE`, `SHORT`, and `INT`, the C90 header uses `SCHAR_MIN`, `SHRT_MIN`, an
 
 ### Status code constants
 
-The following values are defined by FDEFSPEC and exposed by CATALYST. All other status values are reserved and their meanings are undefined. An em dash in the status-defined detail column does not prohibit an implementation from defining detail at the context or operation level.
+The following values are exposed by CATALYST. `CATALYST_STATUS_CODE_ERROR_DEPENDENCY_FAILURE` (`0x8A`) is defined by the current Core header but is not listed in FDEFSPEC Revision 1. All other unlisted status values are reserved and their meanings are undefined. An em dash in the status-defined detail column does not prohibit an implementation from defining detail at the context or operation level.
 
 C constants use the prefix `CATALYST_STATUS_CODE_`; corresponding C++ constants use `catalyst::STATUS_CODE_`.
 
@@ -674,7 +668,7 @@ C constants use the prefix `CATALYST_STATUS_CODE_`; corresponding C++ constants 
 | C Constant | Value | Description | Status-defined Detail |
 | --- | --- | --- | --- |
 | `CATALYST_STATUS_CODE_WARNING` | `0x40` | Operation completed, but the result may be unexpected or undesirable. | — |
-| `CATALYST_STATUS_CODE_WARNING_PARTIAL` | `0x41` | Operation completed only partially; output may be incomplete. | — |
+| `CATALYST_STATUS_CODE_WARNING_PARTIAL` | `0x41` | Operation completed with incomplete or substituted output. | — |
 | `CATALYST_STATUS_CODE_WARNING_DEPRECATED` | `0x42` | Operation used deprecated behavior that may no longer work in the future. | — |
 
 #### Error
@@ -692,7 +686,7 @@ C constants use the prefix `CATALYST_STATUS_CODE_`; corresponding C++ constants 
 | `CATALYST_STATUS_CODE_ERROR_NOT_FOUND` | `0x88` | A required resource does not exist. | — |
 | `CATALYST_STATUS_CODE_ERROR_INTERRUPTED` | `0x89` | An external event interrupted the operation. | — |
 | `CATALYST_STATUS_CODE_ERROR_DEPENDENCY_FAILURE` | `0x8A` | A required dependency failed. | The dependency’s status code value. |
-| `CATALYST_STATUS_CODE_ERROR_BUFFER_OVERFLOW` | `0x90` | A buffer was too small to hold the required data. | — |
+| `CATALYST_STATUS_CODE_ERROR_BUFFER_OVERFLOW` | `0x90` | Required data exceeds the available buffer or representable extent. | — |
 | `CATALYST_STATUS_CODE_ERROR_ALLOCATION_FAILED` | `0x91` | A memory allocation request was unsuccessful. | — |
 | `CATALYST_STATUS_CODE_ERROR_IO_ERROR` | `0xA0` | An input/output error occurred. | — |
 
@@ -703,7 +697,7 @@ C constants use the prefix `CATALYST_STATUS_CODE_`; corresponding C++ constants 
 | `CATALYST_STATUS_CODE_FATAL` | `0xC0` | Operation failed due to an unrecoverable error. | — |
 | `CATALYST_STATUS_CODE_FATAL_INVARIANT_VIOLATION` | `0xC1` | A fundamental invariant was violated, indicating critical logic error or data corruption. | — |
 
-For `ERROR_DEPENDENCY_FAILURE`, the operation code identifies the reporting operation, which may also identify the failing dependency. The reporting method’s documentation defines that code. The detail byte remains the dependency’s status, not a context or operation code.
+For `ERROR_DEPENDENCY_FAILURE`, the operation code identifies the reporting operation, which may also identify the failing dependency. The detail byte is the dependency’s status, not a context or operation code. The constant is exposed by the headers; current CATMMLIB, CATTELIB and CATRLLIB reporting functions instead use the applicable status and documented detail for their failure sites.
 
 ### Status level mask
 
