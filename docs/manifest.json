@@ -3,32 +3,39 @@
         {
             "title": "Overview",
             "path": "/",
+            "alignment": "block",
             "children": [
                 {
                     "title": "Assumptions",
-                    "path": "/assumptions"
+                    "path": "/assumptions",
+                    "alignment": "block"
                 }
             ]
         },
         {
             "title": "API Reference",
             "path": "/api-reference",
+            "alignment": "block",
             "children": [
                 {
                     "title": "CATALYST",
-                    "path": "/api-reference/catalyst"
+                    "path": "/api-reference/catalyst",
+                    "alignment": "block"
                 },
                 {
                     "title": "CATMMLIB",
-                    "path": "/api-reference/catmmlib"
+                    "path": "/api-reference/catmmlib",
+                    "alignment": "block"
                 },
                 {
                     "title": "CATTELIB",
-                    "path": "/api-reference/cattelib"
+                    "path": "/api-reference/cattelib",
+                    "alignment": "block"
                 },
                 {
                     "title": "CATRLLIB",
-                    "path": "/api-reference/catrllib"
+                    "path": "/api-reference/catrllib",
+                    "alignment": "block"
                 }
             ]
         }
