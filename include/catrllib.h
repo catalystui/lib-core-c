@@ -43,8 +43,8 @@ CATRLLIB_API CATALYST_RESULT catrl_array_get(const CATALYST_ARRAY* array, CATALY
 /** Replace the element at index. */
 CATRLLIB_API CATALYST_RESULT catrl_array_set(CATALYST_ARRAY* array, CATALYST_NUINT index, const void* value);
 
-/** Return the fixed number of elements. */
-CATRLLIB_API CATALYST_RESULT catrl_array_length(const CATALYST_ARRAY* array, CATALYST_NUINT* length);
+/** Return the fixed number of elements from a valid live handle. */
+CATRLLIB_API CATALYST_NUINT catrl_array_length(const CATALYST_ARRAY* array);
 
 /* -------------------------------------------------------------------------------------------------
  * C API :: SET
@@ -65,8 +65,8 @@ CATRLLIB_API CATALYST_RESULT catrl_set_remove(CATALYST_SET* set, const void* val
 /** Return whether an equivalent element exists. */
 CATRLLIB_API CATALYST_RESULT catrl_set_contains(const CATALYST_SET* set, const void* value, CATALYST_BOOL* contains);
 
-/** Return the number of distinct elements. */
-CATRLLIB_API CATALYST_RESULT catrl_set_count(const CATALYST_SET* set, CATALYST_NUINT* count);
+/** Return the number of distinct elements from a valid live handle. */
+CATRLLIB_API CATALYST_NUINT catrl_set_count(const CATALYST_SET* set);
 
 /** Copy an element at an unordered enumeration index. */
 CATRLLIB_API CATALYST_RESULT catrl_set_at(const CATALYST_SET* set, CATALYST_NUINT index, void* value);
@@ -96,8 +96,8 @@ CATRLLIB_API CATALYST_RESULT catrl_map_remove(CATALYST_MAP* map, const void* key
 /** Return whether an equivalent key exists. */
 CATRLLIB_API CATALYST_RESULT catrl_map_contains(const CATALYST_MAP* map, const void* key, CATALYST_BOOL* contains);
 
-/** Return the number of associations. */
-CATRLLIB_API CATALYST_RESULT catrl_map_count(const CATALYST_MAP* map, CATALYST_NUINT* count);
+/** Return the number of associations from a valid live handle. */
+CATRLLIB_API CATALYST_NUINT catrl_map_count(const CATALYST_MAP* map);
 
 /** Copy the key and value at an unordered enumeration index. */
 CATRLLIB_API CATALYST_RESULT catrl_map_at(const CATALYST_MAP* map, CATALYST_NUINT index, void* key, void* value);
@@ -124,8 +124,8 @@ CATRLLIB_API CATALYST_RESULT catrl_stack_pop(CATALYST_STACK* stack, void* value)
 /** Copy the top element. An empty stack returns ERROR_NOT_FOUND. */
 CATRLLIB_API CATALYST_RESULT catrl_stack_peek(const CATALYST_STACK* stack, void* value);
 
-/** Return the number of elements. */
-CATRLLIB_API CATALYST_RESULT catrl_stack_count(const CATALYST_STACK* stack, CATALYST_NUINT* count);
+/** Return the number of elements from a valid live handle. */
+CATRLLIB_API CATALYST_NUINT catrl_stack_count(const CATALYST_STACK* stack);
 
 /** Remove all elements, retaining storage. An empty stack returns SUCCESS_NOOP. */
 CATRLLIB_API CATALYST_RESULT catrl_stack_clear(CATALYST_STACK* stack);

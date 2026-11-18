@@ -34,9 +34,8 @@ int main() {
         printf("FAIL: array create\n");
         return 1;
     }
-    result = array_length(array, &count);
-    print_result("array length", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x05 || result.operation != 0x03 || result.detail != 0x00 || count != 8) {
+    count = array_length(array);
+    if (count != 8) {
         printf("FAIL: array length\n");
         return 2;
     }
@@ -84,9 +83,8 @@ int main() {
         printf("FAIL: empty array create\n");
         return 8;
     }
-    result = array_length(array, &count);
-    print_result("empty array length", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x05 || result.operation != 0x03 || result.detail != 0x00 || count != 0) {
+    count = array_length(array);
+    if (count != 0) {
         printf("FAIL: empty array length\n");
         return 9;
     }
@@ -124,9 +122,8 @@ int main() {
         printf("FAIL: set duplicate\n");
         return 13;
     }
-    result = set_count(set, &count);
-    print_result("set count", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x0B || result.operation != 0x03 || result.detail != 0x00 || count != 8) {
+    count = set_count(set);
+    if (count != 8) {
         printf("FAIL: set count\n");
         return 14;
     }
@@ -165,9 +162,8 @@ int main() {
         printf("FAIL: set remove absent\n");
         return 19;
     }
-    result = set_count(set, &count);
-    print_result("set count after remove", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x0B || result.operation != 0x03 || result.detail != 0x00 || count != 7) {
+    count = set_count(set);
+    if (count != 7) {
         printf("FAIL: set count after remove\n");
         return 20;
     }
@@ -177,9 +173,8 @@ int main() {
         printf("FAIL: set clear\n");
         return 21;
     }
-    result = set_count(set, &count);
-    print_result("set empty count", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x0B || result.operation != 0x03 || result.detail != 0x00 || count != 0) {
+    count = set_count(set);
+    if (count != 0) {
         printf("FAIL: set empty count\n");
         return 22;
     }
@@ -245,9 +240,8 @@ int main() {
         printf("FAIL: map get replaced\n");
         return 30;
     }
-    result = map_count(map, &count);
-    print_result("map count", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x14 || result.operation != 0x03 || result.detail != 0x00 || count != 8) {
+    count = map_count(map);
+    if (count != 8) {
         printf("FAIL: map count\n");
         return 31;
     }
@@ -293,9 +287,8 @@ int main() {
         printf("FAIL: map remove absent\n");
         return 37;
     }
-    result = map_count(map, &count);
-    print_result("map count after remove", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x14 || result.operation != 0x03 || result.detail != 0x00 || count != 7) {
+    count = map_count(map);
+    if (count != 7) {
         printf("FAIL: map count after remove\n");
         return 38;
     }
@@ -305,9 +298,8 @@ int main() {
         printf("FAIL: map clear\n");
         return 39;
     }
-    result = map_count(map, &count);
-    print_result("map empty count", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x14 || result.operation != 0x03 || result.detail != 0x00 || count != 0) {
+    count = map_count(map);
+    if (count != 0) {
         printf("FAIL: map empty count\n");
         return 40;
     }
@@ -370,9 +362,8 @@ int main() {
             return 48;
         }
     }
-    result = stack_count(stack, &count);
-    print_result("stack count", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x1C || result.operation != 0x03 || result.detail != 0x00 || count != 8) {
+    count = stack_count(stack);
+    if (count != 8) {
         printf("FAIL: stack count\n");
         return 49;
     }
@@ -382,9 +373,8 @@ int main() {
         printf("FAIL: stack peek\n");
         return 50;
     }
-    result = stack_count(stack, &count);
-    print_result("stack count after peek", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x1C || result.operation != 0x03 || result.detail != 0x00 || count != 8) {
+    count = stack_count(stack);
+    if (count != 8) {
         printf("FAIL: stack count after peek\n");
         return 51;
     }
@@ -396,9 +386,8 @@ int main() {
             return 52;
         }
     }
-    result = stack_count(stack, &count);
-    print_result("stack empty count", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x1C || result.operation != 0x03 || result.detail != 0x00 || count != 0) {
+    count = stack_count(stack);
+    if (count != 0) {
         printf("FAIL: stack empty count\n");
         return 53;
     }
@@ -414,9 +403,8 @@ int main() {
         printf("FAIL: stack clear\n");
         return 55;
     }
-    result = stack_count(stack, &count);
-    print_result("stack cleared count", result);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x1C || result.operation != 0x03 || result.detail != 0x00 || count != 0) {
+    count = stack_count(stack);
+    if (count != 0) {
         printf("FAIL: stack cleared count\n");
         return 56;
     }
@@ -486,8 +474,8 @@ int main() {
     if (set == 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0x06 || result.operation != 0x03 || result.detail != 0) return 65;
     result = set_add(set, &value);
     if (result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x08 || result.operation != 0x05 || result.detail != 0x02) return 66;
-    result = set_count(set, &count);
-    if (count != 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0x0B || result.operation != 0x03 || result.detail != 0) return 67;
+    count = set_count(set);
+    if (count != 0) return 67;
     result = set_destroy(set);
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x07 || result.operation != 0x02 || result.detail != 0) return 68;
 
@@ -552,12 +540,12 @@ int main() {
             if (result.status != STATUS_CODE_SUCCESS || result.context != 0x19 || result.operation != 0x05 || result.detail != 0) return 85;
         }
     }
-    result = stack_count(stack, &count);
-    if (count != 256 || result.status != STATUS_CODE_SUCCESS || result.context != 0x1C || result.operation != 0x03 || result.detail != 0) return 86;
+    count = stack_count(stack);
+    if (count != 256) return 86;
     result = stack_pop(stack, &value);
     if (value != item || result.status != STATUS_CODE_SUCCESS || result.context != 0x1A || result.operation != 0x05 || result.detail != 0) return 87;
-    result = stack_count(stack, &count);
-    if (count != 255 || result.status != STATUS_CODE_SUCCESS || result.context != 0x1C || result.operation != 0x03 || result.detail != 0) return 88;
+    count = stack_count(stack);
+    if (count != 255) return 88;
     result = stack_destroy(stack);
     if (result.status != STATUS_CODE_SUCCESS || result.context != 0x18 || result.operation != 0x02 || result.detail != 0) return 89;
 #endif

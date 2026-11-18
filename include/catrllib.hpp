@@ -25,8 +25,8 @@ inline RESULT array_set(ARRAY* array, NUINT index, const void* value) {
     return ::catrl_array_set(array, index, value);
 }
 
-inline RESULT array_length(const ARRAY* array, NUINT* length) {
-    return ::catrl_array_length(array, length);
+inline NUINT array_length(const ARRAY* array) {
+    return ::catrl_array_length(array);
 }
 
 inline RESULT set_create(SET** set, NUINT element_size) {
@@ -49,8 +49,8 @@ inline RESULT set_contains(const SET* set, const void* value, BOOL* contains) {
     return ::catrl_set_contains(set, value, contains);
 }
 
-inline RESULT set_count(const SET* set, NUINT* count) {
-    return ::catrl_set_count(set, count);
+inline NUINT set_count(const SET* set) {
+    return ::catrl_set_count(set);
 }
 
 inline RESULT set_at(const SET* set, NUINT index, void* value) {
@@ -85,8 +85,8 @@ inline RESULT map_contains(const MAP* map, const void* key, BOOL* contains) {
     return ::catrl_map_contains(map, key, contains);
 }
 
-inline RESULT map_count(const MAP* map, NUINT* count) {
-    return ::catrl_map_count(map, count);
+inline NUINT map_count(const MAP* map) {
+    return ::catrl_map_count(map);
 }
 
 inline RESULT map_at(const MAP* map, NUINT index, void* key, void* value) {
@@ -117,8 +117,8 @@ inline RESULT stack_peek(const STACK* stack, void* value) {
     return ::catrl_stack_peek(stack, value);
 }
 
-inline RESULT stack_count(const STACK* stack, NUINT* count) {
-    return ::catrl_stack_count(stack, count);
+inline NUINT stack_count(const STACK* stack) {
+    return ::catrl_stack_count(stack);
 }
 
 inline RESULT stack_clear(STACK* stack) {

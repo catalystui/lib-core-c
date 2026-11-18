@@ -502,19 +502,8 @@ CATALYST_RESULT catrl_array_set(CATALYST_ARRAY* array, CATALYST_NUINT index, con
     return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x05, 0);
 }
 
-CATALYST_RESULT catrl_array_length(const CATALYST_ARRAY* array, CATALYST_NUINT* length) {
-    if (array == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x05, 0x01, 0);
-    }
-    DETAIL_CODE fault = array_fault(array);
-    if (fault != 0) {
-        return RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x05, 0x04, fault);
-    }
-    if (length == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x05, 0x02, 1);
-    }
-    *length = size_to_abi(&array->storage.count);
-    return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x03, 0);
+CATALYST_NUINT catrl_array_length(const CATALYST_ARRAY* array) {
+    return size_to_abi(&array->storage.count);
 }
 
 /* SET */
@@ -617,19 +606,8 @@ CATALYST_RESULT catrl_set_contains(const CATALYST_SET* set, const void* value, C
     return RESULT(STATUS_CODE_SUCCESS, 0x0A, 0x05, 0);
 }
 
-CATALYST_RESULT catrl_set_count(const CATALYST_SET* set, CATALYST_NUINT* count) {
-    if (set == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0B, 0x01, 0);
-    }
-    DETAIL_CODE fault = storage_fault(&set->storage);
-    if (fault != 0) {
-        return RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x0B, 0x04, fault);
-    }
-    if (count == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0B, 0x02, 1);
-    }
-    *count = size_to_abi(&set->storage.count);
-    return RESULT(STATUS_CODE_SUCCESS, 0x0B, 0x03, 0);
+CATALYST_NUINT catrl_set_count(const CATALYST_SET* set) {
+    return size_to_abi(&set->storage.count);
 }
 
 CATALYST_RESULT catrl_set_at(const CATALYST_SET* set, CATALYST_NUINT index, void* value) {
@@ -805,19 +783,8 @@ CATALYST_RESULT catrl_map_contains(const CATALYST_MAP* map, const void* key, CAT
     return RESULT(STATUS_CODE_SUCCESS, 0x13, 0x05, 0);
 }
 
-CATALYST_RESULT catrl_map_count(const CATALYST_MAP* map, CATALYST_NUINT* count) {
-    if (map == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x14, 0x01, 0);
-    }
-    DETAIL_CODE fault = map_fault(map);
-    if (fault != 0) {
-        return RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x14, 0x04, fault);
-    }
-    if (count == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x14, 0x02, 1);
-    }
-    *count = size_to_abi(&map->storage.count);
-    return RESULT(STATUS_CODE_SUCCESS, 0x14, 0x03, 0);
+CATALYST_NUINT catrl_map_count(const CATALYST_MAP* map) {
+    return size_to_abi(&map->storage.count);
 }
 
 CATALYST_RESULT catrl_map_at(const CATALYST_MAP* map, CATALYST_NUINT index, void* key, void* value) {
@@ -953,19 +920,8 @@ CATALYST_RESULT catrl_stack_peek(const CATALYST_STACK* stack, void* value) {
     return RESULT(STATUS_CODE_SUCCESS, 0x1B, 0x05, 0);
 }
 
-CATALYST_RESULT catrl_stack_count(const CATALYST_STACK* stack, CATALYST_NUINT* count) {
-    if (stack == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x1C, 0x01, 0);
-    }
-    DETAIL_CODE fault = storage_fault(&stack->storage);
-    if (fault != 0) {
-        return RESULT(STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x1C, 0x04, fault);
-    }
-    if (count == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x1C, 0x02, 1);
-    }
-    *count = size_to_abi(&stack->storage.count);
-    return RESULT(STATUS_CODE_SUCCESS, 0x1C, 0x03, 0);
+CATALYST_NUINT catrl_stack_count(const CATALYST_STACK* stack) {
+    return size_to_abi(&stack->storage.count);
 }
 
 CATALYST_RESULT catrl_stack_clear(CATALYST_STACK* stack) {

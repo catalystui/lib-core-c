@@ -10,7 +10,7 @@ Provides fixed-length arrays, sets, maps, and stacks of byte-represented element
 
 ## Conventions
 
-- All functions return `CATALYST_RESULT` by value. Pointers must be non-null and refer to live handles or valid readable/writable storage.
+- Reporting functions return `CATALYST_RESULT` by value. Length and count accessors return `CATALYST_NUINT` directly and require valid live handles. Pointers must be non-null and refer to live handles or valid readable/writable storage.
 - Sizes are nonzero byte counts. Lengths, counts and indices count elements or associations; indices start at zero.
 - Collections copy exactly the configured number of bytes. Pointers embedded in stored values are shallow copies; referenced resources remain caller-owned. Set and map key equality compares every byte, including padding. Supply consistent byte representations.
 - Inputs and outputs must not overlap. Provide buffers of the configured sizes; no typed alignment of internal bytes is promised.
@@ -45,7 +45,7 @@ On failure, detail may identify an internal helper or CATMMLIB operation. Set an
 | [`catrl_array_destroy`](#catrl_array_destroy) | Releases array storage and handle. |
 | [`catrl_array_get`](#catrl_array_get) | Copies the element at index into value, which must hold `element_size` bytes. |
 | [`catrl_array_set`](#catrl_array_set) | Replaces the element at index with a copy of `element_size` bytes from value. |
-| [`catrl_array_length`](#catrl_array_length) | Writes the fixed element count to length. |
+| [`catrl_array_length`](#catrl_array_length) | Returns the fixed number of elements. |
 
 ### Set
 
@@ -56,7 +56,7 @@ On failure, detail may identify an internal helper or CATMMLIB operation. Set an
 | [`catrl_set_add`](#catrl_set_add) | Copies value into the set if no byte-identical element exists. |
 | [`catrl_set_remove`](#catrl_set_remove) | Removes a byte-identical element. |
 | [`catrl_set_contains`](#catrl_set_contains) | Reports whether the set contains the specified value. |
-| [`catrl_set_count`](#catrl_set_count) | Writes the number of distinct elements to count. |
+| [`catrl_set_count`](#catrl_set_count) | Returns the number of distinct elements. |
 | [`catrl_set_at`](#catrl_set_at) | Copies the element at an unordered enumeration index into value. |
 | [`catrl_set_clear`](#catrl_set_clear) | Removes all elements without releasing `capacity` or zeroing the stored bytes. |
 
@@ -70,7 +70,7 @@ On failure, detail may identify an internal helper or CATMMLIB operation. Set an
 | [`catrl_map_set`](#catrl_map_set) | Inserts a key/value association or updates an existing key without increasing the count. |
 | [`catrl_map_remove`](#catrl_map_remove) | Removes an association with a byte-identical key. |
 | [`catrl_map_contains`](#catrl_map_contains) | Reports whether the map contains the specified key. |
-| [`catrl_map_count`](#catrl_map_count) | Writes the number of key/value associations to count. |
+| [`catrl_map_count`](#catrl_map_count) | Returns the number of key/value associations. |
 | [`catrl_map_at`](#catrl_map_at) | Copies the key and value at an unordered enumeration index to their respective outputs, sized `key_size` and `value_size` bytes. |
 | [`catrl_map_clear`](#catrl_map_clear) | Removes all associations without releasing `capacity` or zeroing stored bytes. |
 
@@ -83,7 +83,7 @@ On failure, detail may identify an internal helper or CATMMLIB operation. Set an
 | [`catrl_stack_push`](#catrl_stack_push) | Copies value to the top of the stack. |
 | [`catrl_stack_pop`](#catrl_stack_pop) | Copies the top element into value and removes it. |
 | [`catrl_stack_peek`](#catrl_stack_peek) | Copies the top element into value without removing it. |
-| [`catrl_stack_count`](#catrl_stack_count) | Writes the number of elements to count. |
+| [`catrl_stack_count`](#catrl_stack_count) | Returns the number of elements. |
 | [`catrl_stack_clear`](#catrl_stack_clear) | Removes all elements without releasing `capacity` or zeroing stored bytes. |
 
 ## Type Details
@@ -292,35 +292,18 @@ Replaces the element at index with a copy of `element_size` bytes from value.
 #### catrl_array_length
 
 ```c
-CATALYST_RESULT catrl_array_length(
-    const CATALYST_ARRAY* array,
-    CATALYST_NUINT* length
-);
+CATALYST_NUINT catrl_array_length(const CATALYST_ARRAY* array);
 ```
 
-Writes the fixed element count to length.
+Returns the fixed number of elements.
 
 **Parameters:**
 
-`array` — Array handle.  
-`length` — Receives the fixed element count.
+`array` — Valid live array handle.
 
-**Context:** `0x05`
+**Returns:** The fixed number of elements. No validation or Result reporting is performed.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x00050300` | `SUCCESS` | Write length | — |
-| `0x81050100` | `ERROR_INVALID_ARGUMENT` | Validate `array` | Argument 0 (`array`) |
-| `0x81050201` | `ERROR_INVALID_ARGUMENT` | Validate `length` | Argument 1 (`length`) |
-| `0xC1050401` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC1050402` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC1050403` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC1050404` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-| `0xC1050406` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Fixed array count differs from capacity. |
-
-**C++:** `catalyst::RESULT catalyst::array_length(const ARRAY* array, NUINT* length)`.
+**C++:** `catalyst::NUINT catalyst::array_length(const ARRAY* array)`.
 
 
 ### Set
@@ -505,34 +488,18 @@ Reports whether the set contains the specified value.
 #### catrl_set_count
 
 ```c
-CATALYST_RESULT catrl_set_count(
-    const CATALYST_SET* set,
-    CATALYST_NUINT* count
-);
+CATALYST_NUINT catrl_set_count(const CATALYST_SET* set);
 ```
 
-Writes the number of distinct elements to count.
+Returns the number of distinct elements.
 
 **Parameters:**
 
-`set` — Set handle.  
-`count` — Receives the number of elements.
+`set` — Valid live set handle.
 
-**Context:** `0x0B`
+**Returns:** The number of distinct elements. No validation or Result reporting is performed.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x000B0300` | `SUCCESS` | Write count | — |
-| `0x810B0100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
-| `0x810B0201` | `ERROR_INVALID_ARGUMENT` | Validate `count` | Argument 1 (`count`) |
-| `0xC10B0401` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC10B0402` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC10B0403` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC10B0404` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-
-**C++:** `catalyst::RESULT catalyst::set_count(const SET* set, NUINT* count)`.
+**C++:** `catalyst::NUINT catalyst::set_count(const SET* set)`.
 
 
 #### catrl_set_at
@@ -832,35 +799,18 @@ Reports whether the map contains the specified key.
 #### catrl_map_count
 
 ```c
-CATALYST_RESULT catrl_map_count(
-    const CATALYST_MAP* map,
-    CATALYST_NUINT* count
-);
+CATALYST_NUINT catrl_map_count(const CATALYST_MAP* map);
 ```
 
-Writes the number of key/value associations to count.
+Returns the number of key/value associations.
 
 **Parameters:**
 
-`map` — Map handle.  
-`count` — Receives the number of elements.
+`map` — Valid live map handle.
 
-**Context:** `0x14`
+**Returns:** The number of key/value associations. No validation or Result reporting is performed.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x00140300` | `SUCCESS` | Write count | — |
-| `0x81140100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
-| `0x81140201` | `ERROR_INVALID_ARGUMENT` | Validate `count` | Argument 1 (`count`) |
-| `0xC1140401` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC1140402` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC1140403` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC1140404` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-| `0xC1140405` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Map key extent is zero or not smaller than the entry stride. |
-
-**C++:** `catalyst::RESULT catalyst::map_count(const MAP* map, NUINT* count)`.
+**C++:** `catalyst::NUINT catalyst::map_count(const MAP* map)`.
 
 
 #### catrl_map_at
@@ -1114,34 +1064,18 @@ Copies the top element into value without removing it.
 #### catrl_stack_count
 
 ```c
-CATALYST_RESULT catrl_stack_count(
-    const CATALYST_STACK* stack,
-    CATALYST_NUINT* count
-);
+CATALYST_NUINT catrl_stack_count(const CATALYST_STACK* stack);
 ```
 
-Writes the number of elements to count.
+Returns the number of elements.
 
 **Parameters:**
 
-`stack` — Stack handle.  
-`count` — Receives the number of elements.
+`stack` — Valid live stack handle.
 
-**Context:** `0x1C`
+**Returns:** The number of elements. No validation or Result reporting is performed.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x001C0300` | `SUCCESS` | Write count | — |
-| `0x811C0100` | `ERROR_INVALID_ARGUMENT` | Validate `stack` | Argument 0 (`stack`) |
-| `0x811C0201` | `ERROR_INVALID_ARGUMENT` | Validate `count` | Argument 1 (`count`) |
-| `0xC11C0401` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
-| `0xC11C0402` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
-| `0xC11C0403` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
-| `0xC11C0404` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage capacity multiplied by stride is unrepresentable. |
-
-**C++:** `catalyst::RESULT catalyst::stack_count(const STACK* stack, NUINT* count)`.
+**C++:** `catalyst::NUINT catalyst::stack_count(const STACK* stack)`.
 
 
 #### catrl_stack_clear
