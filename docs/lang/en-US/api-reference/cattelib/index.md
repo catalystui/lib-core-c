@@ -12,12 +12,10 @@ Provides encoding, decoding, length, and conversion operations for ASCII, Window
 - Reporting functions return `CATALYST_RESULT` by value. ASCII decoding and ASCII/Windows-1252 length counting return ordinary values directly. All pointer arguments require valid readable or writable storage.
 - Encode/decode process one codepoint, including U+0000. They neither append a separate terminator nor skip a BOM.
 - `produced` counts destination code units; `consumed` counts source code units. UTF-16LE counts two-byte code units, not bytes.
-- Encoders require up to four UTF-8 units or two UTF-16LE units of writable storage. Decoders read the sequence width selected by the leading unit, even for malformed input. Supply that many readable units, including any padding needed beyond a truncated sequence. No input-size parameter or bounds discovery is provided.
-- Length and conversion functions consume null-terminated input; lengths exclude the terminator. UTF-8 and UTF-16LE length/conversion functions skip an initial BOM (EF BB BF or FF FE), not internal U+FEFF. The full-sequence readable-storage requirement also applies to malformed input encountered by these functions, not just direct decoder calls.
-- Conversions write a zero code-unit terminator on `SUCCESS` or `WARNING_PARTIAL`. A warning indicates substitution with `?`. On error or fatal failure, the destination may contain a converted prefix without a terminator; the function does not roll back earlier writes. A zero capacity is rejected before writing. The two conversions without a capacity argument require a destination large enough for the entire converted string and its terminator.
-- Use separate storage for input and output and for distinct output arguments. Reporting functions detect null arguments before output writes; non-reporting functions require valid non-null input.
-
-Defensive failure paths are included even when unreachable with valid input and intact invariants. When an internal call fails, detail identifies its operation code unless a status-specific detail takes precedence.
+- Encoders require up to four UTF-8 units or two UTF-16LE units of writable storage. Single-unit decoders require a readable code unit; UTF-8/UTF-16LE decoders require the indicated sequence or an accessible NUL terminator if truncated. UTF-8 decoding never reads past that terminator. No arbitrary unterminated buffer extent is inferred.
+- Length and conversion functions consume null-terminated input; lengths exclude the terminator. UTF-8 and UTF-16LE length/conversion functions skip an initial BOM (EF BB BF or FF FE), not internal U+FEFF. A malformed terminated string needs no padding after its terminator.
+- Conversions write a zero code-unit terminator on `SUCCESS` or `WARNING_PARTIAL`. A warning indicates substitution with `?`. On error, the destination may contain a converted prefix without a terminator; the function does not roll back earlier writes. A zero capacity is rejected before writing. The two conversions without a capacity argument require a destination large enough for the entire converted string and its terminator.
+- Use separate storage for input and output and for distinct output arguments. Caller pointers, accessible extents, and required termination are preconditions, not checked by Core. Encoding validity, representability and explicitly supplied destination capacities are operational checks.
 
 ## Constant Summary
 
@@ -47,7 +45,7 @@ Defensive failure paths are included even when unreachable with valid input and 
 
 | Function | Description |
 | --- | --- |
-| [`catte_utf8_encode`](#catte_utf8_encode) | Encodes a Unicode scalar as one to four UTF-8 code units. |
+| [`catte_utf8_encode`](#catte_utf8_encode) | Encodes a codepoint as one to four UTF-8 code units if it represents a Unicode scalar. |
 | [`catte_utf8_decode`](#catte_utf8_decode) | Decodes one Unicode scalar from UTF-8 and reports the number of code units consumed (1–4). |
 | [`catte_utf8_length`](#catte_utf8_length) | Counts Unicode scalars in a null-terminated UTF-8 string, excluding the terminator and any leading BOM. |
 
@@ -55,7 +53,7 @@ Defensive failure paths are included even when unreachable with valid input and 
 
 | Function | Description |
 | --- | --- |
-| [`catte_utf16le_encode`](#catte_utf16le_encode) | Encodes a Unicode scalar as one UTF-16LE code unit or a surrogate pair. |
+| [`catte_utf16le_encode`](#catte_utf16le_encode) | Encodes a codepoint as one UTF-16LE code unit or a surrogate pair if it represents a Unicode scalar. |
 | [`catte_utf16le_decode`](#catte_utf16le_decode) | Decodes one Unicode scalar from UTF-16LE and reports the number of code units consumed (1 or 2). |
 | [`catte_utf16le_length`](#catte_utf16le_length) | Counts Unicode scalars in a null-terminated UTF-16LE string, excluding the terminator and any leading BOM. |
 
@@ -111,7 +109,6 @@ Encodes one codepoint as ASCII. Codepoints outside U+0000–U+007F are replaced 
 | `0x00010300` | `SUCCESS` | Encode NUL | — |
 | `0x00010400` | `SUCCESS` | Encode ASCII codepoint | — |
 | `0x41010200` | `WARNING_PARTIAL` | Substitute unrepresentable codepoint | — |
-| `0x81010101` | `ERROR_INVALID_ARGUMENT` | Validate `asciiw` | Argument 1 (`asciiw`) |
 
 **C++:** `catalyst::RESULT catalyst::ascii_encode(const CODEPOINT codepoint, ASCIIW asciiw)`.
 
@@ -203,7 +200,6 @@ Encodes one codepoint as Windows-1252. Unrepresentable codepoints are replaced w
 | `0x00041C00` | `SUCCESS` | Encode U+20AC as 0x80 | — |
 | `0x00041D00` | `SUCCESS` | Encode U+2122 as 0x99 | — |
 | `0x41041E00` | `WARNING_PARTIAL` | Substitute unrepresentable codepoint | — |
-| `0x81040101` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252w` | Argument 1 (`cp1252w`) |
 
 **C++:** `catalyst::RESULT catalyst::cp1252_encode(const CODEPOINT codepoint, CP1252W cp1252w)`.
 
@@ -259,8 +255,6 @@ Decodes one Windows-1252 code unit. Undefined bytes (`0x81`, `0x8D`, `0x8F`, `0x
 | `0x00051D00` | `SUCCESS` | Decode 0x9E as U+017E | — |
 | `0x00051E00` | `SUCCESS` | Decode 0x9F as U+0178 | — |
 | `0x41051F00` | `WARNING_PARTIAL` | Substitute undefined code unit | — |
-| `0x81050100` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252` | Argument 0 (`cp1252`) |
-| `0x81050201` | `ERROR_INVALID_ARGUMENT` | Validate `codepoint` | Argument 1 (`codepoint`) |
 
 **C++:** `catalyst::RESULT catalyst::cp1252_decode(CP1252 cp1252, CODEPOINT* codepoint)`.
 
@@ -294,7 +288,7 @@ CATALYST_RESULT catte_utf8_encode(
 );
 ```
 
-Encodes a Unicode scalar as one to four UTF-8 code units. The destination must accommodate four units. After argument validation, `produced` is zero until encoding succeeds; an invalid scalar leaves the destination unchanged.
+Encodes a Unicode scalar as one to four UTF-8 code units. The destination must accommodate four units. `produced` is zero until encoding succeeds; an invalid scalar leaves the destination unchanged.
 
 **Parameters:**
 
@@ -312,12 +306,8 @@ Encodes a Unicode scalar as one to four UTF-8 code units. The destination must a
 | `0x00070500` | `SUCCESS` | Encode two-byte sequence | — |
 | `0x00070800` | `SUCCESS` | Encode three-byte sequence | — |
 | `0x00070900` | `SUCCESS` | Encode four-byte sequence | — |
-| `0x81070101` | `ERROR_INVALID_ARGUMENT` | Validate `utf8w` | Argument 1 (`utf8w`) |
-| `0x81070202` | `ERROR_INVALID_ARGUMENT` | Validate `produced` | Argument 2 (`produced`) |
 | `0x81070700` | `ERROR_INVALID_ARGUMENT` | Reject surrogate codepoint | Argument 0 (`codepoint`) |
 | `0x81070A00` | `ERROR_INVALID_ARGUMENT` | Reject codepoint outside Unicode range | Argument 0 (`codepoint`) |
-| `0xC1070400` | `FATAL_INVARIANT_VIOLATION` | Check two-byte encoding invariant (defensive) | — |
-| `0xC1070600` | `FATAL_INVARIANT_VIOLATION` | Check three-byte encoding invariant (defensive) | — |
 
 **C++:** `catalyst::RESULT catalyst::utf8_encode(const CODEPOINT codepoint, UTF8W utf8w, NUINT* produced)`.
 
@@ -332,7 +322,7 @@ CATALYST_RESULT catte_utf8_decode(
 );
 ```
 
-Decodes one Unicode scalar from UTF-8 and reports the number of code units consumed (1–4). After argument validation, both `codepoint` and `consumed` are zero on decoding failure.
+Decodes one Unicode scalar from UTF-8 and reports the number of code units consumed (1–4). Both `codepoint` and `consumed` are zero on decoding failure.
 
 **Parameters:**
 
@@ -351,9 +341,6 @@ Decodes one Unicode scalar from UTF-8 and reports the number of code units consu
 | `0x00080800` | `SUCCESS` | Decode two-byte sequence | — |
 | `0x00080E00` | `SUCCESS` | Decode three-byte sequence | — |
 | `0x00081500` | `SUCCESS` | Decode four-byte sequence | — |
-| `0x81080100` | `ERROR_INVALID_ARGUMENT` | Validate `utf8` | Argument 0 (`utf8`) |
-| `0x81080201` | `ERROR_INVALID_ARGUMENT` | Validate `codepoint` | Argument 1 (`codepoint`) |
-| `0x81080302` | `ERROR_INVALID_ARGUMENT` | Validate `consumed` | Argument 2 (`consumed`) |
 | `0x83080600` | `ERROR_MALFORMED_INPUT` | Two-byte sequence: unexpected end | — |
 | `0x83080700` | `ERROR_MALFORMED_INPUT` | Two-byte sequence: invalid continuation | — |
 | `0x83080901` | `ERROR_MALFORMED_INPUT` | Three-byte sequence: unexpected end | First zero continuation at index 1 |
@@ -384,7 +371,7 @@ CATALYST_RESULT catte_utf8_length(
 );
 ```
 
-Counts Unicode scalars in a null-terminated UTF-8 string, excluding the terminator and any leading BOM. This is not a byte or grapheme count. After argument validation, `length` is zero on failure.
+Counts Unicode scalars in a null-terminated UTF-8 string, excluding the terminator and any leading BOM. This is not a byte or grapheme count. `length` is zero on failure.
 
 **Parameters:**
 
@@ -398,8 +385,6 @@ Counts Unicode scalars in a null-terminated UTF-8 string, excluding the terminat
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x00090500` | `SUCCESS` | Write length | — |
-| `0x81090100` | `ERROR_INVALID_ARGUMENT` | Validate `utf8` | Argument 0 (`utf8`) |
-| `0x81090201` | `ERROR_INVALID_ARGUMENT` | Validate `length` | Argument 1 (`length`) |
 | `0x83090306` | `ERROR_MALFORMED_INPUT` | Decode next codepoint | `catte_utf8_decode` operation `0x06`: Two-byte sequence: unexpected end |
 | `0x83090307` | `ERROR_MALFORMED_INPUT` | Decode next codepoint | `catte_utf8_decode` operation `0x07`: Two-byte sequence: invalid continuation |
 | `0x83090309` | `ERROR_MALFORMED_INPUT` | Decode next codepoint | `catte_utf8_decode` operation `0x09`: Three-byte sequence: unexpected end |
@@ -414,10 +399,6 @@ Counts Unicode scalars in a null-terminated UTF-8 string, excluding the terminat
 | `0x83090313` | `ERROR_MALFORMED_INPUT` | Decode next codepoint | `catte_utf8_decode` operation `0x13`: Four-byte sequence: overlong encoding |
 | `0x83090314` | `ERROR_MALFORMED_INPUT` | Decode next codepoint | `catte_utf8_decode` operation `0x14`: Four-byte sequence: above U+10FFFF |
 | `0x83090316` | `ERROR_MALFORMED_INPUT` | Decode next codepoint | `catte_utf8_decode` operation `0x16`: Invalid leading code unit |
-| `0x90090400` | `ERROR_BUFFER_OVERFLOW` | Check count limit | — |
-| `0xC1090301` | `FATAL_INVARIANT_VIOLATION` | Decode next codepoint | `catte_utf8_decode` operation `0x01`: Validate `utf8` (internal argument failure) |
-| `0xC1090302` | `FATAL_INVARIANT_VIOLATION` | Decode next codepoint | `catte_utf8_decode` operation `0x02`: Validate `codepoint` (internal argument failure) |
-| `0xC1090303` | `FATAL_INVARIANT_VIOLATION` | Decode next codepoint | `catte_utf8_decode` operation `0x03`: Validate `consumed` (internal argument failure) |
 
 **C++:** `catalyst::RESULT catalyst::utf8_length(UTF8 utf8, NUINT* length)`.
 
@@ -434,7 +415,7 @@ CATALYST_RESULT catte_utf16le_encode(
 );
 ```
 
-Encodes a Unicode scalar as one UTF-16LE code unit or a surrogate pair. The destination must accommodate two units. After argument validation, `produced` is zero until encoding succeeds; an invalid scalar leaves the destination unchanged.
+Encodes a Unicode scalar as one UTF-16LE code unit or a surrogate pair. The destination must accommodate two units. `produced` is zero until encoding succeeds; an invalid scalar leaves the destination unchanged.
 
 **Parameters:**
 
@@ -450,8 +431,6 @@ Encodes a Unicode scalar as one UTF-16LE code unit or a surrogate pair. The dest
 | --- | --- | --- | --- |
 | `0x000A0500` | `SUCCESS` | Encode one code unit | — |
 | `0x000A0600` | `SUCCESS` | Encode surrogate pair | — |
-| `0x810A0101` | `ERROR_INVALID_ARGUMENT` | Validate `utf16lew` | Argument 1 (`utf16lew`) |
-| `0x810A0202` | `ERROR_INVALID_ARGUMENT` | Validate `produced` | Argument 2 (`produced`) |
 | `0x810A0300` | `ERROR_INVALID_ARGUMENT` | Reject codepoint above U+10FFFF | Argument 0 (`codepoint`) |
 | `0x810A0400` | `ERROR_INVALID_ARGUMENT` | Reject surrogate codepoint | Argument 0 (`codepoint`) |
 
@@ -468,7 +447,7 @@ CATALYST_RESULT catte_utf16le_decode(
 );
 ```
 
-Decodes one Unicode scalar from UTF-16LE and reports the number of code units consumed (1 or 2). After argument validation, both `codepoint` and `consumed` are zero on decoding failure.
+Decodes one Unicode scalar from UTF-16LE and reports the number of code units consumed (1 or 2). Both `codepoint` and `consumed` are zero on decoding failure.
 
 **Parameters:**
 
@@ -485,9 +464,6 @@ Decodes one Unicode scalar from UTF-16LE and reports the number of code units co
 | `0x000B0400` | `SUCCESS` | Decode NUL | — |
 | `0x000B0600` | `SUCCESS` | Decode one code unit | — |
 | `0x000B0800` | `SUCCESS` | Decode surrogate pair | — |
-| `0x810B0100` | `ERROR_INVALID_ARGUMENT` | Validate `utf16le` | Argument 0 (`utf16le`) |
-| `0x810B0201` | `ERROR_INVALID_ARGUMENT` | Validate `codepoint` | Argument 1 (`codepoint`) |
-| `0x810B0302` | `ERROR_INVALID_ARGUMENT` | Validate `consumed` | Argument 2 (`consumed`) |
 | `0x830B0500` | `ERROR_MALFORMED_INPUT` | Reject isolated low surrogate | — |
 | `0x830B0700` | `ERROR_MALFORMED_INPUT` | Reject missing low surrogate | — |
 
@@ -503,7 +479,7 @@ CATALYST_RESULT catte_utf16le_length(
 );
 ```
 
-Counts Unicode scalars in a null-terminated UTF-16LE string, excluding the terminator and any leading BOM. A surrogate pair counts as one scalar. After argument validation, `length` is zero on failure.
+Counts Unicode scalars in a null-terminated UTF-16LE string, excluding the terminator and any leading BOM. A surrogate pair counts as one scalar. `length` is zero on failure.
 
 **Parameters:**
 
@@ -517,14 +493,8 @@ Counts Unicode scalars in a null-terminated UTF-16LE string, excluding the termi
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x000C0500` | `SUCCESS` | Write length | — |
-| `0x810C0100` | `ERROR_INVALID_ARGUMENT` | Validate `utf16le` | Argument 0 (`utf16le`) |
-| `0x810C0201` | `ERROR_INVALID_ARGUMENT` | Validate `length` | Argument 1 (`length`) |
 | `0x830C0305` | `ERROR_MALFORMED_INPUT` | Decode next codepoint | `catte_utf16le_decode` operation `0x05`: Reject isolated low surrogate |
 | `0x830C0307` | `ERROR_MALFORMED_INPUT` | Decode next codepoint | `catte_utf16le_decode` operation `0x07`: Reject missing low surrogate |
-| `0x900C0400` | `ERROR_BUFFER_OVERFLOW` | Check count limit | — |
-| `0xC10C0301` | `FATAL_INVARIANT_VIOLATION` | Decode next codepoint | `catte_utf16le_decode` operation `0x01`: Validate `utf16le` (internal argument failure) |
-| `0xC10C0302` | `FATAL_INVARIANT_VIOLATION` | Decode next codepoint | `catte_utf16le_decode` operation `0x02`: Validate `codepoint` (internal argument failure) |
-| `0xC10C0303` | `FATAL_INVARIANT_VIOLATION` | Decode next codepoint | `catte_utf16le_decode` operation `0x03`: Validate `consumed` (internal argument failure) |
 
 **C++:** `catalyst::RESULT catalyst::utf16le_length(UTF16LE utf16le, NUINT* length)`.
 
@@ -557,9 +527,6 @@ Converts a null-terminated ASCII string to Windows-1252. Destination must hold a
 | --- | --- | --- | --- |
 | `0x000D0400` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x410D0400` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
-| `0x810D0100` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 0 (`ascii`) |
-| `0x810D0201` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252w` | Argument 1 (`cp1252w`) |
-| `0x900D0300` | `ERROR_BUFFER_OVERFLOW` | Check index limit | — |
 
 **C++:** `catalyst::RESULT catalyst::ascii_to_cp1252(ASCII ascii, CP1252W cp1252w)`.
 
@@ -590,8 +557,6 @@ Converts a null-terminated ASCII string to UTF-8. Source bytes above 0x7F are re
 | --- | --- | --- | --- |
 | `0x000E0500` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x410E0500` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
-| `0x810E0100` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 0 (`ascii`) |
-| `0x810E0201` | `ERROR_INVALID_ARGUMENT` | Validate `utf8w` | Argument 1 (`utf8w`) |
 | `0x900E0300` | `ERROR_BUFFER_OVERFLOW` | Check destination capacity | — |
 | `0x900E0400` | `ERROR_BUFFER_OVERFLOW` | Check remaining destination capacity | — |
 
@@ -624,8 +589,6 @@ Converts a null-terminated ASCII string to UTF-16LE. Source bytes above 0x7F are
 | --- | --- | --- | --- |
 | `0x000F0500` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x410F0500` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
-| `0x810F0100` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 0 (`ascii`) |
-| `0x810F0201` | `ERROR_INVALID_ARGUMENT` | Validate `utf16lew` | Argument 1 (`utf16lew`) |
 | `0x900F0300` | `ERROR_BUFFER_OVERFLOW` | Check destination capacity | — |
 | `0x900F0400` | `ERROR_BUFFER_OVERFLOW` | Check remaining destination capacity | — |
 
@@ -656,12 +619,6 @@ Converts a null-terminated Windows-1252 string to ASCII. Destination must hold a
 | --- | --- | --- | --- |
 | `0x00100600` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x41100600` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
-| `0x81100100` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252` | Argument 0 (`cp1252`) |
-| `0x81100201` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 1 (`ascii`) |
-| `0x90100500` | `ERROR_BUFFER_OVERFLOW` | Check index limit | — |
-| `0xC1100301` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_cp1252_decode` operation `0x01`: Validate `cp1252` (internal argument failure) |
-| `0xC1100302` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_cp1252_decode` operation `0x02`: Validate `codepoint` (internal argument failure) |
-| `0xC1100401` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_ascii_encode` operation `0x01`: Validate `asciiw` (internal argument failure) |
 
 **C++:** `catalyst::RESULT catalyst::cp1252_to_ascii(CP1252 cp1252, ASCIIW ascii)`.
 
@@ -692,18 +649,8 @@ Converts a null-terminated Windows-1252 string to UTF-8. Undefined source bytes 
 | --- | --- | --- | --- |
 | `0x00110700` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x41110700` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
-| `0x81110100` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252` | Argument 0 (`cp1252`) |
-| `0x81110201` | `ERROR_INVALID_ARGUMENT` | Validate `utf8w` | Argument 1 (`utf8w`) |
 | `0x90110300` | `ERROR_BUFFER_OVERFLOW` | Check destination capacity | — |
 | `0x90110600` | `ERROR_BUFFER_OVERFLOW` | Check remaining destination capacity | — |
-| `0xC1110401` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_cp1252_decode` operation `0x01`: Validate `cp1252` (internal argument failure) |
-| `0xC1110402` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_cp1252_decode` operation `0x02`: Validate `codepoint` (internal argument failure) |
-| `0xC1110501` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf8_encode` operation `0x01`: Validate `utf8w` (internal argument failure) |
-| `0xC1110502` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf8_encode` operation `0x02`: Validate `produced` (internal argument failure) |
-| `0xC1110504` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf8_encode` operation `0x04`: Check two-byte encoding invariant (defensive) |
-| `0xC1110506` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf8_encode` operation `0x06`: Check three-byte encoding invariant (defensive) |
-| `0xC1110507` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf8_encode` operation `0x07`: Reject surrogate codepoint (internal argument failure) |
-| `0xC111050A` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf8_encode` operation `0x0A`: Reject codepoint outside Unicode range (internal argument failure) |
 
 **C++:** `catalyst::RESULT catalyst::cp1252_to_utf8(CP1252 cp1252, UTF8W utf8w, NUINT capacity)`.
 
@@ -734,16 +681,8 @@ Converts a null-terminated Windows-1252 string to UTF-16LE. Undefined source byt
 | --- | --- | --- | --- |
 | `0x00120700` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x41120700` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
-| `0x81120100` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252` | Argument 0 (`cp1252`) |
-| `0x81120201` | `ERROR_INVALID_ARGUMENT` | Validate `utf16lew` | Argument 1 (`utf16lew`) |
 | `0x90120300` | `ERROR_BUFFER_OVERFLOW` | Check destination capacity | — |
 | `0x90120600` | `ERROR_BUFFER_OVERFLOW` | Check remaining destination capacity | — |
-| `0xC1120401` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_cp1252_decode` operation `0x01`: Validate `cp1252` (internal argument failure) |
-| `0xC1120402` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_cp1252_decode` operation `0x02`: Validate `codepoint` (internal argument failure) |
-| `0xC1120501` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf16le_encode` operation `0x01`: Validate `utf16lew` (internal argument failure) |
-| `0xC1120502` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf16le_encode` operation `0x02`: Validate `produced` (internal argument failure) |
-| `0xC1120503` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf16le_encode` operation `0x03`: Reject codepoint above U+10FFFF (internal argument failure) |
-| `0xC1120504` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf16le_encode` operation `0x04`: Reject surrogate codepoint (internal argument failure) |
 
 **C++:** `catalyst::RESULT catalyst::cp1252_to_utf16le(CP1252 cp1252, UTF16LEW utf16lew, NUINT capacity)`.
 
@@ -774,8 +713,6 @@ Converts a null-terminated UTF-8 string to ASCII. Unrepresentable values are rep
 | --- | --- | --- | --- |
 | `0x00130700` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x41130700` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
-| `0x81130100` | `ERROR_INVALID_ARGUMENT` | Validate `utf8` | Argument 0 (`utf8`) |
-| `0x81130201` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 1 (`ascii`) |
 | `0x83130406` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf8_decode` operation `0x06`: Two-byte sequence: unexpected end |
 | `0x83130407` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf8_decode` operation `0x07`: Two-byte sequence: invalid continuation |
 | `0x83130409` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf8_decode` operation `0x09`: Three-byte sequence: unexpected end |
@@ -792,10 +729,6 @@ Converts a null-terminated UTF-8 string to ASCII. Unrepresentable values are rep
 | `0x83130416` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf8_decode` operation `0x16`: Invalid leading code unit |
 | `0x90130300` | `ERROR_BUFFER_OVERFLOW` | Check destination capacity | — |
 | `0x90130600` | `ERROR_BUFFER_OVERFLOW` | Check remaining destination capacity | — |
-| `0xC1130401` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf8_decode` operation `0x01`: Validate `utf8` (internal argument failure) |
-| `0xC1130402` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf8_decode` operation `0x02`: Validate `codepoint` (internal argument failure) |
-| `0xC1130403` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf8_decode` operation `0x03`: Validate `consumed` (internal argument failure) |
-| `0xC1130501` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_ascii_encode` operation `0x01`: Validate `asciiw` (internal argument failure) |
 
 **C++:** `catalyst::RESULT catalyst::utf8_to_ascii(UTF8 utf8, ASCIIW ascii, NUINT capacity)`.
 
@@ -826,8 +759,6 @@ Converts a null-terminated UTF-8 string to Windows-1252. Unrepresentable values 
 | --- | --- | --- | --- |
 | `0x00140700` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x41140700` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
-| `0x81140100` | `ERROR_INVALID_ARGUMENT` | Validate `utf8` | Argument 0 (`utf8`) |
-| `0x81140201` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252w` | Argument 1 (`cp1252w`) |
 | `0x83140406` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf8_decode` operation `0x06`: Two-byte sequence: unexpected end |
 | `0x83140407` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf8_decode` operation `0x07`: Two-byte sequence: invalid continuation |
 | `0x83140409` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf8_decode` operation `0x09`: Three-byte sequence: unexpected end |
@@ -844,10 +775,6 @@ Converts a null-terminated UTF-8 string to Windows-1252. Unrepresentable values 
 | `0x83140416` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf8_decode` operation `0x16`: Invalid leading code unit |
 | `0x90140300` | `ERROR_BUFFER_OVERFLOW` | Check destination capacity | — |
 | `0x90140600` | `ERROR_BUFFER_OVERFLOW` | Check remaining destination capacity | — |
-| `0xC1140401` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf8_decode` operation `0x01`: Validate `utf8` (internal argument failure) |
-| `0xC1140402` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf8_decode` operation `0x02`: Validate `codepoint` (internal argument failure) |
-| `0xC1140403` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf8_decode` operation `0x03`: Validate `consumed` (internal argument failure) |
-| `0xC1140501` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_cp1252_encode` operation `0x01`: Validate `cp1252w` (internal argument failure) |
 
 **C++:** `catalyst::RESULT catalyst::utf8_to_cp1252(UTF8 utf8, CP1252W cp1252w, NUINT capacity)`.
 
@@ -877,8 +804,6 @@ Converts a null-terminated UTF-8 string to UTF-16LE. All valid Unicode scalars a
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x00150700` | `SUCCESS` | Complete conversion without substitution | — |
-| `0x81150100` | `ERROR_INVALID_ARGUMENT` | Validate `utf8` | Argument 0 (`utf8`) |
-| `0x81150201` | `ERROR_INVALID_ARGUMENT` | Validate `utf16lew` | Argument 1 (`utf16lew`) |
 | `0x83150406` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf8_decode` operation `0x06`: Two-byte sequence: unexpected end |
 | `0x83150407` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf8_decode` operation `0x07`: Two-byte sequence: invalid continuation |
 | `0x83150409` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf8_decode` operation `0x09`: Three-byte sequence: unexpected end |
@@ -895,13 +820,6 @@ Converts a null-terminated UTF-8 string to UTF-16LE. All valid Unicode scalars a
 | `0x83150416` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf8_decode` operation `0x16`: Invalid leading code unit |
 | `0x90150300` | `ERROR_BUFFER_OVERFLOW` | Check destination capacity | — |
 | `0x90150600` | `ERROR_BUFFER_OVERFLOW` | Check remaining destination capacity | — |
-| `0xC1150401` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf8_decode` operation `0x01`: Validate `utf8` (internal argument failure) |
-| `0xC1150402` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf8_decode` operation `0x02`: Validate `codepoint` (internal argument failure) |
-| `0xC1150403` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf8_decode` operation `0x03`: Validate `consumed` (internal argument failure) |
-| `0xC1150501` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf16le_encode` operation `0x01`: Validate `utf16lew` (internal argument failure) |
-| `0xC1150502` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf16le_encode` operation `0x02`: Validate `produced` (internal argument failure) |
-| `0xC1150503` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf16le_encode` operation `0x03`: Reject codepoint above U+10FFFF (internal argument failure) |
-| `0xC1150504` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf16le_encode` operation `0x04`: Reject surrogate codepoint (internal argument failure) |
 
 **C++:** `catalyst::RESULT catalyst::utf8_to_utf16le(UTF8 utf8, UTF16LEW utf16lew, NUINT capacity)`.
 
@@ -932,16 +850,10 @@ Converts a null-terminated UTF-16LE string to ASCII. Unrepresentable values are 
 | --- | --- | --- | --- |
 | `0x00160700` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x41160700` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
-| `0x81160100` | `ERROR_INVALID_ARGUMENT` | Validate `utf16le` | Argument 0 (`utf16le`) |
-| `0x81160201` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 1 (`ascii`) |
 | `0x83160405` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf16le_decode` operation `0x05`: Reject isolated low surrogate |
 | `0x83160407` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf16le_decode` operation `0x07`: Reject missing low surrogate |
 | `0x90160300` | `ERROR_BUFFER_OVERFLOW` | Check destination capacity | — |
 | `0x90160600` | `ERROR_BUFFER_OVERFLOW` | Check remaining destination capacity | — |
-| `0xC1160401` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf16le_decode` operation `0x01`: Validate `utf16le` (internal argument failure) |
-| `0xC1160402` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf16le_decode` operation `0x02`: Validate `codepoint` (internal argument failure) |
-| `0xC1160403` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf16le_decode` operation `0x03`: Validate `consumed` (internal argument failure) |
-| `0xC1160501` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_ascii_encode` operation `0x01`: Validate `asciiw` (internal argument failure) |
 
 **C++:** `catalyst::RESULT catalyst::utf16le_to_ascii(UTF16LE utf16le, ASCIIW ascii, NUINT capacity)`.
 
@@ -972,16 +884,10 @@ Converts a null-terminated UTF-16LE string to Windows-1252. Unrepresentable valu
 | --- | --- | --- | --- |
 | `0x00170700` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x41170700` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
-| `0x81170100` | `ERROR_INVALID_ARGUMENT` | Validate `utf16le` | Argument 0 (`utf16le`) |
-| `0x81170201` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252w` | Argument 1 (`cp1252w`) |
 | `0x83170405` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf16le_decode` operation `0x05`: Reject isolated low surrogate |
 | `0x83170407` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf16le_decode` operation `0x07`: Reject missing low surrogate |
 | `0x90170300` | `ERROR_BUFFER_OVERFLOW` | Check destination capacity | — |
 | `0x90170600` | `ERROR_BUFFER_OVERFLOW` | Check remaining destination capacity | — |
-| `0xC1170401` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf16le_decode` operation `0x01`: Validate `utf16le` (internal argument failure) |
-| `0xC1170402` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf16le_decode` operation `0x02`: Validate `codepoint` (internal argument failure) |
-| `0xC1170403` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf16le_decode` operation `0x03`: Validate `consumed` (internal argument failure) |
-| `0xC1170501` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_cp1252_encode` operation `0x01`: Validate `cp1252w` (internal argument failure) |
 
 **C++:** `catalyst::RESULT catalyst::utf16le_to_cp1252(UTF16LE utf16le, CP1252W cp1252w, NUINT capacity)`.
 
@@ -1011,20 +917,9 @@ Converts a null-terminated UTF-16LE string to UTF-8. All valid Unicode scalars a
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x00180700` | `SUCCESS` | Complete conversion without substitution | — |
-| `0x81180100` | `ERROR_INVALID_ARGUMENT` | Validate `utf16le` | Argument 0 (`utf16le`) |
-| `0x81180201` | `ERROR_INVALID_ARGUMENT` | Validate `utf8w` | Argument 1 (`utf8w`) |
 | `0x83180405` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf16le_decode` operation `0x05`: Reject isolated low surrogate |
 | `0x83180407` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf16le_decode` operation `0x07`: Reject missing low surrogate |
 | `0x90180300` | `ERROR_BUFFER_OVERFLOW` | Check destination capacity | — |
 | `0x90180600` | `ERROR_BUFFER_OVERFLOW` | Check remaining destination capacity | — |
-| `0xC1180401` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf16le_decode` operation `0x01`: Validate `utf16le` (internal argument failure) |
-| `0xC1180402` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf16le_decode` operation `0x02`: Validate `codepoint` (internal argument failure) |
-| `0xC1180403` | `FATAL_INVARIANT_VIOLATION` | Decode source codepoint | `catte_utf16le_decode` operation `0x03`: Validate `consumed` (internal argument failure) |
-| `0xC1180501` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf8_encode` operation `0x01`: Validate `utf8w` (internal argument failure) |
-| `0xC1180502` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf8_encode` operation `0x02`: Validate `produced` (internal argument failure) |
-| `0xC1180504` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf8_encode` operation `0x04`: Check two-byte encoding invariant (defensive) |
-| `0xC1180506` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf8_encode` operation `0x06`: Check three-byte encoding invariant (defensive) |
-| `0xC1180507` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf8_encode` operation `0x07`: Reject surrogate codepoint (internal argument failure) |
-| `0xC118050A` | `FATAL_INVARIANT_VIOLATION` | Encode destination codepoint | `catte_utf8_encode` operation `0x0A`: Reject codepoint outside Unicode range (internal argument failure) |
 
 **C++:** `catalyst::RESULT catalyst::utf16le_to_utf8(UTF16LE utf16le, UTF8W utf8w, NUINT capacity)`.

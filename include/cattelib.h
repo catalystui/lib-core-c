@@ -36,19 +36,19 @@ CATTELIB_API CATALYST_RESULT catte_cp1252_decode(CATALYST_CP1252 cp1252, CATALYS
 /** Return the count of nonzero CP1252 units in a valid null-terminated string. */
 CATTELIB_API CATALYST_NUINT catte_cp1252_length(CATALYST_CP1252 cp1252);
 
-/** Encode one Unicode scalar into UTF-8; output must hold four code units. */
+/** Encode one codepoint into UTF-8, reporting invalid scalars; output must hold four code units. */
 CATTELIB_API CATALYST_RESULT catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, CATALYST_NUINT* produced);
 
-/** Decode one UTF-8 scalar; input must hold its full sequence. */
+/** Decode one UTF-8 scalar; input must hold its full sequence or an accessible terminating NUL. */
 CATTELIB_API CATALYST_RESULT catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed);
 
 /** Count decoded scalars in terminated UTF-8, excluding a leading BOM. */
 CATTELIB_API CATALYST_RESULT catte_utf8_length(CATALYST_UTF8 utf8, CATALYST_NUINT* length);
 
-/** Encode one Unicode scalar into UTF-16LE; output must hold two code units. */
+/** Encode one codepoint into UTF-16LE, reporting invalid scalars; output must hold two code units. */
 CATTELIB_API CATALYST_RESULT catte_utf16le_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT* produced);
 
-/** Decode one UTF-16LE scalar; input must hold its full sequence. */
+/** Decode one UTF-16LE scalar; input must hold its full sequence or an accessible terminating NUL unit. */
 CATTELIB_API CATALYST_RESULT catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOINT* codepoint, CATALYST_NUINT* consumed);
 
 /** Count decoded scalars in terminated UTF-16LE, excluding a leading BOM. */
