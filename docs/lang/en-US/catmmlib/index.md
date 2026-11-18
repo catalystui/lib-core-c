@@ -8,7 +8,7 @@ Headers: `catmmlib.h` and `catmmlib.hpp`. Link CATMMLIB. The C++ wrappers have t
 - Allocation returns zero-filled payloads; use only the requested extent. The payload is not the original page-aligned allocation base; no adjustable or over-alignment guarantee is provided.
 - Release only live CATMMLIB allocations, through the same allocator backend. Foreign pointers, repeated frees and access during release are outside the contract.
 - Copy, move, compare and set operate on any valid readable/writable byte storage, not just CATMMLIB allocations. They do not check capacity or allocate memory.
-- All result contexts and operation codes are zero. Detail is zero unless specified below.
+- Every result carries the reporting method's assigned context, including success and no-op. See the [API Reference](../api-reference/catmmlib/index.md) for exact operation and detail codes.
 
 ## Types
 

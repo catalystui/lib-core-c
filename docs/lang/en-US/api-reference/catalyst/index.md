@@ -564,7 +564,7 @@ Represents the outcome of a completed operation. Its meaning is independent of t
 typedef CATALYST_BYTE CATALYST_CONTEXT_CODE;
 ```
 
-Identifies the context in which an operation was performed. Its meaning is unique within the associated implementation’s scope. Within Core, a context normally identifies a method within its module. The value must be zero for Success-level statuses, including `SUCCESS_NOOP`. Otherwise, its meaning is implementation-defined.
+Identifies the context in which an operation was performed. Its meaning is unique within the associated implementation’s scope. Within Core, a context normally identifies a method within its module. The value is implementation-defined for every status level, including `SUCCESS_NOOP`. Core reporting methods use their assigned context ID on every outcome.
 
 **C++:** `catalyst::CONTEXT_CODE`.
 
@@ -574,7 +574,7 @@ Identifies the context in which an operation was performed. Its meaning is uniqu
 typedef CATALYST_BYTE CATALYST_OPERATION_CODE;
 ```
 
-Identifies a distinct operation within an execution context. Within a Core method, each distinct result-reporting site has its own operation code, including successful sites. Meanings are local to that context; consult the reporting method’s reference. Undefined values are unknown. On success, the caller supplies the method context because the context byte is zero.
+Identifies a distinct operation within an execution context. Within a Core method, each distinct result-reporting site has its own operation code, including successful sites. Meanings are local to that context; consult the reporting method’s reference. Undefined values are unknown. The returned context identifies the reporting method on success as well as on other outcomes.
 
 **C++:** `catalyst::OPERATION_CODE`.
 
@@ -728,7 +728,7 @@ These C++ constants have no corresponding named C constants.
 
 | C++ Constant | Type | Value | Description |
 | --- | --- | --- | --- |
-| `CONTEXT_CODE_NONE` | `CONTEXT_CODE` | `0x00` | No context supplied; required for Success-level results. |
+| `CONTEXT_CODE_NONE` | `CONTEXT_CODE` | `0x00` | No context supplied. |
 | `OPERATION_CODE_NONE` | `OPERATION_CODE` | `0x00` | Default operation value; consult the reporting method for any defined meaning. |
 | `DETAIL_CODE_NONE` | `DETAIL_CODE` | `0x00` | Default detail value; zero may have a defined meaning for a particular result. |
 

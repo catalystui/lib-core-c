@@ -23,11 +23,11 @@ CATALYST_RESULT catte_ascii_encode(const CATALYST_CODEPOINT codepoint, CATALYST_
     } else if (codepoint3 == 0) {
         // Handle U+0000 (NUL)
         asciiw[0] = (BYTE) '\0';
-        return RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
+        return RESULT(STATUS_CODE_SUCCESS, 0x01, 0x03, 0);
     } else {
         // Maps directly to ASCII
         asciiw[0] = codepoint3;
-        return RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0);
+        return RESULT(STATUS_CODE_SUCCESS, 0x01, 0x04, 0);
     }
 }
 
@@ -46,7 +46,7 @@ CATALYST_RESULT catte_ascii_decode(CATALYST_ASCII ascii, CATALYST_CODEPOINT* cod
     codepoint->byte1 = 0;
     codepoint->byte2 = 0;
     codepoint->byte3 = codeunit0;
-    return RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0x02, 0x03, 0);
 }
 
 CATALYST_RESULT catte_ascii_length(CATALYST_ASCII ascii, CATALYST_NUINT* length) {
@@ -64,7 +64,7 @@ CATALYST_RESULT catte_ascii_length(CATALYST_ASCII ascii, CATALYST_NUINT* length)
         }
     }
     *length = count;
-    return RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0x03, 0x04, 0);
 }
 
 CATALYST_RESULT catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp1252w) {
@@ -82,7 +82,7 @@ CATALYST_RESULT catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST
         if (codepoint3 <= (BYTE) 0x7F || codepoint3 >= (BYTE) 0xA0) {
             // U+0000 through U+007F and U+00A0 through U+00FF map directly to CP1252
             cp1252w[0] = codepoint3;
-            return RESULT(STATUS_CODE_SUCCESS, 0, 0x02, 0);
+            return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x02, 0);
         }
     }
 
@@ -90,48 +90,48 @@ CATALYST_RESULT catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST
         switch (codepoint2) {
             case (BYTE) 0x01:
                 switch (codepoint3) {
-                    case (BYTE) 0x52: cp1252w[0] = (BYTE) 0x8C; return RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0); // U+0152
-                    case (BYTE) 0x53: cp1252w[0] = (BYTE) 0x9C; return RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0); // U+0153
-                    case (BYTE) 0x60: cp1252w[0] = (BYTE) 0x8A; return RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0); // U+0160
-                    case (BYTE) 0x61: cp1252w[0] = (BYTE) 0x9A; return RESULT(STATUS_CODE_SUCCESS, 0, 0x06, 0); // U+0161
-                    case (BYTE) 0x78: cp1252w[0] = (BYTE) 0x9F; return RESULT(STATUS_CODE_SUCCESS, 0, 0x07, 0); // U+0178
-                    case (BYTE) 0x7D: cp1252w[0] = (BYTE) 0x8E; return RESULT(STATUS_CODE_SUCCESS, 0, 0x08, 0); // U+017D
-                    case (BYTE) 0x7E: cp1252w[0] = (BYTE) 0x9E; return RESULT(STATUS_CODE_SUCCESS, 0, 0x09, 0); // U+017E
-                    case (BYTE) 0x92: cp1252w[0] = (BYTE) 0x83; return RESULT(STATUS_CODE_SUCCESS, 0, 0x0A, 0); // U+0192
+                    case (BYTE) 0x52: cp1252w[0] = (BYTE) 0x8C; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x03, 0); // U+0152
+                    case (BYTE) 0x53: cp1252w[0] = (BYTE) 0x9C; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x04, 0); // U+0153
+                    case (BYTE) 0x60: cp1252w[0] = (BYTE) 0x8A; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x05, 0); // U+0160
+                    case (BYTE) 0x61: cp1252w[0] = (BYTE) 0x9A; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x06, 0); // U+0161
+                    case (BYTE) 0x78: cp1252w[0] = (BYTE) 0x9F; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x07, 0); // U+0178
+                    case (BYTE) 0x7D: cp1252w[0] = (BYTE) 0x8E; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x08, 0); // U+017D
+                    case (BYTE) 0x7E: cp1252w[0] = (BYTE) 0x9E; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x09, 0); // U+017E
+                    case (BYTE) 0x92: cp1252w[0] = (BYTE) 0x83; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x0A, 0); // U+0192
                 }
                 break;
 
             case (BYTE) 0x02:
                 switch (codepoint3) {
-                    case (BYTE) 0xC6: cp1252w[0] = (BYTE) 0x88; return RESULT(STATUS_CODE_SUCCESS, 0, 0x0B, 0); // U+02C6
-                    case (BYTE) 0xDC: cp1252w[0] = (BYTE) 0x98; return RESULT(STATUS_CODE_SUCCESS, 0, 0x0C, 0); // U+02DC
+                    case (BYTE) 0xC6: cp1252w[0] = (BYTE) 0x88; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x0B, 0); // U+02C6
+                    case (BYTE) 0xDC: cp1252w[0] = (BYTE) 0x98; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x0C, 0); // U+02DC
                 }
                 break;
 
             case (BYTE) 0x20:
                 switch (codepoint3) {
-                    case (BYTE) 0x13: cp1252w[0] = (BYTE) 0x96; return RESULT(STATUS_CODE_SUCCESS, 0, 0x0D, 0); // U+2013
-                    case (BYTE) 0x14: cp1252w[0] = (BYTE) 0x97; return RESULT(STATUS_CODE_SUCCESS, 0, 0x0E, 0); // U+2014
-                    case (BYTE) 0x18: cp1252w[0] = (BYTE) 0x91; return RESULT(STATUS_CODE_SUCCESS, 0, 0x0F, 0); // U+2018
-                    case (BYTE) 0x19: cp1252w[0] = (BYTE) 0x92; return RESULT(STATUS_CODE_SUCCESS, 0, 0x10, 0); // U+2019
-                    case (BYTE) 0x1A: cp1252w[0] = (BYTE) 0x82; return RESULT(STATUS_CODE_SUCCESS, 0, 0x11, 0); // U+201A
-                    case (BYTE) 0x1C: cp1252w[0] = (BYTE) 0x93; return RESULT(STATUS_CODE_SUCCESS, 0, 0x12, 0); // U+201C
-                    case (BYTE) 0x1D: cp1252w[0] = (BYTE) 0x94; return RESULT(STATUS_CODE_SUCCESS, 0, 0x13, 0); // U+201D
-                    case (BYTE) 0x1E: cp1252w[0] = (BYTE) 0x84; return RESULT(STATUS_CODE_SUCCESS, 0, 0x14, 0); // U+201E
-                    case (BYTE) 0x20: cp1252w[0] = (BYTE) 0x86; return RESULT(STATUS_CODE_SUCCESS, 0, 0x15, 0); // U+2020
-                    case (BYTE) 0x21: cp1252w[0] = (BYTE) 0x87; return RESULT(STATUS_CODE_SUCCESS, 0, 0x16, 0); // U+2021
-                    case (BYTE) 0x22: cp1252w[0] = (BYTE) 0x95; return RESULT(STATUS_CODE_SUCCESS, 0, 0x17, 0); // U+2022
-                    case (BYTE) 0x26: cp1252w[0] = (BYTE) 0x85; return RESULT(STATUS_CODE_SUCCESS, 0, 0x18, 0); // U+2026
-                    case (BYTE) 0x30: cp1252w[0] = (BYTE) 0x89; return RESULT(STATUS_CODE_SUCCESS, 0, 0x19, 0); // U+2030
-                    case (BYTE) 0x39: cp1252w[0] = (BYTE) 0x8B; return RESULT(STATUS_CODE_SUCCESS, 0, 0x1A, 0); // U+2039
-                    case (BYTE) 0x3A: cp1252w[0] = (BYTE) 0x9B; return RESULT(STATUS_CODE_SUCCESS, 0, 0x1B, 0); // U+203A
-                    case (BYTE) 0xAC: cp1252w[0] = (BYTE) 0x80; return RESULT(STATUS_CODE_SUCCESS, 0, 0x1C, 0); // U+20AC
+                    case (BYTE) 0x13: cp1252w[0] = (BYTE) 0x96; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x0D, 0); // U+2013
+                    case (BYTE) 0x14: cp1252w[0] = (BYTE) 0x97; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x0E, 0); // U+2014
+                    case (BYTE) 0x18: cp1252w[0] = (BYTE) 0x91; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x0F, 0); // U+2018
+                    case (BYTE) 0x19: cp1252w[0] = (BYTE) 0x92; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x10, 0); // U+2019
+                    case (BYTE) 0x1A: cp1252w[0] = (BYTE) 0x82; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x11, 0); // U+201A
+                    case (BYTE) 0x1C: cp1252w[0] = (BYTE) 0x93; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x12, 0); // U+201C
+                    case (BYTE) 0x1D: cp1252w[0] = (BYTE) 0x94; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x13, 0); // U+201D
+                    case (BYTE) 0x1E: cp1252w[0] = (BYTE) 0x84; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x14, 0); // U+201E
+                    case (BYTE) 0x20: cp1252w[0] = (BYTE) 0x86; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x15, 0); // U+2020
+                    case (BYTE) 0x21: cp1252w[0] = (BYTE) 0x87; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x16, 0); // U+2021
+                    case (BYTE) 0x22: cp1252w[0] = (BYTE) 0x95; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x17, 0); // U+2022
+                    case (BYTE) 0x26: cp1252w[0] = (BYTE) 0x85; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x18, 0); // U+2026
+                    case (BYTE) 0x30: cp1252w[0] = (BYTE) 0x89; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x19, 0); // U+2030
+                    case (BYTE) 0x39: cp1252w[0] = (BYTE) 0x8B; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x1A, 0); // U+2039
+                    case (BYTE) 0x3A: cp1252w[0] = (BYTE) 0x9B; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x1B, 0); // U+203A
+                    case (BYTE) 0xAC: cp1252w[0] = (BYTE) 0x80; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x1C, 0); // U+20AC
                 }
                 break;
 
             case (BYTE) 0x21:
                 switch (codepoint3) {
-                    case (BYTE) 0x22: cp1252w[0] = (BYTE) 0x99; return RESULT(STATUS_CODE_SUCCESS, 0, 0x1D, 0); // U+2122
+                    case (BYTE) 0x22: cp1252w[0] = (BYTE) 0x99; return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x1D, 0); // U+2122
                 }
                 break;
         }
@@ -159,37 +159,37 @@ CATALYST_RESULT catte_cp1252_decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* 
 
     if (codeunit0 <= (BYTE) 0x7F || codeunit0 >= (BYTE) 0xA0) {
         // U+0000 through U+007F and U+00A0 through U+00FF map directly from CP1252
-        return RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
+        return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x03, 0);
     }
 
     switch (codeunit0) {
-        case (BYTE) 0x80: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0xAC; return RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0); // U+20AC
-        case (BYTE) 0x82: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x1A; return RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0); // U+201A
-        case (BYTE) 0x83: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x92; return RESULT(STATUS_CODE_SUCCESS, 0, 0x06, 0); // U+0192
-        case (BYTE) 0x84: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x1E; return RESULT(STATUS_CODE_SUCCESS, 0, 0x07, 0); // U+201E
-        case (BYTE) 0x85: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x26; return RESULT(STATUS_CODE_SUCCESS, 0, 0x08, 0); // U+2026
-        case (BYTE) 0x86: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x20; return RESULT(STATUS_CODE_SUCCESS, 0, 0x09, 0); // U+2020
-        case (BYTE) 0x87: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x21; return RESULT(STATUS_CODE_SUCCESS, 0, 0x0A, 0); // U+2021
-        case (BYTE) 0x88: codepoint->byte2 = (BYTE) 0x02; codepoint->byte3 = (BYTE) 0xC6; return RESULT(STATUS_CODE_SUCCESS, 0, 0x0B, 0); // U+02C6
-        case (BYTE) 0x89: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x30; return RESULT(STATUS_CODE_SUCCESS, 0, 0x0C, 0); // U+2030
-        case (BYTE) 0x8A: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x60; return RESULT(STATUS_CODE_SUCCESS, 0, 0x0D, 0); // U+0160
-        case (BYTE) 0x8B: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x39; return RESULT(STATUS_CODE_SUCCESS, 0, 0x0E, 0); // U+2039
-        case (BYTE) 0x8C: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x52; return RESULT(STATUS_CODE_SUCCESS, 0, 0x0F, 0); // U+0152
-        case (BYTE) 0x8E: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x7D; return RESULT(STATUS_CODE_SUCCESS, 0, 0x10, 0); // U+017D
-        case (BYTE) 0x91: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x18; return RESULT(STATUS_CODE_SUCCESS, 0, 0x11, 0); // U+2018
-        case (BYTE) 0x92: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x19; return RESULT(STATUS_CODE_SUCCESS, 0, 0x12, 0); // U+2019
-        case (BYTE) 0x93: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x1C; return RESULT(STATUS_CODE_SUCCESS, 0, 0x13, 0); // U+201C
-        case (BYTE) 0x94: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x1D; return RESULT(STATUS_CODE_SUCCESS, 0, 0x14, 0); // U+201D
-        case (BYTE) 0x95: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x22; return RESULT(STATUS_CODE_SUCCESS, 0, 0x15, 0); // U+2022
-        case (BYTE) 0x96: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x13; return RESULT(STATUS_CODE_SUCCESS, 0, 0x16, 0); // U+2013
-        case (BYTE) 0x97: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x14; return RESULT(STATUS_CODE_SUCCESS, 0, 0x17, 0); // U+2014
-        case (BYTE) 0x98: codepoint->byte2 = (BYTE) 0x02; codepoint->byte3 = (BYTE) 0xDC; return RESULT(STATUS_CODE_SUCCESS, 0, 0x18, 0); // U+02DC
-        case (BYTE) 0x99: codepoint->byte2 = (BYTE) 0x21; codepoint->byte3 = (BYTE) 0x22; return RESULT(STATUS_CODE_SUCCESS, 0, 0x19, 0); // U+2122
-        case (BYTE) 0x9A: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x61; return RESULT(STATUS_CODE_SUCCESS, 0, 0x1A, 0); // U+0161
-        case (BYTE) 0x9B: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x3A; return RESULT(STATUS_CODE_SUCCESS, 0, 0x1B, 0); // U+203A
-        case (BYTE) 0x9C: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x53; return RESULT(STATUS_CODE_SUCCESS, 0, 0x1C, 0); // U+0153
-        case (BYTE) 0x9E: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x7E; return RESULT(STATUS_CODE_SUCCESS, 0, 0x1D, 0); // U+017E
-        case (BYTE) 0x9F: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x78; return RESULT(STATUS_CODE_SUCCESS, 0, 0x1E, 0); // U+0178
+        case (BYTE) 0x80: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0xAC; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x04, 0); // U+20AC
+        case (BYTE) 0x82: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x1A; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x05, 0); // U+201A
+        case (BYTE) 0x83: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x92; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x06, 0); // U+0192
+        case (BYTE) 0x84: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x1E; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x07, 0); // U+201E
+        case (BYTE) 0x85: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x26; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x08, 0); // U+2026
+        case (BYTE) 0x86: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x20; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x09, 0); // U+2020
+        case (BYTE) 0x87: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x21; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x0A, 0); // U+2021
+        case (BYTE) 0x88: codepoint->byte2 = (BYTE) 0x02; codepoint->byte3 = (BYTE) 0xC6; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x0B, 0); // U+02C6
+        case (BYTE) 0x89: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x30; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x0C, 0); // U+2030
+        case (BYTE) 0x8A: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x60; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x0D, 0); // U+0160
+        case (BYTE) 0x8B: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x39; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x0E, 0); // U+2039
+        case (BYTE) 0x8C: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x52; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x0F, 0); // U+0152
+        case (BYTE) 0x8E: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x7D; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x10, 0); // U+017D
+        case (BYTE) 0x91: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x18; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x11, 0); // U+2018
+        case (BYTE) 0x92: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x19; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x12, 0); // U+2019
+        case (BYTE) 0x93: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x1C; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x13, 0); // U+201C
+        case (BYTE) 0x94: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x1D; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x14, 0); // U+201D
+        case (BYTE) 0x95: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x22; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x15, 0); // U+2022
+        case (BYTE) 0x96: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x13; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x16, 0); // U+2013
+        case (BYTE) 0x97: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x14; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x17, 0); // U+2014
+        case (BYTE) 0x98: codepoint->byte2 = (BYTE) 0x02; codepoint->byte3 = (BYTE) 0xDC; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x18, 0); // U+02DC
+        case (BYTE) 0x99: codepoint->byte2 = (BYTE) 0x21; codepoint->byte3 = (BYTE) 0x22; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x19, 0); // U+2122
+        case (BYTE) 0x9A: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x61; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x1A, 0); // U+0161
+        case (BYTE) 0x9B: codepoint->byte2 = (BYTE) 0x20; codepoint->byte3 = (BYTE) 0x3A; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x1B, 0); // U+203A
+        case (BYTE) 0x9C: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x53; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x1C, 0); // U+0153
+        case (BYTE) 0x9E: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x7E; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x1D, 0); // U+017E
+        case (BYTE) 0x9F: codepoint->byte2 = (BYTE) 0x01; codepoint->byte3 = (BYTE) 0x78; return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x1E, 0); // U+0178
     }
 
     // Undefined CP1252 code unit
@@ -217,7 +217,7 @@ CATALYST_RESULT catte_cp1252_length(CATALYST_CP1252 cp1252, CATALYST_NUINT* leng
     }
 
     *length = count;
-    return RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0x06, 0x04, 0);
 }
 
 
@@ -241,7 +241,7 @@ CATALYST_RESULT catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_U
     if (codepoint0 == 0 && codepoint1 == 0 && codepoint2 == 0 && codepoint3 < (BYTE) 0x80u) {
         utf8w[0] = codepoint3;
         *produced = 1;
-        return RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
+        return RESULT(STATUS_CODE_SUCCESS, 0x07, 0x03, 0);
     }
 
     // 2-byte sequence
@@ -255,7 +255,7 @@ CATALYST_RESULT catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_U
         utf8w[0] = (BYTE) ((BYTE) 0xC0u | t0);
         utf8w[1] = (BYTE) ((BYTE) 0x80u | t1);
         *produced = 2;
-        return RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
+        return RESULT(STATUS_CODE_SUCCESS, 0x07, 0x05, 0);
     }
 
     // 3-byte sequence
@@ -275,7 +275,7 @@ CATALYST_RESULT catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_U
         utf8w[1] = (BYTE) ((BYTE) 0x80u | t1);
         utf8w[2] = (BYTE) ((BYTE) 0x80u | t2);
         *produced = 3;
-        return RESULT(STATUS_CODE_SUCCESS, 0, 0x08, 0);
+        return RESULT(STATUS_CODE_SUCCESS, 0x07, 0x08, 0);
     }
 
     // 4-byte sequence
@@ -289,7 +289,7 @@ CATALYST_RESULT catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_U
         utf8w[2] = (BYTE) ((BYTE) 0x80u | t2);
         utf8w[3] = (BYTE) ((BYTE) 0x80u | t3);
         *produced = 4;
-        return RESULT(STATUS_CODE_SUCCESS, 0, 0x09, 0);
+        return RESULT(STATUS_CODE_SUCCESS, 0x07, 0x09, 0);
     }
 
     // Invalid codepoint
@@ -320,14 +320,14 @@ CATALYST_RESULT catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepo
     // NUL '\0' character
     if (codeunit0 == (BYTE) '\0') {
         *consumed = 1;
-        return RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0);
+        return RESULT(STATUS_CODE_SUCCESS, 0x08, 0x04, 0);
     }
 
     // 1-byte ASCII
     if (codeunit0 < (BYTE) 0x80) {
         codepoint->byte3 = codeunit0;
         *consumed = 1;
-        return RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
+        return RESULT(STATUS_CODE_SUCCESS, 0x08, 0x05, 0);
     }
 
     // 2-byte sequence
@@ -346,7 +346,7 @@ CATALYST_RESULT catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepo
         codepoint->byte2 = (BYTE) (t0 >> 2);
         codepoint->byte3 = (BYTE) (((t0 & (BYTE) 0x03u) << 6) | t1);
         *consumed = 2;
-        return RESULT(STATUS_CODE_SUCCESS, 0, 0x08, 0);
+        return RESULT(STATUS_CODE_SUCCESS, 0x08, 0x08, 0);
     }
 
     // 3-byte sequence
@@ -379,7 +379,7 @@ CATALYST_RESULT catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepo
         codepoint->byte2 = (BYTE) ((t0 << 4) | (t1 >> 2));
         codepoint->byte3 = (BYTE) (((t1 & 0x03u) << 6) | t2);
         *consumed = 3;
-        return RESULT(STATUS_CODE_SUCCESS, 0, 0x0E, 0);
+        return RESULT(STATUS_CODE_SUCCESS, 0x08, 0x0E, 0);
     }
 
     // 4-byte sequence
@@ -420,7 +420,7 @@ CATALYST_RESULT catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepo
         codepoint->byte2 = (BYTE) (((t1 & (BYTE) 0x0Fu) << 4) | (t2 >> 2));
         codepoint->byte3 = (BYTE) (((t2 & (BYTE) 0x03u) << 6) | t3);
         *consumed = 4;
-        return RESULT(STATUS_CODE_SUCCESS, 0, 0x15, 0); // Valid 4-byte sequence
+        return RESULT(STATUS_CODE_SUCCESS, 0x08, 0x15, 0); // Valid 4-byte sequence
     }
 
     // Invalid leading code unit
@@ -459,7 +459,7 @@ CATALYST_RESULT catte_utf8_length(CATALYST_UTF8 utf8, CATALYST_NUINT* length) {
         utf8 += consumed;
     }
     *length = count;
-    return RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0x09, 0x05, 0);
 }
 
 
@@ -492,7 +492,7 @@ CATALYST_RESULT catte_utf16le_encode(const CATALYST_CODEPOINT codepoint, CATALYS
         utf16lew[0].msb = codepoint2;
         utf16lew[0].lsb = codepoint3;
         *produced = 1;
-        return RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
+        return RESULT(STATUS_CODE_SUCCESS, 0x0A, 0x05, 0);
     }
 
     // Surrogate pair
@@ -513,7 +513,7 @@ CATALYST_RESULT catte_utf16le_encode(const CATALYST_CODEPOINT codepoint, CATALYS
     utf16lew[1].msb = (BYTE) ((BYTE) 0xDCu | ls_hi2);
     utf16lew[1].lsb = ls_lo8;
     *produced = 2;
-    return RESULT(STATUS_CODE_SUCCESS, 0, 0x06, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0x0A, 0x06, 0);
 }
 
 
@@ -541,7 +541,7 @@ CATALYST_RESULT catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOIN
     // NUL '\0' character
     if (codeunit0 == 0 && codeunit1 == 0) {
         *consumed = 1;
-        return RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0);
+        return RESULT(STATUS_CODE_SUCCESS, 0x0B, 0x04, 0);
     }
 
     // Low surrogate without preceding high surrogate
@@ -554,7 +554,7 @@ CATALYST_RESULT catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOIN
         codepoint->byte2 = codeunit0;
         codepoint->byte3 = codeunit1;
         *consumed = 1;
-        return RESULT(STATUS_CODE_SUCCESS, 0, 0x06, 0);
+        return RESULT(STATUS_CODE_SUCCESS, 0x0B, 0x06, 0);
     }
 
     // Surrogate pair, must be followed by a low surrogate
@@ -580,7 +580,7 @@ CATALYST_RESULT catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOIN
     codepoint->byte2 = p1;
     codepoint->byte3 = p0;
     *consumed = 2;
-    return RESULT(STATUS_CODE_SUCCESS, 0, 0x08, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0x0B, 0x08, 0);
 }
 
 
@@ -615,7 +615,7 @@ CATALYST_RESULT catte_utf16le_length(CATALYST_UTF16LE utf16le, CATALYST_NUINT* l
         utf16le += consumed;
     }
     *length = count;
-    return RESULT(STATUS_CODE_SUCCESS, 0, 0x05, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0x0C, 0x05, 0);
 }
 
 CATALYST_RESULT catte_ascii_to_cp1252(CATALYST_ASCII ascii, CATALYST_CP1252W cp1252w) {
@@ -644,7 +644,7 @@ CATALYST_RESULT catte_ascii_to_cp1252(CATALYST_ASCII ascii, CATALYST_CP1252W cp1
     }
 
     cp1252w[index] = (BYTE) '\0';
-    return RESULT(status, status_code_is_success(status) ? 0 : 0x0D, 0x04, 0);
+    return RESULT(status, 0x0D, 0x04, 0);
 }
 
 CATALYST_RESULT catte_ascii_to_utf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, CATALYST_NUINT capacity) {
@@ -680,7 +680,7 @@ CATALYST_RESULT catte_ascii_to_utf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, 
     }
 
     utf8w[write] = (BYTE) '\0';
-    return RESULT(status, status_code_is_success(status) ? 0 : 0x0E, 0x05, 0);
+    return RESULT(status, 0x0E, 0x05, 0);
 }
 
 CATALYST_RESULT catte_ascii_to_utf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT capacity) {
@@ -719,7 +719,7 @@ CATALYST_RESULT catte_ascii_to_utf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW u
 
     utf16lew[write].msb = 0;
     utf16lew[write].lsb = 0;
-    return RESULT(status, status_code_is_success(status) ? 0 : 0x0F, 0x05, 0);
+    return RESULT(status, 0x0F, 0x05, 0);
 }
 
 
@@ -765,7 +765,7 @@ CATALYST_RESULT catte_cp1252_to_ascii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW as
     }
 
     asciiw[index] = (BYTE) '\0';
-    return RESULT(status, status_code_is_success(status) ? 0 : 0x10, 0x06, 0);
+    return RESULT(status, 0x10, 0x06, 0);
 }
 
 
@@ -827,7 +827,7 @@ CATALYST_RESULT catte_cp1252_to_utf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8
     }
 
     utf8w[write] = (BYTE) '\0';
-    return RESULT(status, status_code_is_success(status) ? 0 : 0x11, 0x07, 0);
+    return RESULT(status, 0x11, 0x07, 0);
 }
 
 
@@ -890,7 +890,7 @@ CATALYST_RESULT catte_cp1252_to_utf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LE
 
     utf16lew[write].msb = 0;
     utf16lew[write].lsb = 0;
-    return RESULT(status, status_code_is_success(status) ? 0 : 0x12, 0x07, 0);
+    return RESULT(status, 0x12, 0x07, 0);
 }
 
 
@@ -947,7 +947,7 @@ CATALYST_RESULT catte_utf8_to_ascii(CATALYST_UTF8 utf8, CATALYST_ASCIIW asciiw, 
     }
 
     asciiw[write] = (BYTE) '\0';
-    return RESULT(status, status_code_is_success(status) ? 0 : 0x13, 0x07, 0);
+    return RESULT(status, 0x13, 0x07, 0);
 }
 
 
@@ -1004,7 +1004,7 @@ CATALYST_RESULT catte_utf8_to_cp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252
     }
 
     cp1252w[write] = (BYTE) '\0';
-    return RESULT(status, status_code_is_success(status) ? 0 : 0x14, 0x07, 0);
+    return RESULT(status, 0x14, 0x07, 0);
 }
 
 
@@ -1072,7 +1072,7 @@ CATALYST_RESULT catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf1
 
     utf16lew[write].msb = 0;
     utf16lew[write].lsb = 0;
-    return RESULT(status, status_code_is_success(status) ? 0 : 0x15, 0x07, 0);
+    return RESULT(status, 0x15, 0x07, 0);
 }
 
 
@@ -1129,7 +1129,7 @@ CATALYST_RESULT catte_utf16le_to_ascii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW
     }
 
     asciiw[write] = (BYTE) '\0';
-    return RESULT(status, status_code_is_success(status) ? 0 : 0x16, 0x07, 0);
+    return RESULT(status, 0x16, 0x07, 0);
 }
 
 
@@ -1186,7 +1186,7 @@ CATALYST_RESULT catte_utf16le_to_cp1252(CATALYST_UTF16LE utf16le, CATALYST_CP125
     }
 
     cp1252w[write] = (BYTE) '\0';
-    return RESULT(status, status_code_is_success(status) ? 0 : 0x17, 0x07, 0);
+    return RESULT(status, 0x17, 0x07, 0);
 }
 
 
@@ -1253,5 +1253,5 @@ CATALYST_RESULT catte_utf16le_to_utf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W u
     }
 
     utf8w[write] = (BYTE) '\0';
-    return RESULT(status, status_code_is_success(status) ? 0 : 0x18, 0x07, 0);
+    return RESULT(status, 0x18, 0x07, 0);
 }

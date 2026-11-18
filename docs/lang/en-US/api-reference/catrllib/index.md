@@ -162,7 +162,7 @@ Creates a fixed-length array of length elements, each `element_size` bytes. All 
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | Create storage | — |
+| `0x00010300` | `SUCCESS` | Create storage | — |
 | `0x81010100` | `ERROR_INVALID_ARGUMENT` | Validate `array` | Argument 0 (`array`) |
 | `0x81010201` | `ERROR_INVALID_ARGUMENT` | Validate `element_size` | Argument 1 (`element_size`) |
 | `0x82010302` | `ERROR_INVALID_STATE` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
@@ -200,7 +200,7 @@ Releases array storage and handle.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000200` | `SUCCESS` | Destroy storage | — |
+| `0x00020200` | `SUCCESS` | Destroy storage | — |
 | `0x81020100` | `ERROR_INVALID_ARGUMENT` | Validate `array` | Argument 0 (`array`) |
 | `0x82020201` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x01`: Release element storage. |
 | `0x82020202` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x02`: Release handle. |
@@ -239,7 +239,7 @@ Copies the element at index into value, which must hold `element_size` bytes.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000500` | `SUCCESS` | Retrieve value | — |
+| `0x00030500` | `SUCCESS` | Retrieve value | — |
 | `0x81030100` | `ERROR_INVALID_ARGUMENT` | Validate `array` | Argument 0 (`array`) |
 | `0x81030201` | `ERROR_INVALID_ARGUMENT` | Validate `index` | Argument 1 (`index`) |
 | `0x81030302` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 2 (`value`) |
@@ -278,7 +278,7 @@ Replaces the element at index with a copy of `element_size` bytes from value.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000500` | `SUCCESS` | Store value | — |
+| `0x00040500` | `SUCCESS` | Store value | — |
 | `0x81040100` | `ERROR_INVALID_ARGUMENT` | Validate `array` | Argument 0 (`array`) |
 | `0x81040201` | `ERROR_INVALID_ARGUMENT` | Validate `index` | Argument 1 (`index`) |
 | `0x81040302` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 2 (`value`) |
@@ -315,7 +315,7 @@ Writes the fixed element count to length.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | Write length | — |
+| `0x00050300` | `SUCCESS` | Write length | — |
 | `0x81050100` | `ERROR_INVALID_ARGUMENT` | Validate `array` | Argument 0 (`array`) |
 | `0x81050201` | `ERROR_INVALID_ARGUMENT` | Validate `length` | Argument 1 (`length`) |
 | `0xC1050401` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
@@ -351,7 +351,7 @@ Creates an empty set of `element_size`-byte elements.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | Create storage | — |
+| `0x00060300` | `SUCCESS` | Create storage | — |
 | `0x81060100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
 | `0x81060201` | `ERROR_INVALID_ARGUMENT` | Validate `element_size` | Argument 1 (`element_size`) |
 | `0x82060302` | `ERROR_INVALID_STATE` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
@@ -382,7 +382,7 @@ Releases set storage and handle.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000200` | `SUCCESS` | Destroy storage | — |
+| `0x00070200` | `SUCCESS` | Destroy storage | — |
 | `0x81070100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
 | `0x82070201` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x01`: Release element storage. |
 | `0x82070202` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x02`: Release handle. |
@@ -418,8 +418,8 @@ Copies value into the set if no byte-identical element exists. Grows storage as 
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000700` | `SUCCESS` | Insert element | — |
-| `0x01000400` | `SUCCESS_NOOP` | Skip existing element | — |
+| `0x00080700` | `SUCCESS` | Insert element | — |
+| `0x01080400` | `SUCCESS_NOOP` | Skip existing element | — |
 | `0x81080100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
 | `0x81080201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
 | `0x82080502` | `ERROR_INVALID_STATE` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
@@ -461,8 +461,8 @@ Removes a byte-identical element. Enumeration order may change.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000600` | `SUCCESS` | Remove entry | — |
-| `0x01000400` | `SUCCESS_NOOP` | Skip absent entry | — |
+| `0x00090600` | `SUCCESS` | Remove entry | — |
+| `0x01090400` | `SUCCESS_NOOP` | Skip absent entry | — |
 | `0x81090100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
 | `0x81090201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
 | `0xC1090301` | `FATAL_INVARIANT_VIOLATION` | Search collection | Search helper operation `0x01`: Compare stored element or key (internal argument failure). |
@@ -500,7 +500,7 @@ Reports whether the set contains the specified value.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000500` | `SUCCESS` | Write membership result | — |
+| `0x000A0500` | `SUCCESS` | Write membership result | — |
 | `0x810A0100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
 | `0x810A0201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
 | `0x810A0302` | `ERROR_INVALID_ARGUMENT` | Validate `contains` | Argument 2 (`contains`) |
@@ -535,7 +535,7 @@ Writes the number of distinct elements to count.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | Write count | — |
+| `0x000B0300` | `SUCCESS` | Write count | — |
 | `0x810B0100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
 | `0x810B0201` | `ERROR_INVALID_ARGUMENT` | Validate `count` | Argument 1 (`count`) |
 | `0xC10B0401` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
@@ -570,7 +570,7 @@ Copies the element at an unordered enumeration index into value.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000500` | `SUCCESS` | Retrieve entry | — |
+| `0x000C0500` | `SUCCESS` | Retrieve entry | — |
 | `0x810C0100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
 | `0x810C0201` | `ERROR_INVALID_ARGUMENT` | Validate `index` | Argument 1 (`index`) |
 | `0x810C0302` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 2 (`value`) |
@@ -604,8 +604,8 @@ Removes all elements without releasing `capacity` or zeroing the stored bytes.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | Clear collection | — |
-| `0x01000200` | `SUCCESS_NOOP` | Skip empty collection | — |
+| `0x000D0300` | `SUCCESS` | Clear collection | — |
+| `0x010D0200` | `SUCCESS_NOOP` | Skip empty collection | — |
 | `0x810D0100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
 | `0xC10D0401` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC10D0402` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
@@ -641,7 +641,7 @@ Creates an empty map with fixed `key_size` and `value_size` bytes per associatio
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000500` | `SUCCESS` | Create storage | — |
+| `0x000E0500` | `SUCCESS` | Create storage | — |
 | `0x810E0100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
 | `0x810E0201` | `ERROR_INVALID_ARGUMENT` | Validate `key_size` | Argument 1 (`key_size`) |
 | `0x810E0302` | `ERROR_INVALID_ARGUMENT` | Validate `value_size` | Argument 2 (`value_size`) |
@@ -674,7 +674,7 @@ Releases map storage and handle.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000200` | `SUCCESS` | Destroy storage | — |
+| `0x000F0200` | `SUCCESS` | Destroy storage | — |
 | `0x810F0100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
 | `0x820F0201` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x01`: Release element storage. |
 | `0x820F0202` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x02`: Release handle. |
@@ -713,7 +713,7 @@ Retrieves the value associated with a byte-identical key.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000700` | `SUCCESS` | Retrieve value | — |
+| `0x00100700` | `SUCCESS` | Retrieve value | — |
 | `0x81100100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
 | `0x81100201` | `ERROR_INVALID_ARGUMENT` | Validate `key` | Argument 1 (`key`) |
 | `0x81100302` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 2 (`value`) |
@@ -754,7 +754,7 @@ Inserts a key/value association or updates an existing key without increasing th
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000800` | `SUCCESS` | Store value | — |
+| `0x00110800` | `SUCCESS` | Store value | — |
 | `0x81110100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
 | `0x81110201` | `ERROR_INVALID_ARGUMENT` | Validate `key` | Argument 1 (`key`) |
 | `0x81110302` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 2 (`value`) |
@@ -800,8 +800,8 @@ Removes an association with a byte-identical key. Enumeration order may change.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000600` | `SUCCESS` | Remove entry | — |
-| `0x01000400` | `SUCCESS_NOOP` | Skip absent entry | — |
+| `0x00120600` | `SUCCESS` | Remove entry | — |
+| `0x01120400` | `SUCCESS_NOOP` | Skip absent entry | — |
 | `0x81120100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
 | `0x81120201` | `ERROR_INVALID_ARGUMENT` | Validate `key` | Argument 1 (`key`) |
 | `0xC1120301` | `FATAL_INVARIANT_VIOLATION` | Search collection | Search helper operation `0x01`: Compare stored element or key (internal argument failure). |
@@ -840,7 +840,7 @@ Reports whether the map contains the specified key.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000500` | `SUCCESS` | Write membership result | — |
+| `0x00130500` | `SUCCESS` | Write membership result | — |
 | `0x81130100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
 | `0x81130201` | `ERROR_INVALID_ARGUMENT` | Validate `key` | Argument 1 (`key`) |
 | `0x81130302` | `ERROR_INVALID_ARGUMENT` | Validate `contains` | Argument 2 (`contains`) |
@@ -876,7 +876,7 @@ Writes the number of key/value associations to count.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | Write count | — |
+| `0x00140300` | `SUCCESS` | Write count | — |
 | `0x81140100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
 | `0x81140201` | `ERROR_INVALID_ARGUMENT` | Validate `count` | Argument 1 (`count`) |
 | `0xC1140401` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
@@ -914,7 +914,7 @@ Copies the key and value at an unordered enumeration index to their respective o
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000700` | `SUCCESS` | Retrieve entry | — |
+| `0x00150700` | `SUCCESS` | Retrieve entry | — |
 | `0x81150100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
 | `0x81150201` | `ERROR_INVALID_ARGUMENT` | Validate `index` | Argument 1 (`index`) |
 | `0x81150302` | `ERROR_INVALID_ARGUMENT` | Validate `key` | Argument 2 (`key`) |
@@ -952,8 +952,8 @@ Removes all associations without releasing `capacity` or zeroing stored bytes.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | Clear collection | — |
-| `0x01000200` | `SUCCESS_NOOP` | Skip empty collection | — |
+| `0x00160300` | `SUCCESS` | Clear collection | — |
+| `0x01160200` | `SUCCESS_NOOP` | Skip empty collection | — |
 | `0x81160100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
 | `0xC1160401` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC1160402` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
@@ -988,7 +988,7 @@ Creates an empty stack with `element_size` bytes per element.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | Create storage | — |
+| `0x00170300` | `SUCCESS` | Create storage | — |
 | `0x81170100` | `ERROR_INVALID_ARGUMENT` | Validate `stack` | Argument 0 (`stack`) |
 | `0x81170201` | `ERROR_INVALID_ARGUMENT` | Validate `element_size` | Argument 1 (`element_size`) |
 | `0x82170302` | `ERROR_INVALID_STATE` | Create storage | Storage helper operation `0x02`: Allocate collection handle. |
@@ -1019,7 +1019,7 @@ Releases stack storage and handle.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000200` | `SUCCESS` | Destroy storage | — |
+| `0x00180200` | `SUCCESS` | Destroy storage | — |
 | `0x81180100` | `ERROR_INVALID_ARGUMENT` | Validate `stack` | Argument 0 (`stack`) |
 | `0x82180201` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x01`: Release element storage. |
 | `0x82180202` | `ERROR_INVALID_STATE` | Destroy storage | Storage helper operation `0x02`: Release handle. |
@@ -1055,7 +1055,7 @@ Copies value to the top of the stack. Grows storage as needed.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000500` | `SUCCESS` | Push value | — |
+| `0x00190500` | `SUCCESS` | Push value | — |
 | `0x81190100` | `ERROR_INVALID_ARGUMENT` | Validate `stack` | Argument 0 (`stack`) |
 | `0x81190201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
 | `0x82190302` | `ERROR_INVALID_STATE` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
@@ -1096,7 +1096,7 @@ Copies the top element into value and removes it.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000500` | `SUCCESS` | Remove top element | — |
+| `0x001A0500` | `SUCCESS` | Remove top element | — |
 | `0x811A0100` | `ERROR_INVALID_ARGUMENT` | Validate `stack` | Argument 0 (`stack`) |
 | `0x811A0201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
 | `0x881A0300` | `ERROR_NOT_FOUND` | Check for top element | — |
@@ -1132,7 +1132,7 @@ Copies the top element into value without removing it.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000500` | `SUCCESS` | Retrieve top element | — |
+| `0x001B0500` | `SUCCESS` | Retrieve top element | — |
 | `0x811B0100` | `ERROR_INVALID_ARGUMENT` | Validate `stack` | Argument 0 (`stack`) |
 | `0x811B0201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
 | `0x881B0300` | `ERROR_NOT_FOUND` | Check for top element | — |
@@ -1168,7 +1168,7 @@ Writes the number of elements to count.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | Write count | — |
+| `0x001C0300` | `SUCCESS` | Write count | — |
 | `0x811C0100` | `ERROR_INVALID_ARGUMENT` | Validate `stack` | Argument 0 (`stack`) |
 | `0x811C0201` | `ERROR_INVALID_ARGUMENT` | Validate `count` | Argument 1 (`count`) |
 | `0xC11C0401` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
@@ -1199,8 +1199,8 @@ Removes all elements without releasing `capacity` or zeroing stored bytes.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | Clear collection | — |
-| `0x01000200` | `SUCCESS_NOOP` | Skip empty collection | — |
+| `0x001D0300` | `SUCCESS` | Clear collection | — |
+| `0x011D0200` | `SUCCESS_NOOP` | Skip empty collection | — |
 | `0x811D0100` | `ERROR_INVALID_ARGUMENT` | Validate `stack` | Argument 0 (`stack`) |
 | `0xC11D0401` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC11D0402` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |

@@ -34,7 +34,7 @@ int main() {
     result = catalyst::alloc(&memory, 64);
     print_result("alloc", result);
 
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x07 || result.detail != 0) {
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x01 || result.operation != 0x07 || result.detail != 0) {
         printf("Allocation failed.\n");
         return 1;
     }
@@ -76,7 +76,7 @@ int main() {
     result = catalyst::realloc(&memory, 128);
     print_result("realloc grow", result);
 
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x07 || result.detail != 0) {
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x02 || result.operation != 0x07 || result.detail != 0) {
         printf("Realloc grow failed.\n");
         return 4;
     }
@@ -122,7 +122,7 @@ int main() {
     result = catalyst::realloc(&memory, 32);
     print_result("realloc shrink", result);
 
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x07 || result.detail != 0) {
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x02 || result.operation != 0x07 || result.detail != 0) {
         printf("Realloc shrink failed.\n");
         return 8;
     }
@@ -154,7 +154,7 @@ int main() {
     result = catalyst::realloc(&memory, 0);
     print_result("realloc zero", result);
 
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x03 || result.detail != 0) {
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x02 || result.operation != 0x03 || result.detail != 0) {
         printf("Realloc zero/free failed.\n");
         return 11;
     }
@@ -174,7 +174,7 @@ int main() {
     result = catalyst::realloc(&memory, 16);
     print_result("realloc null", result);
 
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x02 || result.detail != 0) {
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x02 || result.operation != 0x02 || result.detail != 0) {
         printf("Realloc null-as-alloc failed.\n");
         return 13;
     }
@@ -209,7 +209,7 @@ int main() {
     result = catalyst::free(memory);
     print_result("free final", result);
 
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x03 || result.detail != 0) {
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x03 || result.operation != 0x03 || result.detail != 0) {
         printf("Final free failed.\n");
         return 16;
     }
@@ -233,37 +233,37 @@ int main() {
     BYTE destination[6] = {0, 0, 0, 0, 0, 0};
     SBYTE comparison = 0;
     result = catalyst::copy(destination, source, 6);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x04 || result.detail != 0) return 18;
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x04 || result.operation != 0x04 || result.detail != 0) return 18;
     for (i = 0; i < 6; i++) {
         if (destination[i] != source[i]) return 19;
     }
     result = catalyst::move(destination + 1, destination, 5);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x04 || result.detail != 0) return 20;
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x05 || result.operation != 0x04 || result.detail != 0) return 20;
     for (i = 1; i < 6; i++) {
         if (destination[i] != source[i - 1]) return 21;
     }
     result = catalyst::move(destination, destination + 1, 5);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x04 || result.detail != 0) return 22;
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x05 || result.operation != 0x04 || result.detail != 0) return 22;
     for (i = 0; i < 5; i++) {
         if (destination[i] != source[i]) return 23;
     }
     result = catalyst::compare(destination, source, 6, &comparison);
-    if (comparison != -1 || result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x04 || result.detail != 0) return 24;
+    if (comparison != -1 || result.status != STATUS_CODE_SUCCESS || result.context != 0x06 || result.operation != 0x04 || result.detail != 0) return 24;
     result = catalyst::set(destination, (BYTE) 0xFF, 6);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x03 || result.detail != 0) return 25;
+    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x07 || result.operation != 0x03 || result.detail != 0) return 25;
     for (i = 0; i < 6; i++) {
         if (destination[i] != (BYTE) 0xFF) return 26;
     }
     result = catalyst::compare(destination, source, 6, &comparison);
-    if (comparison != 1 || result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x04 || result.detail != 0) return 27;
+    if (comparison != 1 || result.status != STATUS_CODE_SUCCESS || result.context != 0x06 || result.operation != 0x04 || result.detail != 0) return 27;
     result = catalyst::compare(source, source, 6, &comparison);
-    if (comparison != 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x04 || result.detail != 0) return 28;
+    if (comparison != 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0x06 || result.operation != 0x04 || result.detail != 0) return 28;
     result = catalyst::copy(destination, source, 0);
-    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0 || result.operation != 0x03 || result.detail != 0) return 29;
+    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0x04 || result.operation != 0x03 || result.detail != 0) return 29;
     result = catalyst::move(destination, destination, 6);
-    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0 || result.operation != 0x03 || result.detail != 0) return 30;
+    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0x05 || result.operation != 0x03 || result.detail != 0) return 30;
     result = catalyst::set(destination, 0, 0);
-    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0 || result.operation != 0x02 || result.detail != 0) return 31;
+    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0x07 || result.operation != 0x02 || result.detail != 0) return 31;
 
     // A direct allocation failure and a delegated realloc failure have different contexts.
     memory = 0;

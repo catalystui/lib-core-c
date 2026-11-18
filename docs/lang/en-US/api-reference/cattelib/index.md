@@ -107,8 +107,8 @@ Encodes one codepoint as ASCII. Codepoints outside U+0000–U+007F are replaced 
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | Encode NUL | — |
-| `0x00000400` | `SUCCESS` | Encode ASCII codepoint | — |
+| `0x00010300` | `SUCCESS` | Encode NUL | — |
+| `0x00010400` | `SUCCESS` | Encode ASCII codepoint | — |
 | `0x41010200` | `WARNING_PARTIAL` | Substitute unrepresentable codepoint | — |
 | `0x81010101` | `ERROR_INVALID_ARGUMENT` | Validate `asciiw` | Argument 1 (`asciiw`) |
 
@@ -137,7 +137,7 @@ Decodes a single ASCII code unit into a codepoint. The input byte becomes the le
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | Decode code unit | — |
+| `0x00020300` | `SUCCESS` | Decode code unit | — |
 | `0x81020100` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 0 (`ascii`) |
 | `0x81020201` | `ERROR_INVALID_ARGUMENT` | Validate `codepoint` | Argument 1 (`codepoint`) |
 
@@ -166,7 +166,7 @@ Counts the code units in a null-terminated ASCII string, excluding the terminato
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000400` | `SUCCESS` | Write length | — |
+| `0x00030400` | `SUCCESS` | Write length | — |
 | `0x81030100` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 0 (`ascii`) |
 | `0x81030201` | `ERROR_INVALID_ARGUMENT` | Validate `length` | Argument 1 (`length`) |
 | `0x90030300` | `ERROR_BUFFER_OVERFLOW` | Check count limit | — |
@@ -198,34 +198,34 @@ Encodes one codepoint as Windows-1252. Unrepresentable codepoints are replaced w
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000200` | `SUCCESS` | Encode directly mapped codepoint | — |
-| `0x00000300` | `SUCCESS` | Encode U+0152 as 0x8C | — |
-| `0x00000400` | `SUCCESS` | Encode U+0153 as 0x9C | — |
-| `0x00000500` | `SUCCESS` | Encode U+0160 as 0x8A | — |
-| `0x00000600` | `SUCCESS` | Encode U+0161 as 0x9A | — |
-| `0x00000700` | `SUCCESS` | Encode U+0178 as 0x9F | — |
-| `0x00000800` | `SUCCESS` | Encode U+017D as 0x8E | — |
-| `0x00000900` | `SUCCESS` | Encode U+017E as 0x9E | — |
-| `0x00000A00` | `SUCCESS` | Encode U+0192 as 0x83 | — |
-| `0x00000B00` | `SUCCESS` | Encode U+02C6 as 0x88 | — |
-| `0x00000C00` | `SUCCESS` | Encode U+02DC as 0x98 | — |
-| `0x00000D00` | `SUCCESS` | Encode U+2013 as 0x96 | — |
-| `0x00000E00` | `SUCCESS` | Encode U+2014 as 0x97 | — |
-| `0x00000F00` | `SUCCESS` | Encode U+2018 as 0x91 | — |
-| `0x00001000` | `SUCCESS` | Encode U+2019 as 0x92 | — |
-| `0x00001100` | `SUCCESS` | Encode U+201A as 0x82 | — |
-| `0x00001200` | `SUCCESS` | Encode U+201C as 0x93 | — |
-| `0x00001300` | `SUCCESS` | Encode U+201D as 0x94 | — |
-| `0x00001400` | `SUCCESS` | Encode U+201E as 0x84 | — |
-| `0x00001500` | `SUCCESS` | Encode U+2020 as 0x86 | — |
-| `0x00001600` | `SUCCESS` | Encode U+2021 as 0x87 | — |
-| `0x00001700` | `SUCCESS` | Encode U+2022 as 0x95 | — |
-| `0x00001800` | `SUCCESS` | Encode U+2026 as 0x85 | — |
-| `0x00001900` | `SUCCESS` | Encode U+2030 as 0x89 | — |
-| `0x00001A00` | `SUCCESS` | Encode U+2039 as 0x8B | — |
-| `0x00001B00` | `SUCCESS` | Encode U+203A as 0x9B | — |
-| `0x00001C00` | `SUCCESS` | Encode U+20AC as 0x80 | — |
-| `0x00001D00` | `SUCCESS` | Encode U+2122 as 0x99 | — |
+| `0x00040200` | `SUCCESS` | Encode directly mapped codepoint | — |
+| `0x00040300` | `SUCCESS` | Encode U+0152 as 0x8C | — |
+| `0x00040400` | `SUCCESS` | Encode U+0153 as 0x9C | — |
+| `0x00040500` | `SUCCESS` | Encode U+0160 as 0x8A | — |
+| `0x00040600` | `SUCCESS` | Encode U+0161 as 0x9A | — |
+| `0x00040700` | `SUCCESS` | Encode U+0178 as 0x9F | — |
+| `0x00040800` | `SUCCESS` | Encode U+017D as 0x8E | — |
+| `0x00040900` | `SUCCESS` | Encode U+017E as 0x9E | — |
+| `0x00040A00` | `SUCCESS` | Encode U+0192 as 0x83 | — |
+| `0x00040B00` | `SUCCESS` | Encode U+02C6 as 0x88 | — |
+| `0x00040C00` | `SUCCESS` | Encode U+02DC as 0x98 | — |
+| `0x00040D00` | `SUCCESS` | Encode U+2013 as 0x96 | — |
+| `0x00040E00` | `SUCCESS` | Encode U+2014 as 0x97 | — |
+| `0x00040F00` | `SUCCESS` | Encode U+2018 as 0x91 | — |
+| `0x00041000` | `SUCCESS` | Encode U+2019 as 0x92 | — |
+| `0x00041100` | `SUCCESS` | Encode U+201A as 0x82 | — |
+| `0x00041200` | `SUCCESS` | Encode U+201C as 0x93 | — |
+| `0x00041300` | `SUCCESS` | Encode U+201D as 0x94 | — |
+| `0x00041400` | `SUCCESS` | Encode U+201E as 0x84 | — |
+| `0x00041500` | `SUCCESS` | Encode U+2020 as 0x86 | — |
+| `0x00041600` | `SUCCESS` | Encode U+2021 as 0x87 | — |
+| `0x00041700` | `SUCCESS` | Encode U+2022 as 0x95 | — |
+| `0x00041800` | `SUCCESS` | Encode U+2026 as 0x85 | — |
+| `0x00041900` | `SUCCESS` | Encode U+2030 as 0x89 | — |
+| `0x00041A00` | `SUCCESS` | Encode U+2039 as 0x8B | — |
+| `0x00041B00` | `SUCCESS` | Encode U+203A as 0x9B | — |
+| `0x00041C00` | `SUCCESS` | Encode U+20AC as 0x80 | — |
+| `0x00041D00` | `SUCCESS` | Encode U+2122 as 0x99 | — |
 | `0x41041E00` | `WARNING_PARTIAL` | Substitute unrepresentable codepoint | — |
 | `0x81040101` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252w` | Argument 1 (`cp1252w`) |
 
@@ -254,34 +254,34 @@ Decodes one Windows-1252 code unit. Undefined bytes (`0x81`, `0x8D`, `0x8F`, `0x
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | Decode directly mapped code unit | — |
-| `0x00000400` | `SUCCESS` | Decode 0x80 as U+20AC | — |
-| `0x00000500` | `SUCCESS` | Decode 0x82 as U+201A | — |
-| `0x00000600` | `SUCCESS` | Decode 0x83 as U+0192 | — |
-| `0x00000700` | `SUCCESS` | Decode 0x84 as U+201E | — |
-| `0x00000800` | `SUCCESS` | Decode 0x85 as U+2026 | — |
-| `0x00000900` | `SUCCESS` | Decode 0x86 as U+2020 | — |
-| `0x00000A00` | `SUCCESS` | Decode 0x87 as U+2021 | — |
-| `0x00000B00` | `SUCCESS` | Decode 0x88 as U+02C6 | — |
-| `0x00000C00` | `SUCCESS` | Decode 0x89 as U+2030 | — |
-| `0x00000D00` | `SUCCESS` | Decode 0x8A as U+0160 | — |
-| `0x00000E00` | `SUCCESS` | Decode 0x8B as U+2039 | — |
-| `0x00000F00` | `SUCCESS` | Decode 0x8C as U+0152 | — |
-| `0x00001000` | `SUCCESS` | Decode 0x8E as U+017D | — |
-| `0x00001100` | `SUCCESS` | Decode 0x91 as U+2018 | — |
-| `0x00001200` | `SUCCESS` | Decode 0x92 as U+2019 | — |
-| `0x00001300` | `SUCCESS` | Decode 0x93 as U+201C | — |
-| `0x00001400` | `SUCCESS` | Decode 0x94 as U+201D | — |
-| `0x00001500` | `SUCCESS` | Decode 0x95 as U+2022 | — |
-| `0x00001600` | `SUCCESS` | Decode 0x96 as U+2013 | — |
-| `0x00001700` | `SUCCESS` | Decode 0x97 as U+2014 | — |
-| `0x00001800` | `SUCCESS` | Decode 0x98 as U+02DC | — |
-| `0x00001900` | `SUCCESS` | Decode 0x99 as U+2122 | — |
-| `0x00001A00` | `SUCCESS` | Decode 0x9A as U+0161 | — |
-| `0x00001B00` | `SUCCESS` | Decode 0x9B as U+203A | — |
-| `0x00001C00` | `SUCCESS` | Decode 0x9C as U+0153 | — |
-| `0x00001D00` | `SUCCESS` | Decode 0x9E as U+017E | — |
-| `0x00001E00` | `SUCCESS` | Decode 0x9F as U+0178 | — |
+| `0x00050300` | `SUCCESS` | Decode directly mapped code unit | — |
+| `0x00050400` | `SUCCESS` | Decode 0x80 as U+20AC | — |
+| `0x00050500` | `SUCCESS` | Decode 0x82 as U+201A | — |
+| `0x00050600` | `SUCCESS` | Decode 0x83 as U+0192 | — |
+| `0x00050700` | `SUCCESS` | Decode 0x84 as U+201E | — |
+| `0x00050800` | `SUCCESS` | Decode 0x85 as U+2026 | — |
+| `0x00050900` | `SUCCESS` | Decode 0x86 as U+2020 | — |
+| `0x00050A00` | `SUCCESS` | Decode 0x87 as U+2021 | — |
+| `0x00050B00` | `SUCCESS` | Decode 0x88 as U+02C6 | — |
+| `0x00050C00` | `SUCCESS` | Decode 0x89 as U+2030 | — |
+| `0x00050D00` | `SUCCESS` | Decode 0x8A as U+0160 | — |
+| `0x00050E00` | `SUCCESS` | Decode 0x8B as U+2039 | — |
+| `0x00050F00` | `SUCCESS` | Decode 0x8C as U+0152 | — |
+| `0x00051000` | `SUCCESS` | Decode 0x8E as U+017D | — |
+| `0x00051100` | `SUCCESS` | Decode 0x91 as U+2018 | — |
+| `0x00051200` | `SUCCESS` | Decode 0x92 as U+2019 | — |
+| `0x00051300` | `SUCCESS` | Decode 0x93 as U+201C | — |
+| `0x00051400` | `SUCCESS` | Decode 0x94 as U+201D | — |
+| `0x00051500` | `SUCCESS` | Decode 0x95 as U+2022 | — |
+| `0x00051600` | `SUCCESS` | Decode 0x96 as U+2013 | — |
+| `0x00051700` | `SUCCESS` | Decode 0x97 as U+2014 | — |
+| `0x00051800` | `SUCCESS` | Decode 0x98 as U+02DC | — |
+| `0x00051900` | `SUCCESS` | Decode 0x99 as U+2122 | — |
+| `0x00051A00` | `SUCCESS` | Decode 0x9A as U+0161 | — |
+| `0x00051B00` | `SUCCESS` | Decode 0x9B as U+203A | — |
+| `0x00051C00` | `SUCCESS` | Decode 0x9C as U+0153 | — |
+| `0x00051D00` | `SUCCESS` | Decode 0x9E as U+017E | — |
+| `0x00051E00` | `SUCCESS` | Decode 0x9F as U+0178 | — |
 | `0x41051F00` | `WARNING_PARTIAL` | Substitute undefined code unit | — |
 | `0x81050100` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252` | Argument 0 (`cp1252`) |
 | `0x81050201` | `ERROR_INVALID_ARGUMENT` | Validate `codepoint` | Argument 1 (`codepoint`) |
@@ -311,7 +311,7 @@ Counts the code units in a null-terminated Windows-1252 string, excluding the te
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000400` | `SUCCESS` | Write length | — |
+| `0x00060400` | `SUCCESS` | Write length | — |
 | `0x81060100` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252` | Argument 0 (`cp1252`) |
 | `0x81060201` | `ERROR_INVALID_ARGUMENT` | Validate `length` | Argument 1 (`length`) |
 | `0x90060300` | `ERROR_BUFFER_OVERFLOW` | Check count limit | — |
@@ -345,10 +345,10 @@ Encodes a Unicode scalar as one to four UTF-8 code units. The destination must a
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | Encode one-byte sequence | — |
-| `0x00000500` | `SUCCESS` | Encode two-byte sequence | — |
-| `0x00000800` | `SUCCESS` | Encode three-byte sequence | — |
-| `0x00000900` | `SUCCESS` | Encode four-byte sequence | — |
+| `0x00070300` | `SUCCESS` | Encode one-byte sequence | — |
+| `0x00070500` | `SUCCESS` | Encode two-byte sequence | — |
+| `0x00070800` | `SUCCESS` | Encode three-byte sequence | — |
+| `0x00070900` | `SUCCESS` | Encode four-byte sequence | — |
 | `0x81070101` | `ERROR_INVALID_ARGUMENT` | Validate `utf8w` | Argument 1 (`utf8w`) |
 | `0x81070202` | `ERROR_INVALID_ARGUMENT` | Validate `produced` | Argument 2 (`produced`) |
 | `0x81070700` | `ERROR_INVALID_ARGUMENT` | Reject surrogate codepoint | Argument 0 (`codepoint`) |
@@ -383,11 +383,11 @@ Decodes one Unicode scalar from UTF-8 and reports the number of code units consu
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000400` | `SUCCESS` | Decode NUL | — |
-| `0x00000500` | `SUCCESS` | Decode one-byte sequence | — |
-| `0x00000800` | `SUCCESS` | Decode two-byte sequence | — |
-| `0x00000E00` | `SUCCESS` | Decode three-byte sequence | — |
-| `0x00001500` | `SUCCESS` | Decode four-byte sequence | — |
+| `0x00080400` | `SUCCESS` | Decode NUL | — |
+| `0x00080500` | `SUCCESS` | Decode one-byte sequence | — |
+| `0x00080800` | `SUCCESS` | Decode two-byte sequence | — |
+| `0x00080E00` | `SUCCESS` | Decode three-byte sequence | — |
+| `0x00081500` | `SUCCESS` | Decode four-byte sequence | — |
 | `0x81080100` | `ERROR_INVALID_ARGUMENT` | Validate `utf8` | Argument 0 (`utf8`) |
 | `0x81080201` | `ERROR_INVALID_ARGUMENT` | Validate `codepoint` | Argument 1 (`codepoint`) |
 | `0x81080302` | `ERROR_INVALID_ARGUMENT` | Validate `consumed` | Argument 2 (`consumed`) |
@@ -434,7 +434,7 @@ Counts Unicode scalars in a null-terminated UTF-8 string, excluding the terminat
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000500` | `SUCCESS` | Write length | — |
+| `0x00090500` | `SUCCESS` | Write length | — |
 | `0x81090100` | `ERROR_INVALID_ARGUMENT` | Validate `utf8` | Argument 0 (`utf8`) |
 | `0x81090201` | `ERROR_INVALID_ARGUMENT` | Validate `length` | Argument 1 (`length`) |
 | `0x83090306` | `ERROR_MALFORMED_INPUT` | Decode next codepoint | `catte_utf8_decode` operation `0x06`: Two-byte sequence: unexpected end |
@@ -485,8 +485,8 @@ Encodes a Unicode scalar as one UTF-16LE code unit or a surrogate pair. The dest
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000500` | `SUCCESS` | Encode one code unit | — |
-| `0x00000600` | `SUCCESS` | Encode surrogate pair | — |
+| `0x000A0500` | `SUCCESS` | Encode one code unit | — |
+| `0x000A0600` | `SUCCESS` | Encode surrogate pair | — |
 | `0x810A0101` | `ERROR_INVALID_ARGUMENT` | Validate `utf16lew` | Argument 1 (`utf16lew`) |
 | `0x810A0202` | `ERROR_INVALID_ARGUMENT` | Validate `produced` | Argument 2 (`produced`) |
 | `0x810A0300` | `ERROR_INVALID_ARGUMENT` | Reject codepoint above U+10FFFF | Argument 0 (`codepoint`) |
@@ -519,9 +519,9 @@ Decodes one Unicode scalar from UTF-16LE and reports the number of code units co
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000400` | `SUCCESS` | Decode NUL | — |
-| `0x00000600` | `SUCCESS` | Decode one code unit | — |
-| `0x00000800` | `SUCCESS` | Decode surrogate pair | — |
+| `0x000B0400` | `SUCCESS` | Decode NUL | — |
+| `0x000B0600` | `SUCCESS` | Decode one code unit | — |
+| `0x000B0800` | `SUCCESS` | Decode surrogate pair | — |
 | `0x810B0100` | `ERROR_INVALID_ARGUMENT` | Validate `utf16le` | Argument 0 (`utf16le`) |
 | `0x810B0201` | `ERROR_INVALID_ARGUMENT` | Validate `codepoint` | Argument 1 (`codepoint`) |
 | `0x810B0302` | `ERROR_INVALID_ARGUMENT` | Validate `consumed` | Argument 2 (`consumed`) |
@@ -553,7 +553,7 @@ Counts Unicode scalars in a null-terminated UTF-16LE string, excluding the termi
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000500` | `SUCCESS` | Write length | — |
+| `0x000C0500` | `SUCCESS` | Write length | — |
 | `0x810C0100` | `ERROR_INVALID_ARGUMENT` | Validate `utf16le` | Argument 0 (`utf16le`) |
 | `0x810C0201` | `ERROR_INVALID_ARGUMENT` | Validate `length` | Argument 1 (`length`) |
 | `0x830C0305` | `ERROR_MALFORMED_INPUT` | Decode next codepoint | `catte_utf16le_decode` operation `0x05`: Reject isolated low surrogate |
@@ -592,7 +592,7 @@ Destination must hold at least the source byte count plus one terminator; no cap
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000400` | `SUCCESS` | Complete conversion without substitution | — |
+| `0x000D0400` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x410D0400` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
 | `0x810D0100` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 0 (`ascii`) |
 | `0x810D0201` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252w` | Argument 1 (`cp1252w`) |
@@ -625,7 +625,7 @@ Source bytes above 0x7F are replaced by '?'.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000500` | `SUCCESS` | Complete conversion without substitution | — |
+| `0x000E0500` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x410E0500` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
 | `0x810E0100` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 0 (`ascii`) |
 | `0x810E0201` | `ERROR_INVALID_ARGUMENT` | Validate `utf8w` | Argument 1 (`utf8w`) |
@@ -659,7 +659,7 @@ Source bytes above 0x7F are replaced by '?'.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000500` | `SUCCESS` | Complete conversion without substitution | — |
+| `0x000F0500` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x410F0500` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
 | `0x810F0100` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 0 (`ascii`) |
 | `0x810F0201` | `ERROR_INVALID_ARGUMENT` | Validate `utf16lew` | Argument 1 (`utf16lew`) |
@@ -691,7 +691,7 @@ Destination must hold at least the source byte count plus one terminator; no cap
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000600` | `SUCCESS` | Complete conversion without substitution | — |
+| `0x00100600` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x41100600` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
 | `0x81100100` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252` | Argument 0 (`cp1252`) |
 | `0x81100201` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 1 (`ascii`) |
@@ -727,7 +727,7 @@ Undefined source bytes are replaced by '?'.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000700` | `SUCCESS` | Complete conversion without substitution | — |
+| `0x00110700` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x41110700` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
 | `0x81110100` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252` | Argument 0 (`cp1252`) |
 | `0x81110201` | `ERROR_INVALID_ARGUMENT` | Validate `utf8w` | Argument 1 (`utf8w`) |
@@ -769,7 +769,7 @@ Undefined source bytes are replaced by '?'.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000700` | `SUCCESS` | Complete conversion without substitution | — |
+| `0x00120700` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x41120700` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
 | `0x81120100` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252` | Argument 0 (`cp1252`) |
 | `0x81120201` | `ERROR_INVALID_ARGUMENT` | Validate `utf16lew` | Argument 1 (`utf16lew`) |
@@ -809,7 +809,7 @@ Unrepresentable values are replaced by '?'.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000700` | `SUCCESS` | Complete conversion without substitution | — |
+| `0x00130700` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x41130700` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
 | `0x81130100` | `ERROR_INVALID_ARGUMENT` | Validate `utf8` | Argument 0 (`utf8`) |
 | `0x81130201` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 1 (`ascii`) |
@@ -861,7 +861,7 @@ Unrepresentable values are replaced by '?'.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000700` | `SUCCESS` | Complete conversion without substitution | — |
+| `0x00140700` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x41140700` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
 | `0x81140100` | `ERROR_INVALID_ARGUMENT` | Validate `utf8` | Argument 0 (`utf8`) |
 | `0x81140201` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252w` | Argument 1 (`cp1252w`) |
@@ -913,7 +913,7 @@ All valid Unicode scalars are preserved.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000700` | `SUCCESS` | Complete conversion without substitution | — |
+| `0x00150700` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x81150100` | `ERROR_INVALID_ARGUMENT` | Validate `utf8` | Argument 0 (`utf8`) |
 | `0x81150201` | `ERROR_INVALID_ARGUMENT` | Validate `utf16lew` | Argument 1 (`utf16lew`) |
 | `0x83150406` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf8_decode` operation `0x06`: Two-byte sequence: unexpected end |
@@ -967,7 +967,7 @@ Unrepresentable values are replaced by '?'.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000700` | `SUCCESS` | Complete conversion without substitution | — |
+| `0x00160700` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x41160700` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
 | `0x81160100` | `ERROR_INVALID_ARGUMENT` | Validate `utf16le` | Argument 0 (`utf16le`) |
 | `0x81160201` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 1 (`ascii`) |
@@ -1007,7 +1007,7 @@ Unrepresentable values are replaced by '?'.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000700` | `SUCCESS` | Complete conversion without substitution | — |
+| `0x00170700` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x41170700` | `WARNING_PARTIAL` | Complete conversion with substitution | — |
 | `0x81170100` | `ERROR_INVALID_ARGUMENT` | Validate `utf16le` | Argument 0 (`utf16le`) |
 | `0x81170201` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252w` | Argument 1 (`cp1252w`) |
@@ -1047,7 +1047,7 @@ All valid Unicode scalars are preserved.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000700` | `SUCCESS` | Complete conversion without substitution | — |
+| `0x00180700` | `SUCCESS` | Complete conversion without substitution | — |
 | `0x81180100` | `ERROR_INVALID_ARGUMENT` | Validate `utf16le` | Argument 0 (`utf16le`) |
 | `0x81180201` | `ERROR_INVALID_ARGUMENT` | Validate `utf8w` | Argument 1 (`utf8w`) |
 | `0x83180405` | `ERROR_MALFORMED_INPUT` | Decode source codepoint | `catte_utf16le_decode` operation `0x05`: Reject isolated low surrogate |

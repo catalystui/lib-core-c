@@ -99,7 +99,7 @@ Allocates `size` zero-filled bytes and stores the address in `*memory`. The outp
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000700` | `SUCCESS` | Allocate payload | — |
+| `0x00010700` | `SUCCESS` | Allocate payload | — |
 | `0x81010100` | `ERROR_INVALID_ARGUMENT` | Validate `memory` | Argument 0 (`memory`) |
 | `0x81010201` | `ERROR_INVALID_ARGUMENT` | Validate `size` | Argument 1 (`size`) |
 | `0x820103DD` | `ERROR_INVALID_STATE` | Query page size (Linux) | Linux `errno` if 1–255, otherwise zero. |
@@ -134,9 +134,9 @@ On replacement allocation or old-block release failure, the pointer value is unc
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000200` | `SUCCESS` | Allocate when `*memory` is null | — |
-| `0x00000300` | `SUCCESS` | Release when `size` is zero | — |
-| `0x00000700` | `SUCCESS` | Replace allocation | — |
+| `0x00020200` | `SUCCESS` | Allocate when `*memory` is null | — |
+| `0x00020300` | `SUCCESS` | Release when `size` is zero | — |
+| `0x00020700` | `SUCCESS` | Replace allocation | — |
 | `0x81020100` | `ERROR_INVALID_ARGUMENT` | Validate `memory` | Argument 0 (`memory`) |
 | `0x81020201` | `ERROR_INVALID_ARGUMENT` | Allocate when `*memory` is null | Argument 1 (`size`) |
 | `0x82020203` | `ERROR_INVALID_STATE` | Allocate when `*memory` is null | `catmm_alloc` operation `0x03`: Query page size (Linux) |
@@ -176,7 +176,7 @@ Releases a live CATMMLIB allocation at its original payload address. The caller'
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | Release allocation | — |
+| `0x00030300` | `SUCCESS` | Release allocation | — |
 | `0x81030100` | `ERROR_INVALID_ARGUMENT` | Validate `memory` | Argument 0 (`memory`) |
 | `0x820302DD` | `ERROR_INVALID_STATE` | Release native memory | Linux `errno` if 1–255, otherwise zero; zero on Windows/Darwin. |
 
@@ -211,8 +211,8 @@ Copies `size` bytes from `source` to `destination`. The regions must not overlap
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000400` | `SUCCESS` | Copy bytes | — |
-| `0x01000300` | `SUCCESS_NOOP` | Skip zero-size operation or identical addresses | — |
+| `0x00040400` | `SUCCESS` | Copy bytes | — |
+| `0x01040300` | `SUCCESS_NOOP` | Skip zero-size operation or identical addresses | — |
 | `0x81040100` | `ERROR_INVALID_ARGUMENT` | Validate `destination` | Argument 0 (`destination`) |
 | `0x81040201` | `ERROR_INVALID_ARGUMENT` | Validate `source` | Argument 1 (`source`) |
 
@@ -243,8 +243,8 @@ Copies `size` bytes from `source` to `destination`, preserving the original sour
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000400` | `SUCCESS` | Move bytes | — |
-| `0x01000300` | `SUCCESS_NOOP` | Skip zero-size operation or identical addresses | — |
+| `0x00050400` | `SUCCESS` | Move bytes | — |
+| `0x01050300` | `SUCCESS_NOOP` | Skip zero-size operation or identical addresses | — |
 | `0x81050100` | `ERROR_INVALID_ARGUMENT` | Validate `destination` | Argument 0 (`destination`) |
 | `0x81050201` | `ERROR_INVALID_ARGUMENT` | Validate `source` | Argument 1 (`source`) |
 
@@ -277,7 +277,7 @@ Compares `size` unsigned bytes lexicographically and writes −1, 0, or 1 to `*c
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000400` | `SUCCESS` | Write comparison | — |
+| `0x00060400` | `SUCCESS` | Write comparison | — |
 | `0x81060100` | `ERROR_INVALID_ARGUMENT` | Validate `first` | Argument 0 (`first`) |
 | `0x81060201` | `ERROR_INVALID_ARGUMENT` | Validate `second` | Argument 1 (`second`) |
 | `0x81060303` | `ERROR_INVALID_ARGUMENT` | Validate `comparison` | Argument 3 (`comparison`) |
@@ -311,8 +311,8 @@ Fills the `size`-byte region at `memory` with `value`.
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x00000300` | `SUCCESS` | Fill bytes | — |
-| `0x01000200` | `SUCCESS_NOOP` | Skip zero-size fill | — |
+| `0x00070300` | `SUCCESS` | Fill bytes | — |
+| `0x01070200` | `SUCCESS_NOOP` | Skip zero-size fill | — |
 | `0x81070100` | `ERROR_INVALID_ARGUMENT` | Validate `memory` | Argument 0 (`memory`) |
 
 **C++:** `catalyst::RESULT catalyst::set(void* memory, BYTE value, NUINT size)`.

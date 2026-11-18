@@ -13,7 +13,7 @@ CATALYST_RESULT catmm_realloc(void** memory, CATALYST_NUINT size) {
     if (*memory == 0) {
         RESULT allocResult;
         allocResult = catmm_alloc(memory, size);
-        return RESULT(allocResult.status, status_code_is_success(allocResult.status) ? 0 : 0x02, 0x02, allocResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? allocResult.detail : (status_code_is_success(allocResult.status) ? 0 : allocResult.operation));
+        return RESULT(allocResult.status, 0x02, 0x02, allocResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? allocResult.detail : (status_code_is_success(allocResult.status) ? 0 : allocResult.operation));
     }
     if (size == 0) {
         RESULT freeResult;
@@ -21,7 +21,7 @@ CATALYST_RESULT catmm_realloc(void** memory, CATALYST_NUINT size) {
         if (status_code_is_success(freeResult.status)) {
             *memory = 0;
         }
-        return RESULT(freeResult.status, status_code_is_success(freeResult.status) ? 0 : 0x02, 0x03, status_code_is_success(freeResult.status) ? 0 : freeResult.operation);
+        return RESULT(freeResult.status, 0x02, 0x03, status_code_is_success(freeResult.status) ? 0 : freeResult.operation);
     }
 
     // Fetch the old block, then allocate the new one
@@ -55,7 +55,7 @@ CATALYST_RESULT catmm_realloc(void** memory, CATALYST_NUINT size) {
         return RESULT(freeResult.status, 0x02, 0x06, freeResult.operation);
     }
     *memory = newMemory;
-    return RESULT(STATUS_CODE_SUCCESS, 0, 0x07, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0x02, 0x07, 0);
 }
 
 CATALYST_RESULT catmm_copy(void* destination, const void* source, CATALYST_NUINT size) {
@@ -66,14 +66,14 @@ CATALYST_RESULT catmm_copy(void* destination, const void* source, CATALYST_NUINT
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x04, 0x02, 1);
     }
     if (size == 0 || destination == source) {
-        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0, 0x03, 0);
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x04, 0x03, 0);
     }
     BYTE* output = (BYTE*) destination;
     const BYTE* input = (const BYTE*) source;
     do {
         *output++ = *input++;
     } while (--size != 0);
-    return RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x04, 0);
 }
 
 CATALYST_RESULT catmm_move(void* destination, const void* source, CATALYST_NUINT size) {
@@ -84,7 +84,7 @@ CATALYST_RESULT catmm_move(void* destination, const void* source, CATALYST_NUINT
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x05, 0x02, 1);
     }
     if (size == 0 || destination == source) {
-        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0, 0x03, 0);
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x05, 0x03, 0);
     }
     BYTE* output = (BYTE*) destination;
     const BYTE* input = (const BYTE*) source;
@@ -100,7 +100,7 @@ CATALYST_RESULT catmm_move(void* destination, const void* source, CATALYST_NUINT
             *output++ = *input++;
         } while (--size != 0);
     }
-    return RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x04, 0);
 }
 
 CATALYST_RESULT catmm_compare(const void* first, const void* second, CATALYST_NUINT size, CATALYST_SBYTE* comparison) {
@@ -128,7 +128,7 @@ CATALYST_RESULT catmm_compare(const void* first, const void* second, CATALYST_NU
         }
     }
     *comparison = order;
-    return RESULT(STATUS_CODE_SUCCESS, 0, 0x04, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0x06, 0x04, 0);
 }
 
 CATALYST_RESULT catmm_set(void* memory, CATALYST_BYTE value, CATALYST_NUINT size) {
@@ -136,11 +136,11 @@ CATALYST_RESULT catmm_set(void* memory, CATALYST_BYTE value, CATALYST_NUINT size
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x07, 0x01, 0);
     }
     if (size == 0) {
-        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0, 0x02, 0);
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x07, 0x02, 0);
     }
     BYTE* bytes = (BYTE*) memory;
     do {
         *bytes++ = value;
     } while (--size != 0);
-    return RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0x07, 0x03, 0);
 }

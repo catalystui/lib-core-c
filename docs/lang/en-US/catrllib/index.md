@@ -29,7 +29,7 @@ CATRLLIB uses contiguous byte storage. Sizes, counts, indices and offsets are ca
 
 Creation allocates a handle and, for nonempty arrays, element storage. Set, map and stack capacity grows as needed. Recoverable allocation or extent failures do not change logical contents. Detected invalid internal storage invariants produce fatal results; these checks do not validate arbitrary foreign pointers.
 
-Each reporting method has its own context ID, and each reporting site has its own operation ID. Success-level results have zero context. The [CATRLLIB API Reference](../api-reference/catrllib/index.md) defines the exact result values, including allocation, growth and cleanup failures.
+Each reporting method has its own context ID, and each reporting site has its own operation ID. Success-level results carry the same context as all other outcomes. The [CATRLLIB API Reference](../api-reference/catrllib/index.md) defines the exact result values, including allocation, growth and cleanup failures.
 
 ## API export definitions
 

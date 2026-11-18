@@ -2,7 +2,7 @@
 
 See [CATTELIB conventions](../index.md#conventions) for buffer requirements and result conventions.
 
-All functions return `CATALYST_RESULT` by value. Result context, operation and detail default to zero unless indicated.
+All functions return `CATALYST_RESULT` by value. Every outcome carries the reporting method's context. See the consolidated API reference for exact result codes; the topic tables below may describe earlier operation and detail assignments.
 
 ## catte_ascii_encode
 

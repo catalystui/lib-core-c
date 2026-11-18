@@ -103,7 +103,7 @@ int main() {
 
         if (
             output[0] != (BYTE) 'A' ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x04 || result.detail != 0
+            result.status != STATUS_CODE_SUCCESS || result.context != 0x01 || result.operation != 0x04 || result.detail != 0
         ) {
             std::printf("FAIL: catte_ascii_encode U+0041\n");
             failed++;
@@ -143,7 +143,7 @@ int main() {
             codepoint.byte1 != 0 ||
             codepoint.byte2 != 0 ||
             codepoint.byte3 != (BYTE) 'Z' ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x03 || result.detail != 0
+            result.status != STATUS_CODE_SUCCESS || result.context != 0x02 || result.operation != 0x03 || result.detail != 0
         ) {
             std::printf("FAIL: catte_ascii_decode 'Z'\n");
             failed++;
@@ -163,7 +163,7 @@ int main() {
 
         if (
             length != 5 ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x04 || result.detail != 0
+            result.status != STATUS_CODE_SUCCESS || result.context != 0x03 || result.operation != 0x04 || result.detail != 0
         ) {
             std::printf("FAIL: catte_ascii_length \"Hello\"\n");
             failed++;
@@ -234,7 +234,7 @@ int main() {
 
             if (
                 output[0] != tests[i].expectedCodeunit ||
-                result.status != tests[i].expectedStatus || result.context != (status_code_is_success(tests[i].expectedStatus) ? 0 : 0x04) || result.operation != tests[i].expectedOperation || result.detail != 0
+                result.status != tests[i].expectedStatus || result.context != 0x04 || result.operation != tests[i].expectedOperation || result.detail != 0
             ) {
                 std::printf("FAIL: catte_cp1252_encode %s\n", tests[i].name);
                 std::printf("  expected output=0x%02X status=0x%02X\n", tests[i].expectedCodeunit, tests[i].expectedStatus);
@@ -332,7 +332,7 @@ int main() {
                 codepoint.byte1 != tests[i].expectedByte1 ||
                 codepoint.byte2 != tests[i].expectedByte2 ||
                 codepoint.byte3 != tests[i].expectedByte3 ||
-                result.status != tests[i].expectedStatus || result.context != (status_code_is_success(tests[i].expectedStatus) ? 0 : 0x05) || result.operation != tests[i].expectedOperation || result.detail != 0
+                result.status != tests[i].expectedStatus || result.context != 0x05 || result.operation != tests[i].expectedOperation || result.detail != 0
             ) {
                 std::printf("FAIL: catte_cp1252_decode %s\n", tests[i].name);
                 std::printf("  expected codepoint=%02X %02X %02X %02X status=0x%02X\n",
@@ -406,7 +406,7 @@ int main() {
 
         if (
             length != 5 ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x04 || result.detail != 0
+            result.status != STATUS_CODE_SUCCESS || result.context != 0x06 || result.operation != 0x04 || result.detail != 0
         ) {
             std::printf("FAIL: catte_cp1252_length mixed string\n");
             std::printf("  actual length=%lu\n", (unsigned long) length);
@@ -424,7 +424,7 @@ int main() {
 
         if (
             length != 0 ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x04 || result.detail != 0
+            result.status != STATUS_CODE_SUCCESS || result.context != 0x06 || result.operation != 0x04 || result.detail != 0
         ) {
             std::printf("FAIL: catte_cp1252_length empty string\n");
             std::printf("  actual length=%lu\n", (unsigned long) length);
@@ -442,7 +442,7 @@ int main() {
 
         if (
             length != 1 ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x04 || result.detail != 0
+            result.status != STATUS_CODE_SUCCESS || result.context != 0x06 || result.operation != 0x04 || result.detail != 0
         ) {
             std::printf("FAIL: catte_cp1252_length stops at NUL\n");
             std::printf("  actual length=%lu\n", (unsigned long) length);
@@ -536,7 +536,7 @@ int main() {
                 output[2] != tests[i].expected2 ||
                 output[3] != tests[i].expected3 ||
                 produced != tests[i].expectedProduced ||
-                result.status != tests[i].expectedStatus || result.context != (status_code_is_success(tests[i].expectedStatus) ? 0 : 0x07) || result.operation != tests[i].expectedOperation || result.detail != 0
+                result.status != tests[i].expectedStatus || result.context != 0x07 || result.operation != tests[i].expectedOperation || result.detail != 0
             ) {
                 std::printf("FAIL: catte_utf8_encode %s\n", tests[i].name);
                 std::printf("  expected output=%02X %02X %02X %02X produced=%lu status=0x%02X operation=0x%02X\n",
@@ -673,7 +673,7 @@ int main() {
                 codepoint.byte2 != tests[i].expectedByte2 ||
                 codepoint.byte3 != tests[i].expectedByte3 ||
                 consumed != tests[i].expectedConsumed ||
-                result.status != tests[i].expectedStatus || result.context != (status_code_is_success(tests[i].expectedStatus) ? 0 : 0x08) || result.operation != tests[i].expectedOperation || result.detail != tests[i].expectedDetail
+                result.status != tests[i].expectedStatus || result.context != 0x08 || result.operation != tests[i].expectedOperation || result.detail != tests[i].expectedDetail
             ) {
                 std::printf("FAIL: catte_utf8_decode %s\n", tests[i].name);
                 std::printf("  expected codepoint=%02X %02X %02X %02X consumed=%lu status=0x%02X operation=0x%02X\n",
@@ -775,7 +775,7 @@ int main() {
 
         if (
             length != 5 ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x05 || result.detail != 0
+            result.status != STATUS_CODE_SUCCESS || result.context != 0x09 || result.operation != 0x05 || result.detail != 0
         ) {
             std::printf("FAIL: catte_utf8_length mixed string\n");
             std::printf("  actual length=%lu status=0x%02X operation=0x%02X\n",
@@ -801,7 +801,7 @@ int main() {
 
         if (
             length != 2 ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x05 || result.detail != 0
+            result.status != STATUS_CODE_SUCCESS || result.context != 0x09 || result.operation != 0x05 || result.detail != 0
         ) {
             std::printf("FAIL: catte_utf8_length BOM + emoji\n");
             std::printf("  actual length=%lu status=0x%02X operation=0x%02X\n",
@@ -918,7 +918,7 @@ int main() {
                 output[1].msb != tests[i].expected1msb ||
                 output[1].lsb != tests[i].expected1lsb ||
                 produced != tests[i].expectedProduced ||
-                result.status != tests[i].expectedStatus || result.context != (status_code_is_success(tests[i].expectedStatus) ? 0 : 0x0A) || result.operation != tests[i].expectedOperation || result.detail != 0
+                result.status != tests[i].expectedStatus || result.context != 0x0A || result.operation != tests[i].expectedOperation || result.detail != 0
             ) {
                 std::printf("FAIL: catte_utf16le_encode %s\n", tests[i].name);
                 std::printf("  expected output=%02X%02X %02X%02X produced=%lu status=0x%02X operation=0x%02X\n",
@@ -1034,7 +1034,7 @@ int main() {
                 codepoint.byte2 != tests[i].expectedByte2 ||
                 codepoint.byte3 != tests[i].expectedByte3 ||
                 consumed != tests[i].expectedConsumed ||
-                result.status != tests[i].expectedStatus || result.context != (status_code_is_success(tests[i].expectedStatus) ? 0 : 0x0B) || result.operation != tests[i].expectedOperation || result.detail != 0
+                result.status != tests[i].expectedStatus || result.context != 0x0B || result.operation != tests[i].expectedOperation || result.detail != 0
             ) {
                 std::printf("FAIL: catte_utf16le_decode %s\n", tests[i].name);
                 std::printf("  expected codepoint=%02X %02X %02X %02X consumed=%lu status=0x%02X operation=0x%02X\n",
@@ -1148,7 +1148,7 @@ int main() {
 
         if (
             length != 4 ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x05 || result.detail != 0
+            result.status != STATUS_CODE_SUCCESS || result.context != 0x0C || result.operation != 0x05 || result.detail != 0
         ) {
             std::printf("FAIL: catte_utf16le_length mixed string\n");
             std::printf("  actual length=%lu status=0x%02X operation=0x%02X\n",
@@ -1175,7 +1175,7 @@ int main() {
 
         if (
             length != 2 ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x05 || result.detail != 0
+            result.status != STATUS_CODE_SUCCESS || result.context != 0x0C || result.operation != 0x05 || result.detail != 0
         ) {
             std::printf("FAIL: catte_utf16le_length BOM + emoji\n");
             std::printf("  actual length=%lu status=0x%02X operation=0x%02X\n",
@@ -1267,7 +1267,7 @@ int main() {
             output[1] != 'B' ||
             output[2] != 'C' ||
             output[3] != '\0' ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x04 || result.detail != 0
+            result.status != STATUS_CODE_SUCCESS || result.context != 0x0D || result.operation != 0x04 || result.detail != 0
         ) {
             std::printf("FAIL: catte_ascii_to_cp1252 ASCII direct\n");
             failed++;
@@ -1346,7 +1346,7 @@ int main() {
             output[1] != 'B' ||
             output[2] != 'C' ||
             output[3] != '\0' ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x05 || result.detail != 0
+            result.status != STATUS_CODE_SUCCESS || result.context != 0x0E || result.operation != 0x05 || result.detail != 0
         ) {
             std::printf("FAIL: catte_ascii_to_utf8 ASCII direct\n");
             failed++;
@@ -1434,7 +1434,7 @@ int main() {
             output[0].msb != 0x00 || output[0].lsb != 'A' ||
             output[1].msb != 0x00 || output[1].lsb != 'B' ||
             output[2].msb != 0x00 || output[2].lsb != 0x00 ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x05 || result.detail != 0
+            result.status != STATUS_CODE_SUCCESS || result.context != 0x0F || result.operation != 0x05 || result.detail != 0
         ) {
             std::printf("FAIL: catte_ascii_to_utf16le ASCII direct\n");
             failed++;
@@ -1711,7 +1711,7 @@ int main() {
             output[4].msb != 0xD8 || output[4].lsb != 0x41 ||
             output[5].msb != 0xDF || output[5].lsb != 0x0E ||
             output[6].msb != 0x00 || output[6].lsb != 0x00 ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x07 || result.detail != 0
+            result.status != STATUS_CODE_SUCCESS || result.context != 0x15 || result.operation != 0x07 || result.detail != 0
         ) {
             std::printf("FAIL: catte_utf8_to_utf16le BOM + mixed Unicode\n");
             failed++;
@@ -1876,7 +1876,7 @@ int main() {
             output[10] != (BYTE) 0x9Cu ||
             output[11] != (BYTE) 0x8Eu ||
             output[12] != '\0' ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x07 || result.detail != 0
+            result.status != STATUS_CODE_SUCCESS || result.context != 0x18 || result.operation != 0x07 || result.detail != 0
         ) {
             std::printf("FAIL: catte_utf16le_to_utf8 BOM + mixed Unicode\n");
             failed++;
@@ -2058,7 +2058,7 @@ int main() {
         CODEPOINT codepoint = { 0, 0, 0, 0 };
         BYTE output[1] = { 0xFF };
         result = ascii_encode(codepoint, output);
-        if (output[0] != 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0 || result.operation != 0x03 || result.detail != 0) failed++;
+        if (output[0] != 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0x01 || result.operation != 0x03 || result.detail != 0) failed++;
         result = ascii_encode(codepoint, 0);
         if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x01 || result.operation != 0x01 || result.detail != 1) failed++;
         output[0] = 0xFF;

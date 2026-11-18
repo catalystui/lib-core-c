@@ -9,7 +9,7 @@
 | `operation` | `CATALYST_OPERATION_CODE` | `OPERATION_CODE` | Function-specific stage |
 | `detail` | `CATALYST_DETAIL_CODE` | `DETAIL_CODE` | Status-specific detail |
 
-C++ constants `CONTEXT_CODE_NONE`, `OPERATION_CODE_NONE` and `DETAIL_CODE_NONE` are zero. Each library documents its own metadata. Reporting functions return all four bytes by value. Additional operation data uses output parameters. Callers may ignore the returned Result. Non-reporting functions return their ordinary value or `void`, according to their contract.
+C++ constants `CONTEXT_CODE_NONE`, `OPERATION_CODE_NONE` and `DETAIL_CODE_NONE` are zero. Each library documents its own metadata. Every reporting function uses its assigned context on every outcome, including success and no-op. A default-constructed Result is not a report from a function. Reporting functions return all four bytes by value. Additional operation data uses output parameters. Callers may ignore the returned Result. Non-reporting functions return their ordinary value or `void`, according to their contract.
 
 ## Status codes
 

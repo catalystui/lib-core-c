@@ -58,7 +58,7 @@ extern "C" CATALYST_RESULT catmm_alloc(void** memory, CATALYST_NUINT size) {
     header->requested_size = size;
     header->allocated_size = allocatedSize;
     *memory = (void*) (((BYTE*) address) + sizeof(CATALYST_MEMORY_HEADER));
-    return RESULT(STATUS_CODE_SUCCESS, 0, 0x07, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0x01, 0x07, 0);
 }
 
 extern "C" CATALYST_RESULT catmm_free(void* memory) {
@@ -73,7 +73,7 @@ extern "C" CATALYST_RESULT catmm_free(void* memory) {
     if (munmap((void*) header, (size_t) header->allocated_size) != 0) {
         return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x03, 0x02, errno > 0 && errno <= 0xFF ? (BYTE) errno : 0);
     }
-    return RESULT(STATUS_CODE_SUCCESS, 0, 0x03, 0);
+    return RESULT(STATUS_CODE_SUCCESS, 0x03, 0x03, 0);
 }
 
 #endif /* TARGET_PLATFORM_LINUX */
