@@ -2,7 +2,13 @@
     "navigation": [
         {
             "title": "Overview",
-            "path": "/"
+            "path": "/",
+            "children": [
+                {
+                    "title": "Assumptions",
+                    "path": "/assumptions"
+                }
+            ]
         },
         {
             "title": "API Reference",
