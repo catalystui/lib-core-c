@@ -21,11 +21,11 @@ extern "C" {
 /** Encode one codepoint as ASCII, substituting '?' if unrepresentable. */
 CATTELIB_API CATALYST_RESULT catte_ascii_encode(const CATALYST_CODEPOINT codepoint, CATALYST_ASCIIW asciiw);
 
-/** Decode one ASCII unit without validating its range. */
-CATTELIB_API CATALYST_RESULT catte_ascii_decode(CATALYST_ASCII ascii, CATALYST_CODEPOINT* codepoint);
+/** Decode one readable ASCII unit without validating its range; return the codepoint. */
+CATTELIB_API CATALYST_CODEPOINT catte_ascii_decode(CATALYST_ASCII ascii);
 
-/** Count nonzero ASCII units before the terminator. */
-CATTELIB_API CATALYST_RESULT catte_ascii_length(CATALYST_ASCII ascii, CATALYST_NUINT* length);
+/** Return the count of nonzero ASCII units in a valid null-terminated string. */
+CATTELIB_API CATALYST_NUINT catte_ascii_length(CATALYST_ASCII ascii);
 
 /** Encode one codepoint as CP1252, substituting '?' if unrepresentable. */
 CATTELIB_API CATALYST_RESULT catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp1252w);
@@ -33,8 +33,8 @@ CATTELIB_API CATALYST_RESULT catte_cp1252_encode(const CATALYST_CODEPOINT codepo
 /** Decode one CP1252 unit, substituting '?' for undefined bytes. */
 CATTELIB_API CATALYST_RESULT catte_cp1252_decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* codepoint);
 
-/** Count nonzero CP1252 units before the terminator. */
-CATTELIB_API CATALYST_RESULT catte_cp1252_length(CATALYST_CP1252 cp1252, CATALYST_NUINT* length);
+/** Return the count of nonzero CP1252 units in a valid null-terminated string. */
+CATTELIB_API CATALYST_NUINT catte_cp1252_length(CATALYST_CP1252 cp1252);
 
 /** Encode one Unicode scalar into UTF-8; output must hold four code units. */
 CATTELIB_API CATALYST_RESULT catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, CATALYST_NUINT* produced);

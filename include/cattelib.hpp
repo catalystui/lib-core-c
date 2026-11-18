@@ -8,12 +8,12 @@ inline RESULT ascii_encode(const CODEPOINT codepoint, ASCIIW asciiw) {
     return ::catte_ascii_encode(codepoint, asciiw);
 }
 
-inline RESULT ascii_decode(ASCII ascii, CODEPOINT* codepoint) {
-    return ::catte_ascii_decode(ascii, codepoint);
+inline CODEPOINT ascii_decode(ASCII ascii) {
+    return ::catte_ascii_decode(ascii);
 }
 
-inline RESULT ascii_length(ASCII ascii, NUINT* length) {
-    return ::catte_ascii_length(ascii, length);
+inline NUINT ascii_length(ASCII ascii) {
+    return ::catte_ascii_length(ascii);
 }
 
 inline RESULT cp1252_encode(const CODEPOINT codepoint, CP1252W cp1252w) {
@@ -24,8 +24,8 @@ inline RESULT cp1252_decode(CP1252 cp1252, CODEPOINT* codepoint) {
     return ::catte_cp1252_decode(cp1252, codepoint);
 }
 
-inline RESULT cp1252_length(CP1252 cp1252, NUINT* length) {
-    return ::catte_cp1252_length(cp1252, length);
+inline NUINT cp1252_length(CP1252 cp1252) {
+    return ::catte_cp1252_length(cp1252);
 }
 
 inline RESULT utf8_encode(const CODEPOINT codepoint, UTF8W utf8w, NUINT* produced) {

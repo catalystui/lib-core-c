@@ -18,7 +18,7 @@ Provides fixed-length arrays, sets, maps, and stacks of byte-represented element
 - Query outputs are unchanged on recoverable failure and may be unspecified after fatal failure. Recoverable mutation failures leave logical contents unchanged. Set/map enumeration order is unspecified and can change on mutation.
 - Clear retains capacity and does not securely erase bytes. After destroy is attempted, the handle must not be reused, even if cleanup reports failure. Foreign, stale or incorrectly typed handles are outside the contract. Concurrent access involving mutation or destruction requires external synchronization.
 
-On failure, detail may identify an internal helper or CATMMLIB operation. Set and map searches use validated storage and return an ordinary index internally; argument and invariant failures are reported by the public method. Defensive invariant failures are listed even when unreachable with valid arguments and intact storage. Fatal results indicate that the affected collection or outputs cannot safely be assumed usable.
+On failure, detail may identify an internal helper or CATMMLIB operation. Set and map searches use validated storage and return an ordinary index internally. Byte copies use non-reporting CATMMLIB primitives after public argument, extent and invariant validation. Defensive invariant failures are listed even when unreachable with valid arguments and intact storage. Fatal results indicate that the affected collection or outputs cannot safely be assumed usable.
 
 ## Type Summary
 
@@ -243,8 +243,6 @@ Copies the element at index into value, which must hold `element_size` bytes.
 | `0x81030100` | `ERROR_INVALID_ARGUMENT` | Validate `array` | Argument 0 (`array`) |
 | `0x81030201` | `ERROR_INVALID_ARGUMENT` | Validate `index` | Argument 1 (`index`) |
 | `0x81030302` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 2 (`value`) |
-| `0xC1030401` | `FATAL_INVARIANT_VIOLATION` | Copy value to output | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
-| `0xC1030402` | `FATAL_INVARIANT_VIOLATION` | Copy value to output | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
 | `0xC1030601` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC1030602` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
 | `0xC1030603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
@@ -282,8 +280,6 @@ Replaces the element at index with a copy of `element_size` bytes from value.
 | `0x81040100` | `ERROR_INVALID_ARGUMENT` | Validate `array` | Argument 0 (`array`) |
 | `0x81040201` | `ERROR_INVALID_ARGUMENT` | Validate `index` | Argument 1 (`index`) |
 | `0x81040302` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 2 (`value`) |
-| `0xC1040401` | `FATAL_INVARIANT_VIOLATION` | Copy stored bytes | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
-| `0xC1040402` | `FATAL_INVARIANT_VIOLATION` | Copy stored bytes | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
 | `0xC1040601` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC1040602` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
 | `0xC1040603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
@@ -427,8 +423,6 @@ Copies value into the set if no byte-identical element exists. Grows storage as 
 | `0x90080502` | `ERROR_BUFFER_OVERFLOW` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0x91080502` | `ERROR_ALLOCATION_FAILED` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0xC1080502` | `FATAL_INVARIANT_VIOLATION` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
-| `0xC1080601` | `FATAL_INVARIANT_VIOLATION` | Copy stored bytes | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
-| `0xC1080602` | `FATAL_INVARIANT_VIOLATION` | Copy stored bytes | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
 | `0xC1080801` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC1080802` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
 | `0xC1080803` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
@@ -464,8 +458,6 @@ Removes a byte-identical element. Enumeration order may change.
 | `0x01090400` | `SUCCESS_NOOP` | Skip absent entry | — |
 | `0x81090100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
 | `0x81090201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
-| `0xC1090501` | `FATAL_INVARIANT_VIOLATION` | Move last entry into removed slot | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
-| `0xC1090502` | `FATAL_INVARIANT_VIOLATION` | Move last entry into removed slot | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
 | `0xC1090701` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC1090702` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
 | `0xC1090703` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
@@ -571,8 +563,6 @@ Copies the element at an unordered enumeration index into value.
 | `0x810C0100` | `ERROR_INVALID_ARGUMENT` | Validate `set` | Argument 0 (`set`) |
 | `0x810C0201` | `ERROR_INVALID_ARGUMENT` | Validate `index` | Argument 1 (`index`) |
 | `0x810C0302` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 2 (`value`) |
-| `0xC10C0401` | `FATAL_INVARIANT_VIOLATION` | Copy value to output | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
-| `0xC10C0402` | `FATAL_INVARIANT_VIOLATION` | Copy value to output | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
 | `0xC10C0601` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC10C0602` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
 | `0xC10C0603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
@@ -715,8 +705,6 @@ Retrieves the value associated with a byte-identical key.
 | `0x81100201` | `ERROR_INVALID_ARGUMENT` | Validate `key` | Argument 1 (`key`) |
 | `0x81100302` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 2 (`value`) |
 | `0x88100500` | `ERROR_NOT_FOUND` | Locate key | — |
-| `0xC1100601` | `FATAL_INVARIANT_VIOLATION` | Copy value to output | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
-| `0xC1100602` | `FATAL_INVARIANT_VIOLATION` | Copy value to output | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
 | `0xC1100801` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC1100802` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
 | `0xC1100803` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
@@ -759,10 +747,6 @@ Inserts a key/value association or updates an existing key without increasing th
 | `0x90110502` | `ERROR_BUFFER_OVERFLOW` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0x91110502` | `ERROR_ALLOCATION_FAILED` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0xC1110502` | `FATAL_INVARIANT_VIOLATION` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
-| `0xC1110601` | `FATAL_INVARIANT_VIOLATION` | Copy new key | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
-| `0xC1110602` | `FATAL_INVARIANT_VIOLATION` | Copy new key | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
-| `0xC1110701` | `FATAL_INVARIANT_VIOLATION` | Copy value | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
-| `0xC1110702` | `FATAL_INVARIANT_VIOLATION` | Copy value | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
 | `0xC1110901` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC1110902` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
 | `0xC1110903` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
@@ -799,8 +783,6 @@ Removes an association with a byte-identical key. Enumeration order may change.
 | `0x01120400` | `SUCCESS_NOOP` | Skip absent entry | — |
 | `0x81120100` | `ERROR_INVALID_ARGUMENT` | Validate `map` | Argument 0 (`map`) |
 | `0x81120201` | `ERROR_INVALID_ARGUMENT` | Validate `key` | Argument 1 (`key`) |
-| `0xC1120501` | `FATAL_INVARIANT_VIOLATION` | Move last entry into removed slot | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
-| `0xC1120502` | `FATAL_INVARIANT_VIOLATION` | Move last entry into removed slot | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
 | `0xC1120701` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC1120702` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
 | `0xC1120703` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
@@ -912,10 +894,6 @@ Copies the key and value at an unordered enumeration index to their respective o
 | `0x81150201` | `ERROR_INVALID_ARGUMENT` | Validate `index` | Argument 1 (`index`) |
 | `0x81150302` | `ERROR_INVALID_ARGUMENT` | Validate `key` | Argument 2 (`key`) |
 | `0x81150403` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 3 (`value`) |
-| `0xC1150501` | `FATAL_INVARIANT_VIOLATION` | Copy key to output | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
-| `0xC1150502` | `FATAL_INVARIANT_VIOLATION` | Copy key to output | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
-| `0xC1150601` | `FATAL_INVARIANT_VIOLATION` | Copy value to output | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
-| `0xC1150602` | `FATAL_INVARIANT_VIOLATION` | Copy value to output | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
 | `0xC1150801` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC1150802` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
 | `0xC1150803` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
@@ -1056,8 +1034,6 @@ Copies value to the top of the stack. Grows storage as needed.
 | `0x90190302` | `ERROR_BUFFER_OVERFLOW` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0x91190302` | `ERROR_ALLOCATION_FAILED` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
 | `0xC1190302` | `FATAL_INVARIANT_VIOLATION` | Grow storage | Growth helper operation `0x02`: Reallocate collection storage. |
-| `0xC1190401` | `FATAL_INVARIANT_VIOLATION` | Copy stored bytes | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
-| `0xC1190402` | `FATAL_INVARIANT_VIOLATION` | Copy stored bytes | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
 | `0xC1190601` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC1190602` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
 | `0xC1190603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
@@ -1093,8 +1069,6 @@ Copies the top element into value and removes it.
 | `0x811A0100` | `ERROR_INVALID_ARGUMENT` | Validate `stack` | Argument 0 (`stack`) |
 | `0x811A0201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
 | `0x881A0300` | `ERROR_NOT_FOUND` | Check for top element | — |
-| `0xC11A0401` | `FATAL_INVARIANT_VIOLATION` | Copy value to output | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
-| `0xC11A0402` | `FATAL_INVARIANT_VIOLATION` | Copy value to output | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
 | `0xC11A0601` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC11A0602` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
 | `0xC11A0603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |
@@ -1129,8 +1103,6 @@ Copies the top element into value without removing it.
 | `0x811B0100` | `ERROR_INVALID_ARGUMENT` | Validate `stack` | Argument 0 (`stack`) |
 | `0x811B0201` | `ERROR_INVALID_ARGUMENT` | Validate `value` | Argument 1 (`value`) |
 | `0x881B0300` | `ERROR_NOT_FOUND` | Check for top element | — |
-| `0xC11B0401` | `FATAL_INVARIANT_VIOLATION` | Copy value to output | `catmm_copy` operation `0x01`: Validate CATMMLIB destination (internal argument failure). |
-| `0xC11B0402` | `FATAL_INVARIANT_VIOLATION` | Copy value to output | `catmm_copy` operation `0x02`: Validate CATMMLIB source (internal argument failure). |
 | `0xC11B0601` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage stride is zero. |
 | `0xC11B0602` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Element count exceeds capacity. |
 | `0xC11B0603` | `FATAL_INVARIANT_VIOLATION` | Validate collection invariants | Storage pointer and capacity disagree. |

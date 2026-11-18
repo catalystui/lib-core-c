@@ -3,7 +3,8 @@
 
 using namespace catalyst;
 
-// Context IDs follow CATMMLIB public declaration order (alloc = 0x01).
+// Allocation context IDs: alloc = 0x01, realloc = 0x02, free = 0x03.
+// Contexts 0x04 through 0x07 are retired; byte primitives do not report.
 
 CATALYST_RESULT catmm_realloc(void** memory, CATALYST_NUINT size) {
     // Validate, initialize parameters
@@ -58,34 +59,17 @@ CATALYST_RESULT catmm_realloc(void** memory, CATALYST_NUINT size) {
     return RESULT(STATUS_CODE_SUCCESS, 0x02, 0x07, 0);
 }
 
-CATALYST_RESULT catmm_copy(void* destination, const void* source, CATALYST_NUINT size) {
-    if (destination == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x04, 0x01, 0);
-    }
-    if (source == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x04, 0x02, 1);
-    }
-    if (size == 0 || destination == source) {
-        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x04, 0x03, 0);
-    }
+void catmm_copy(void* destination, const void* source, CATALYST_NUINT size) {
+    if (size == 0 || destination == source) return;
     BYTE* output = (BYTE*) destination;
     const BYTE* input = (const BYTE*) source;
     do {
         *output++ = *input++;
     } while (--size != 0);
-    return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x04, 0);
 }
 
-CATALYST_RESULT catmm_move(void* destination, const void* source, CATALYST_NUINT size) {
-    if (destination == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x05, 0x01, 0);
-    }
-    if (source == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x05, 0x02, 1);
-    }
-    if (size == 0 || destination == source) {
-        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x05, 0x03, 0);
-    }
+void catmm_move(void* destination, const void* source, CATALYST_NUINT size) {
+    if (size == 0 || destination == source) return;
     BYTE* output = (BYTE*) destination;
     const BYTE* input = (const BYTE*) source;
     // Copy backward when the destination follows the source.
@@ -100,19 +84,9 @@ CATALYST_RESULT catmm_move(void* destination, const void* source, CATALYST_NUINT
             *output++ = *input++;
         } while (--size != 0);
     }
-    return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x04, 0);
 }
 
-CATALYST_RESULT catmm_compare(const void* first, const void* second, CATALYST_NUINT size, CATALYST_SBYTE* comparison) {
-    if (first == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x06, 0x01, 0);
-    }
-    if (second == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x06, 0x02, 1);
-    }
-    if (comparison == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x06, 0x03, 3);
-    }
+CATALYST_SBYTE catmm_compare(const void* first, const void* second, CATALYST_NUINT size) {
     const BYTE* a = (const BYTE*) first;
     const BYTE* b = (const BYTE*) second;
     SBYTE order = 0;
@@ -127,20 +101,13 @@ CATALYST_RESULT catmm_compare(const void* first, const void* second, CATALYST_NU
             size--;
         }
     }
-    *comparison = order;
-    return RESULT(STATUS_CODE_SUCCESS, 0x06, 0x04, 0);
+    return order;
 }
 
-CATALYST_RESULT catmm_set(void* memory, CATALYST_BYTE value, CATALYST_NUINT size) {
-    if (memory == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x07, 0x01, 0);
-    }
-    if (size == 0) {
-        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x07, 0x02, 0);
-    }
+void catmm_set(void* memory, CATALYST_BYTE value, CATALYST_NUINT size) {
+    if (size == 0) return;
     BYTE* bytes = (BYTE*) memory;
     do {
         *bytes++ = value;
     } while (--size != 0);
-    return RESULT(STATUS_CODE_SUCCESS, 0x07, 0x03, 0);
 }

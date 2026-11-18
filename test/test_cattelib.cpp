@@ -96,7 +96,7 @@ int main() {
     // ASCII Encode
     // ------------------------------------------------------------
     {
-        CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
+        CODEPOINT codepoint(0, 0, 0, (BYTE) 'A');
         BYTE output[1] = { 0 };
 
         result = ascii_encode(codepoint, output);
@@ -113,7 +113,7 @@ int main() {
     }
 
     {
-        CODEPOINT codepoint = { 0, 0, 0, (BYTE) 0x80 };
+        CODEPOINT codepoint(0, 0, 0, (BYTE) 0x80);
         BYTE output[1] = { 0 };
 
         result = ascii_encode(codepoint, output);
@@ -134,16 +134,15 @@ int main() {
     // ------------------------------------------------------------
     {
         BYTE input[1] = { (BYTE) 'Z' };
-        CODEPOINT codepoint = { 0xFF, 0xFF, 0xFF, 0xFF };
+        CODEPOINT codepoint(0xFF, 0xFF, 0xFF, 0xFF);
 
-        result = ascii_decode(input, &codepoint);
+        codepoint = ascii_decode(input);
 
         if (
             codepoint.byte0 != 0 ||
             codepoint.byte1 != 0 ||
             codepoint.byte2 != 0 ||
-            codepoint.byte3 != (BYTE) 'Z' ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0x02 || result.operation != 0x03 || result.detail != 0
+            codepoint.byte3 != (BYTE) 'Z'
         ) {
             std::printf("FAIL: catte_ascii_decode 'Z'\n");
             failed++;
@@ -159,11 +158,10 @@ int main() {
         BYTE input[] = { 'H', 'e', 'l', 'l', 'o', '\0' };
         NUINT length = 0;
 
-        result = ascii_length(input, &length);
+        length = ascii_length(input);
 
         if (
-            length != 5 ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0x03 || result.operation != 0x04 || result.detail != 0
+            length != 5
         ) {
             std::printf("FAIL: catte_ascii_length \"Hello\"\n");
             failed++;
@@ -251,7 +249,7 @@ int main() {
     // CP1252 Encode null output
     // ------------------------------------------------------------
     {
-        CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
+        CODEPOINT codepoint(0, 0, 0, (BYTE) 'A');
 
         result = cp1252_encode(codepoint, 0);
 
@@ -366,7 +364,7 @@ int main() {
     // CP1252 Decode null arguments
     // ------------------------------------------------------------
     {
-        CODEPOINT codepoint = { 0xFF, 0xFF, 0xFF, 0xFF };
+        CODEPOINT codepoint(0xFF, 0xFF, 0xFF, 0xFF);
 
         result = cp1252_decode(0, &codepoint);
 
@@ -402,11 +400,10 @@ int main() {
         BYTE input[] = { 'H', 'e', (BYTE) 0x80, (BYTE) 0xA0, '!', '\0' };
         NUINT length = 0;
 
-        result = cp1252_length(input, &length);
+        length = cp1252_length(input);
 
         if (
-            length != 5 ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0x06 || result.operation != 0x04 || result.detail != 0
+            length != 5
         ) {
             std::printf("FAIL: catte_cp1252_length mixed string\n");
             std::printf("  actual length=%lu\n", (unsigned long) length);
@@ -420,11 +417,10 @@ int main() {
         BYTE input[] = { '\0' };
         NUINT length = 123;
 
-        result = cp1252_length(input, &length);
+        length = cp1252_length(input);
 
         if (
-            length != 0 ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0x06 || result.operation != 0x04 || result.detail != 0
+            length != 0
         ) {
             std::printf("FAIL: catte_cp1252_length empty string\n");
             std::printf("  actual length=%lu\n", (unsigned long) length);
@@ -438,11 +434,10 @@ int main() {
         BYTE input[] = { 'A', '\0', 'B', '\0' };
         NUINT length = 0;
 
-        result = cp1252_length(input, &length);
+        length = cp1252_length(input);
 
         if (
-            length != 1 ||
-            result.status != STATUS_CODE_SUCCESS || result.context != 0x06 || result.operation != 0x04 || result.detail != 0
+            length != 1
         ) {
             std::printf("FAIL: catte_cp1252_length stops at NUL\n");
             std::printf("  actual length=%lu\n", (unsigned long) length);
@@ -452,35 +447,6 @@ int main() {
         }
     }
 
-    {
-        NUINT length = 123;
-
-        result = cp1252_length(0, &length);
-
-        if (
-            result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x06 || result.operation != 0x01 || result.detail != 0x00
-        ) {
-            std::printf("FAIL: catte_cp1252_length null input\n");
-            failed++;
-        } else {
-            std::printf("PASS: catte_cp1252_length null input -> invalid argument detail 0\n");
-        }
-    }
-
-    {
-        BYTE input[] = { 'A', '\0' };
-
-        result = cp1252_length(input, 0);
-
-        if (
-            result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x06 || result.operation != 0x02 || result.detail != 0x01
-        ) {
-            std::printf("FAIL: catte_cp1252_length null length\n");
-            failed++;
-        } else {
-            std::printf("PASS: catte_cp1252_length null length -> invalid argument detail 1\n");
-        }
-    }
 
     // ------------------------------------------------------------
     // UTF-8 Encode
@@ -573,7 +539,7 @@ int main() {
     // UTF-8 Encode null arguments
     // ------------------------------------------------------------
     {
-        CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
+        CODEPOINT codepoint(0, 0, 0, (BYTE) 'A');
         NUINT produced = 123;
 
         result = utf8_encode(codepoint, 0, &produced);
@@ -589,7 +555,7 @@ int main() {
     }
 
     {
-        CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
+        CODEPOINT codepoint(0, 0, 0, (BYTE) 'A');
         BYTE output[4];
 
         result = utf8_encode(codepoint, output, 0);
@@ -710,7 +676,7 @@ int main() {
     // UTF-8 Decode null arguments
     // ------------------------------------------------------------
     {
-        CODEPOINT codepoint = { 0xFF, 0xFF, 0xFF, 0xFF };
+        CODEPOINT codepoint(0xFF, 0xFF, 0xFF, 0xFF);
         NUINT consumed = 123;
 
         result = utf8_decode(0, &codepoint, &consumed);
@@ -743,7 +709,7 @@ int main() {
 
     {
         BYTE input[] = { 'A', '\0' };
-        CODEPOINT codepoint = { 0xFF, 0xFF, 0xFF, 0xFF };
+        CODEPOINT codepoint(0xFF, 0xFF, 0xFF, 0xFF);
 
         result = utf8_decode(input, &codepoint, 0);
 
@@ -955,7 +921,7 @@ int main() {
     // UTF-16LE Encode null arguments
     // ------------------------------------------------------------
     {
-        CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
+        CODEPOINT codepoint(0, 0, 0, (BYTE) 'A');
         NUINT produced = 123;
 
         result = utf16le_encode(codepoint, 0, &produced);
@@ -971,7 +937,7 @@ int main() {
     }
 
     {
-        CODEPOINT codepoint = { 0, 0, 0, (BYTE) 'A' };
+        CODEPOINT codepoint(0, 0, 0, (BYTE) 'A');
         UTF16LE_CODE_UNIT output[2];
 
         result = utf16le_encode(codepoint, output, 0);
@@ -1071,7 +1037,7 @@ int main() {
     // UTF-16LE Decode null arguments
     // ------------------------------------------------------------
     {
-        CODEPOINT codepoint = { 0xFF, 0xFF, 0xFF, 0xFF };
+        CODEPOINT codepoint(0xFF, 0xFF, 0xFF, 0xFF);
         NUINT consumed = 123;
 
         result = utf16le_decode(0, &codepoint, &consumed);
@@ -1109,7 +1075,7 @@ int main() {
 
     {
         UTF16LE_CODE_UNIT input[2];
-        CODEPOINT codepoint = { 0xFF, 0xFF, 0xFF, 0xFF };
+        CODEPOINT codepoint(0xFF, 0xFF, 0xFF, 0xFF);
 
         input[0].msb = 0;
         input[0].lsb = (BYTE) 'A';
@@ -2055,7 +2021,7 @@ int main() {
     }
 
     {
-        CODEPOINT codepoint = { 0, 0, 0, 0 };
+        CODEPOINT codepoint(0, 0, 0, 0);
         BYTE output[1] = { 0xFF };
         result = ascii_encode(codepoint, output);
         if (output[0] != 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0x01 || result.operation != 0x03 || result.detail != 0) failed++;

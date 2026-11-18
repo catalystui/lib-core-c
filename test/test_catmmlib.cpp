@@ -232,38 +232,38 @@ int main() {
     BYTE source[6] = {0, 1, 2, 3, 4, 5};
     BYTE destination[6] = {0, 0, 0, 0, 0, 0};
     SBYTE comparison = 0;
-    result = catalyst::copy(destination, source, 6);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x04 || result.operation != 0x04 || result.detail != 0) return 18;
+    catalyst::copy(destination, source, 6);
     for (i = 0; i < 6; i++) {
         if (destination[i] != source[i]) return 19;
     }
-    result = catalyst::move(destination + 1, destination, 5);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x05 || result.operation != 0x04 || result.detail != 0) return 20;
+    catalyst::move(destination + 1, destination, 5);
     for (i = 1; i < 6; i++) {
         if (destination[i] != source[i - 1]) return 21;
     }
-    result = catalyst::move(destination, destination + 1, 5);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x05 || result.operation != 0x04 || result.detail != 0) return 22;
+    catalyst::move(destination, destination + 1, 5);
     for (i = 0; i < 5; i++) {
         if (destination[i] != source[i]) return 23;
     }
-    result = catalyst::compare(destination, source, 6, &comparison);
-    if (comparison != -1 || result.status != STATUS_CODE_SUCCESS || result.context != 0x06 || result.operation != 0x04 || result.detail != 0) return 24;
-    result = catalyst::set(destination, (BYTE) 0xFF, 6);
-    if (result.status != STATUS_CODE_SUCCESS || result.context != 0x07 || result.operation != 0x03 || result.detail != 0) return 25;
+    comparison = catalyst::compare(destination, source, 6);
+    if (comparison != -1) return 24;
+    catalyst::set(destination, (BYTE) 0xFF, 6);
     for (i = 0; i < 6; i++) {
         if (destination[i] != (BYTE) 0xFF) return 26;
     }
-    result = catalyst::compare(destination, source, 6, &comparison);
-    if (comparison != 1 || result.status != STATUS_CODE_SUCCESS || result.context != 0x06 || result.operation != 0x04 || result.detail != 0) return 27;
-    result = catalyst::compare(source, source, 6, &comparison);
-    if (comparison != 0 || result.status != STATUS_CODE_SUCCESS || result.context != 0x06 || result.operation != 0x04 || result.detail != 0) return 28;
-    result = catalyst::copy(destination, source, 0);
-    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0x04 || result.operation != 0x03 || result.detail != 0) return 29;
-    result = catalyst::move(destination, destination, 6);
-    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0x05 || result.operation != 0x03 || result.detail != 0) return 30;
-    result = catalyst::set(destination, 0, 0);
-    if (result.status != STATUS_CODE_SUCCESS_NOOP || result.context != 0x07 || result.operation != 0x02 || result.detail != 0) return 31;
+    comparison = catalyst::compare(destination, source, 6);
+    if (comparison != 1) return 27;
+    comparison = catalyst::compare(source, source, 6);
+    if (comparison != 0) return 28;
+    catalyst::copy(destination, source, 0);
+    catalyst::move(destination, destination, 6);
+    catalyst::set(destination, 0, 0);
+    for (i = 0; i < 6; ++i) {
+        if (destination[i] != (BYTE) 0xFF) return 31;
+    }
+    catalyst::copy(source, source, 6);
+    for (i = 0; i < 6; ++i) {
+        if (source[i] != (BYTE) i) return 30;
+    }
 
     // A direct allocation failure and a delegated realloc failure have different contexts.
     memory = 0;
@@ -277,8 +277,7 @@ int main() {
     if (memory != 0 || result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x02 || result.operation != 0x02 || result.detail != 0x04) return 35;
     result = catalyst::free(0);
     if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x03 || result.operation != 0x01 || result.detail != 0) return 36;
-    result = catalyst::compare(destination, source, 6, 0);
-    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x06 || result.operation != 0x03 || result.detail != 3) return 37;
+    if (catalyst::compare(destination, source, 0) != 0) return 37;
     catalyst::set(destination, (BYTE) 0, 6);
     if (destination[0] != 0) return 38;
 

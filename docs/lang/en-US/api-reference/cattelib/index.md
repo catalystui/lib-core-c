@@ -9,12 +9,12 @@ Provides encoding, decoding, length, and conversion operations for ASCII, Window
 
 ## Conventions
 
-- All functions return `CATALYST_RESULT` by value. All pointer arguments require valid readable or writable storage.
+- Reporting functions return `CATALYST_RESULT` by value. ASCII decoding and ASCII/Windows-1252 length counting return ordinary values directly. All pointer arguments require valid readable or writable storage.
 - Encode/decode process one codepoint, including U+0000. They neither append a separate terminator nor skip a BOM.
 - `produced` counts destination code units; `consumed` counts source code units. UTF-16LE counts two-byte code units, not bytes.
 - Encoders require up to four UTF-8 units or two UTF-16LE units of writable storage. Decoders read the sequence width selected by the leading unit, even for malformed input. Supply that many readable units, including any padding needed beyond a truncated sequence. No input-size parameter or bounds discovery is provided.
 - Length and conversion functions consume null-terminated input; lengths exclude the terminator. UTF-8 and UTF-16LE length/conversion functions skip an initial BOM (EF BB BF or FF FE), not internal U+FEFF.
-- Use separate storage for input and output and for distinct output arguments. Null-argument errors occur before output writes.
+- Use separate storage for input and output and for distinct output arguments. Reporting functions detect null arguments before output writes; non-reporting functions require valid non-null input.
 
 Defensive failure paths are included even when unreachable with valid input and intact invariants. When an internal call fails, detail identifies its operation code unless a status-specific detail takes precedence.
 
@@ -118,60 +118,35 @@ Encodes one codepoint as ASCII. Codepoints outside U+0000–U+007F are replaced 
 #### catte_ascii_decode
 
 ```c
-CATALYST_RESULT catte_ascii_decode(
-    CATALYST_ASCII ascii,
-    CATALYST_CODEPOINT* codepoint
-);
+CATALYST_CODEPOINT catte_ascii_decode(CATALYST_ASCII ascii);
 ```
 
-Decodes a single ASCII code unit into a codepoint. The input byte becomes the least significant codepoint byte; the remaining bytes are zero. The ASCII range is not validated.
+Decodes one readable ASCII code unit. Its byte becomes the least significant codepoint byte; the remaining bytes are zero. The ASCII range is not validated.
 
 **Parameters:**
 
-`ascii` — Readable input containing one code unit.  
-`codepoint` — Receives the decoded codepoint.
+`ascii` — Valid non-null readable input containing one code unit.
 
-**Context:** `0x02`
+**Returns:** The decoded codepoint.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x00020300` | `SUCCESS` | Decode code unit | — |
-| `0x81020100` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 0 (`ascii`) |
-| `0x81020201` | `ERROR_INVALID_ARGUMENT` | Validate `codepoint` | Argument 1 (`codepoint`) |
-
-**C++:** `catalyst::RESULT catalyst::ascii_decode(ASCII ascii, CODEPOINT* codepoint)`.
+**C++:** `catalyst::CODEPOINT catalyst::ascii_decode(ASCII ascii)`.
 
 
 #### catte_ascii_length
 
 ```c
-CATALYST_RESULT catte_ascii_length(
-    CATALYST_ASCII ascii,
-    CATALYST_NUINT* length
-);
+CATALYST_NUINT catte_ascii_length(CATALYST_ASCII ascii);
 ```
 
-Counts the code units in a null-terminated ASCII string, excluding the terminator. ASCII values are not validated. `length` is written only on success.
+Counts the code units in a valid null-terminated ASCII string, excluding the terminator. ASCII values are not validated. The full string, including its terminator, must fit in addressable storage.
 
 **Parameters:**
 
-`ascii` — Readable null-terminated input.  
-`length` — Receives the number of code units before the terminator.
+`ascii` — Valid non-null readable null-terminated input.
 
-**Context:** `0x03`
+**Returns:** The number of code units before the terminator.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x00030400` | `SUCCESS` | Write length | — |
-| `0x81030100` | `ERROR_INVALID_ARGUMENT` | Validate `ascii` | Argument 0 (`ascii`) |
-| `0x81030201` | `ERROR_INVALID_ARGUMENT` | Validate `length` | Argument 1 (`length`) |
-| `0x90030300` | `ERROR_BUFFER_OVERFLOW` | Check count limit | — |
-
-**C++:** `catalyst::RESULT catalyst::ascii_length(ASCII ascii, NUINT* length)`.
+**C++:** `catalyst::NUINT catalyst::ascii_length(ASCII ascii)`.
 
 
 ### Windows-1252
@@ -292,31 +267,18 @@ Decodes one Windows-1252 code unit. Undefined bytes (`0x81`, `0x8D`, `0x8F`, `0x
 #### catte_cp1252_length
 
 ```c
-CATALYST_RESULT catte_cp1252_length(
-    CATALYST_CP1252 cp1252,
-    CATALYST_NUINT* length
-);
+CATALYST_NUINT catte_cp1252_length(CATALYST_CP1252 cp1252);
 ```
 
-Counts the code units in a null-terminated Windows-1252 string, excluding the terminator. Undefined bytes are counted without warning. `length` is written only on success.
+Counts the code units in a valid null-terminated Windows-1252 string, excluding the terminator. Undefined bytes are counted without warning. The full string, including its terminator, must fit in addressable storage.
 
 **Parameters:**
 
-`cp1252` — Readable null-terminated input.  
-`length` — Receives the number of code units before the terminator.
+`cp1252` — Valid non-null readable null-terminated input.
 
-**Context:** `0x06`
+**Returns:** The number of code units before the terminator.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x00060400` | `SUCCESS` | Write length | — |
-| `0x81060100` | `ERROR_INVALID_ARGUMENT` | Validate `cp1252` | Argument 0 (`cp1252`) |
-| `0x81060201` | `ERROR_INVALID_ARGUMENT` | Validate `length` | Argument 1 (`length`) |
-| `0x90060300` | `ERROR_BUFFER_OVERFLOW` | Check count limit | — |
-
-**C++:** `catalyst::RESULT catalyst::cp1252_length(CP1252 cp1252, NUINT* length)`.
+**C++:** `catalyst::NUINT catalyst::cp1252_length(CP1252 cp1252)`.
 
 
 ### UTF-8

@@ -31,40 +31,17 @@ CATALYST_RESULT catte_ascii_encode(const CATALYST_CODEPOINT codepoint, CATALYST_
     }
 }
 
-CATALYST_RESULT catte_ascii_decode(CATALYST_ASCII ascii, CATALYST_CODEPOINT* codepoint) {
-    // Validate, initialize parameters
-    if (ascii == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x02, 0x01, 0);
-    }
-    if (codepoint == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x02, 0x02, 1);
-    }
-
-    // ASCII maps directly to the lsb of the codepoint
-    BYTE codeunit0 = ascii[0];
-    codepoint->byte0 = 0;
-    codepoint->byte1 = 0;
-    codepoint->byte2 = 0;
-    codepoint->byte3 = codeunit0;
-    return RESULT(STATUS_CODE_SUCCESS, 0x02, 0x03, 0);
+CATALYST_CODEPOINT catte_ascii_decode(CATALYST_ASCII ascii) {
+    // ASCII maps directly to the least significant codepoint byte.
+    return CODEPOINT(0, 0, 0, ascii[0]);
 }
 
-CATALYST_RESULT catte_ascii_length(CATALYST_ASCII ascii, CATALYST_NUINT* length) {
-    if (ascii == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x03, 0x01, 0);
-    }
-    if (length == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x03, 0x02, 1);
-    }
+CATALYST_NUINT catte_ascii_length(CATALYST_ASCII ascii) {
     NUINT count = 0;
     while (ascii[count] != (BYTE) '\0') {
-        if (++count == (NUINT) -1) {
-            // Overflow, no null terminator found
-            return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x03, 0x03, 0);
-        }
+        ++count;
     }
-    *length = count;
-    return RESULT(STATUS_CODE_SUCCESS, 0x03, 0x04, 0);
+    return count;
 }
 
 CATALYST_RESULT catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST_CP1252W cp1252w) {
@@ -200,24 +177,12 @@ CATALYST_RESULT catte_cp1252_decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* 
     return RESULT(STATUS_CODE_WARNING_PARTIAL, 0x05, 0x1F, 0);
 }
 
-CATALYST_RESULT catte_cp1252_length(CATALYST_CP1252 cp1252, CATALYST_NUINT* length) {
-    if (cp1252 == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x06, 0x01, 0);
-    }
-    if (length == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x06, 0x02, 1);
-    }
-
+CATALYST_NUINT catte_cp1252_length(CATALYST_CP1252 cp1252) {
     NUINT count = 0;
     while (cp1252[count] != (BYTE) '\0') {
-        if (++count == (NUINT) -1) {
-            // Overflow, no null terminator found
-            return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x06, 0x03, 0);
-        }
+        ++count;
     }
-
-    *length = count;
-    return RESULT(STATUS_CODE_SUCCESS, 0x06, 0x04, 0);
+    return count;
 }
 
 

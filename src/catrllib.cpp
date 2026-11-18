@@ -133,7 +133,8 @@ static SBYTE size_compare(const catrl_size* left, const catrl_size* right) {
 }
 
 /* Add/subtract a digit without an intermediate exceeding one byte.
- * Output may alias either operand; FALSE indicates carry/borrow out.
+ * Output may alias either operand. FALSE is the ordinary arithmetic carry/
+ * borrow flag; callers decide whether it represents an operation failure.
  */
 static BOOL size_add(const catrl_size* left, const catrl_size* right, catrl_size* output) {
     BOOL carry = FALSE;
@@ -271,6 +272,7 @@ struct CATALYST_STACK { catrl_storage storage; };
  * 4: unrepresentable extent, 5: invalid map key extent, 6: array count differs
  * from capacity. The checks cannot validate arbitrary foreign pointers.
  */
+/* Classify storage invariants. The enclosing operation owns reporting. */
 static DETAIL_CODE storage_fault(const catrl_storage* storage) {
     if (size_zero(&storage->stride)) return 1;
     if (size_compare(&storage->count, &storage->capacity) > 0) return 2;
@@ -294,15 +296,18 @@ static DETAIL_CODE map_fault(const CATALYST_MAP* map) {
     return 0;
 }
 
-/* Indices are checked against the validated extent before element access. */
+/* Callers validate the storage extent and ensure index < capacity. This
+ * guarantees non-null storage and a representable element offset.
+ */
 static BYTE* element_at(const catrl_storage* storage, const catrl_size* index) {
     catrl_size offset;
-    if (!size_multiply(index, &storage->stride, &offset)) return 0;
-    return storage->bytes != 0 ? storage->bytes + size_to_abi(&offset) : 0;
+    size_multiply(index, &storage->stride, &offset);
+    return storage->bytes + size_to_abi(&offset);
 }
 
+/* A validated map entry has a nonzero key and value extent. */
 static BYTE* value_at(const CATALYST_MAP* map, BYTE* entry) {
-    return entry != 0 ? entry + size_to_abi(&map->key_size) : 0;
+    return entry + size_to_abi(&map->key_size);
 }
 
 static NUINT map_value_size(const CATALYST_MAP* map) {
@@ -474,11 +479,7 @@ CATALYST_RESULT catrl_array_get(const CATALYST_ARRAY* array, CATALYST_NUINT inde
     if (value == 0) {
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x03, 0x03, 2);
     }
-    RESULT copyResult;
-    copyResult = catmm_copy(value, element_at(&array->storage, &position), size_to_abi(&array->storage.stride));
-    if (!status_code_is_success(copyResult.status)) {
-        return RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x03, 0x04, copyResult.operation);
-    }
+    catmm_copy(value, element_at(&array->storage, &position), size_to_abi(&array->storage.stride));
     return RESULT(STATUS_CODE_SUCCESS, 0x03, 0x05, 0);
 }
 
@@ -497,11 +498,7 @@ CATALYST_RESULT catrl_array_set(CATALYST_ARRAY* array, CATALYST_NUINT index, con
     if (value == 0) {
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x04, 0x03, 2);
     }
-    RESULT copyResult;
-    copyResult = catmm_copy(element_at(&array->storage, &position), value, size_to_abi(&array->storage.stride));
-    if (!status_code_is_success(copyResult.status)) {
-        return RESULT(status_code_is_fatal(copyResult.status) ? copyResult.status : STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x04, 0x04, copyResult.operation);
-    }
+    catmm_copy(element_at(&array->storage, &position), value, size_to_abi(&array->storage.stride));
     return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x05, 0);
 }
 
@@ -573,11 +570,7 @@ CATALYST_RESULT catrl_set_add(CATALYST_SET* set, const void* value) {
             return RESULT(growthResult.status, 0x08, 0x05, growthResult.operation);
         }
     }
-    RESULT copyResult;
-    copyResult = catmm_copy(element_at(&set->storage, &set->storage.count), value, size_to_abi(&set->storage.stride));
-    if (!status_code_is_success(copyResult.status)) {
-        return RESULT(status_code_is_fatal(copyResult.status) ? copyResult.status : STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x08, 0x06, copyResult.operation);
-    }
+    catmm_copy(element_at(&set->storage, &set->storage.count), value, size_to_abi(&set->storage.stride));
     size_increment(&set->storage.count);
     return RESULT(STATUS_CODE_SUCCESS, 0x08, 0x07, 0);
 }
@@ -599,11 +592,7 @@ CATALYST_RESULT catrl_set_remove(CATALYST_SET* set, const void* value) {
     }
     catrl_size last = size_previous(&set->storage.count);
     if (size_compare(&index, &last) != 0) {
-        RESULT copyResult;
-        copyResult = catmm_copy(element_at(&set->storage, &index), element_at(&set->storage, &last), size_to_abi(&set->storage.stride));
-        if (!status_code_is_success(copyResult.status)) {
-            return RESULT(status_code_is_fatal(copyResult.status) ? copyResult.status : STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x09, 0x05, copyResult.operation);
-        }
+        catmm_copy(element_at(&set->storage, &index), element_at(&set->storage, &last), size_to_abi(&set->storage.stride));
     }
     set->storage.count = last;
     return RESULT(STATUS_CODE_SUCCESS, 0x09, 0x06, 0);
@@ -658,11 +647,7 @@ CATALYST_RESULT catrl_set_at(const CATALYST_SET* set, CATALYST_NUINT index, void
     if (value == 0) {
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0C, 0x03, 2);
     }
-    RESULT copyResult;
-    copyResult = catmm_copy(value, element_at(&set->storage, &position), size_to_abi(&set->storage.stride));
-    if (!status_code_is_success(copyResult.status)) {
-        return RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x0C, 0x04, copyResult.operation);
-    }
+    catmm_copy(value, element_at(&set->storage, &position), size_to_abi(&set->storage.stride));
     return RESULT(STATUS_CODE_SUCCESS, 0x0C, 0x05, 0);
 }
 
@@ -739,11 +724,7 @@ CATALYST_RESULT catrl_map_get(const CATALYST_MAP* map, const void* key, void* va
     if (size_compare(&index, &map->storage.count) == 0) {
         return RESULT(STATUS_CODE_ERROR_NOT_FOUND, 0x10, 0x05, 0);
     }
-    RESULT copyResult;
-    copyResult = catmm_copy(value, value_at(map, element_at(&map->storage, &index)), map_value_size(map));
-    if (!status_code_is_success(copyResult.status)) {
-        return RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x10, 0x06, copyResult.operation);
-    }
+    catmm_copy(value, value_at(map, element_at(&map->storage, &index)), map_value_size(map));
     return RESULT(STATUS_CODE_SUCCESS, 0x10, 0x07, 0);
 }
 
@@ -773,23 +754,11 @@ CATALYST_RESULT catrl_map_set(CATALYST_MAP* map, const void* key, const void* va
             }
         }
         entry = element_at(&map->storage, &index);
-        {
-            RESULT copyResult;
-            copyResult = catmm_copy(entry, key, size_to_abi(&map->key_size));
-            if (!status_code_is_success(copyResult.status)) {
-                return RESULT(status_code_is_fatal(copyResult.status) ? copyResult.status : STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x11, 0x06, copyResult.operation);
-            }
-        }
+        catmm_copy(entry, key, size_to_abi(&map->key_size));
     } else {
         entry = element_at(&map->storage, &index);
     }
-    {
-        RESULT copyResult;
-        copyResult = catmm_copy(value_at(map, entry), value, map_value_size(map));
-        if (!status_code_is_success(copyResult.status)) {
-            return RESULT(status_code_is_fatal(copyResult.status) ? copyResult.status : STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x11, 0x07, copyResult.operation);
-        }
-    }
+    catmm_copy(value_at(map, entry), value, map_value_size(map));
     if (insert) size_increment(&map->storage.count);
     return RESULT(STATUS_CODE_SUCCESS, 0x11, 0x08, 0);
 }
@@ -811,11 +780,7 @@ CATALYST_RESULT catrl_map_remove(CATALYST_MAP* map, const void* key) {
     }
     catrl_size last = size_previous(&map->storage.count);
     if (size_compare(&index, &last) != 0) {
-        RESULT copyResult;
-        copyResult = catmm_copy(element_at(&map->storage, &index), element_at(&map->storage, &last), size_to_abi(&map->storage.stride));
-        if (!status_code_is_success(copyResult.status)) {
-            return RESULT(status_code_is_fatal(copyResult.status) ? copyResult.status : STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x12, 0x05, copyResult.operation);
-        }
+        catmm_copy(element_at(&map->storage, &index), element_at(&map->storage, &last), size_to_abi(&map->storage.stride));
     }
     map->storage.count = last;
     return RESULT(STATUS_CODE_SUCCESS, 0x12, 0x06, 0);
@@ -875,20 +840,8 @@ CATALYST_RESULT catrl_map_at(const CATALYST_MAP* map, CATALYST_NUINT index, void
     }
     BYTE* entry = element_at(&map->storage, &position);
     BYTE* entryValue = value_at(map, entry);
-    {
-        RESULT copyResult;
-        copyResult = catmm_copy(key, entry, size_to_abi(&map->key_size));
-        if (!status_code_is_success(copyResult.status)) {
-            return RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x15, 0x05, copyResult.operation);
-        }
-    }
-    {
-        RESULT copyResult;
-        copyResult = catmm_copy(value, entryValue, map_value_size(map));
-        if (!status_code_is_success(copyResult.status)) {
-            return RESULT(status_code_is_fatal(copyResult.status) ? copyResult.status : STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x15, 0x06, copyResult.operation);
-        }
-    }
+    catmm_copy(key, entry, size_to_abi(&map->key_size));
+    catmm_copy(value, entryValue, map_value_size(map));
     return RESULT(STATUS_CODE_SUCCESS, 0x15, 0x07, 0);
 }
 
@@ -956,11 +909,7 @@ CATALYST_RESULT catrl_stack_push(CATALYST_STACK* stack, const void* value) {
             return RESULT(growthResult.status, 0x19, 0x03, growthResult.operation);
         }
     }
-    RESULT copyResult;
-    copyResult = catmm_copy(element_at(&stack->storage, &stack->storage.count), value, size_to_abi(&stack->storage.stride));
-    if (!status_code_is_success(copyResult.status)) {
-        return RESULT(status_code_is_fatal(copyResult.status) ? copyResult.status : STATUS_CODE_FATAL_INVARIANT_VIOLATION, 0x19, 0x04, copyResult.operation);
-    }
+    catmm_copy(element_at(&stack->storage, &stack->storage.count), value, size_to_abi(&stack->storage.stride));
     size_increment(&stack->storage.count);
     return RESULT(STATUS_CODE_SUCCESS, 0x19, 0x05, 0);
 }
@@ -980,11 +929,7 @@ CATALYST_RESULT catrl_stack_pop(CATALYST_STACK* stack, void* value) {
         return RESULT(STATUS_CODE_ERROR_NOT_FOUND, 0x1A, 0x03, 0);
     }
     catrl_size last = size_previous(&stack->storage.count);
-    RESULT copyResult;
-    copyResult = catmm_copy(value, element_at(&stack->storage, &last), size_to_abi(&stack->storage.stride));
-    if (!status_code_is_success(copyResult.status)) {
-        return RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x1A, 0x04, copyResult.operation);
-    }
+    catmm_copy(value, element_at(&stack->storage, &last), size_to_abi(&stack->storage.stride));
     stack->storage.count = last;
     return RESULT(STATUS_CODE_SUCCESS, 0x1A, 0x05, 0);
 }
@@ -1004,11 +949,7 @@ CATALYST_RESULT catrl_stack_peek(const CATALYST_STACK* stack, void* value) {
         return RESULT(STATUS_CODE_ERROR_NOT_FOUND, 0x1B, 0x03, 0);
     }
     catrl_size last = size_previous(&stack->storage.count);
-    RESULT copyResult;
-    copyResult = catmm_copy(value, element_at(&stack->storage, &last), size_to_abi(&stack->storage.stride));
-    if (!status_code_is_success(copyResult.status)) {
-        return RESULT(copyResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? STATUS_CODE_FATAL_INVARIANT_VIOLATION : copyResult.status, 0x1B, 0x04, copyResult.operation);
-    }
+    catmm_copy(value, element_at(&stack->storage, &last), size_to_abi(&stack->storage.stride));
     return RESULT(STATUS_CODE_SUCCESS, 0x1B, 0x05, 0);
 }
 

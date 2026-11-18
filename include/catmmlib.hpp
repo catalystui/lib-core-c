@@ -18,20 +18,20 @@ inline RESULT free(void* memory) {
     return ::catmm_free(memory);
 }
 
-inline RESULT copy(void* destination, const void* source, NUINT size) {
-    return ::catmm_copy(destination, source, size);
+inline void copy(void* destination, const void* source, NUINT size) {
+    ::catmm_copy(destination, source, size);
 }
 
-inline RESULT move(void* destination, const void* source, NUINT size) {
-    return ::catmm_move(destination, source, size);
+inline void move(void* destination, const void* source, NUINT size) {
+    ::catmm_move(destination, source, size);
 }
 
-inline RESULT compare(const void* first, const void* second, NUINT size, SBYTE* comparison) {
-    return ::catmm_compare(first, second, size, comparison);
+inline SBYTE compare(const void* first, const void* second, NUINT size) {
+    return ::catmm_compare(first, second, size);
 }
 
-inline RESULT set(void* memory, BYTE value, NUINT size) {
-    return ::catmm_set(memory, value, size);
+inline void set(void* memory, BYTE value, NUINT size) {
+    ::catmm_set(memory, value, size);
 }
 
 } /* namespace catalyst */

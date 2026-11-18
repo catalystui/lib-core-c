@@ -9,7 +9,7 @@ Provides memory allocation, release, resizing, and byte operations.
 
 ## Conventions
 
-- All sizes are byte counts. Every function returns `CATALYST_RESULT` by value; pointer parameters must be non-null, even for zero-length byte operations.
+- All sizes are byte counts. Allocation, resizing and release report `CATALYST_RESULT` by value. Byte primitives are non-reporting and require valid non-null pointers, even for zero-length operations.
 - Allocation returns zero-filled payloads; use only the requested extent. The payload is not the original page-aligned allocation base; no adjustable or over-alignment guarantee is provided.
 - Release only live CATMMLIB allocations, through the same allocator backend. Foreign pointers, repeated frees and access during release are outside the contract.
 - Copy, move, compare and set operate on any valid readable/writable byte storage, not just CATMMLIB allocations. They do not check capacity or allocate memory.
@@ -44,7 +44,7 @@ In result patterns, `DD` is a runtime detail byte (`0x00`–`0xFF`). Allocation 
 | --- | --- |
 | [`catmm_copy`](#catmm_copy) | Copies `size` bytes from `source` to `destination`. |
 | [`catmm_move`](#catmm_move) | Copies `size` bytes from `source` to `destination`, preserving the original source bytes even when the regions overlap. |
-| [`catmm_compare`](#catmm_compare) | Compares `size` unsigned bytes lexicographically and writes −1, 0, or 1 to `*comparison` according to whether the first region precedes, equals, or follows the second. |
+| [`catmm_compare`](#catmm_compare) | Compares `size` unsigned bytes lexicographically and returns −1, 0, or 1 according to whether the first region precedes, equals, or follows the second. |
 | [`catmm_set`](#catmm_set) | Fills the `size`-byte region at `memory` with `value`. |
 
 ## Type Details
@@ -190,132 +190,87 @@ No payload access guarantee after release failure.
 #### catmm_copy
 
 ```c
-CATALYST_RESULT catmm_copy(
+void catmm_copy(
     void* destination,
     const void* source,
     CATALYST_NUINT size
 );
 ```
 
-Copies `size` bytes from `source` to `destination`. The regions must not overlap unless both pointers are identical.
+Copies `size` bytes from `source` to `destination`. The regions must not overlap unless both pointers are identical. Zero size or identical addresses leaves storage unchanged. The caller establishes the storage preconditions; this function does not validate pointers or capacity.
 
 **Parameters:**
 
-`destination` — Writable destination region.  
-`source` — Readable source region.  
+`destination` — Valid non-null writable destination region.  
+`source` — Valid non-null readable source region.  
 `size` — Number of bytes to process.
 
-**Context:** `0x04`
-
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x00040400` | `SUCCESS` | Copy bytes | — |
-| `0x01040300` | `SUCCESS_NOOP` | Skip zero-size operation or identical addresses | — |
-| `0x81040100` | `ERROR_INVALID_ARGUMENT` | Validate `destination` | Argument 0 (`destination`) |
-| `0x81040201` | `ERROR_INVALID_ARGUMENT` | Validate `source` | Argument 1 (`source`) |
-
-**C++:** `catalyst::RESULT catalyst::copy(void* destination, const void* source, NUINT size)`.
+**C++:** `void catalyst::copy(void* destination, const void* source, NUINT size)`.
 
 
 #### catmm_move
 
 ```c
-CATALYST_RESULT catmm_move(
+void catmm_move(
     void* destination,
     const void* source,
     CATALYST_NUINT size
 );
 ```
 
-Copies `size` bytes from `source` to `destination`, preserving the original source bytes even when the regions overlap.
+Copies `size` bytes from `source` to `destination`, preserving the original source bytes when the regions overlap. Zero size or identical addresses leaves storage unchanged. The caller establishes the storage preconditions; this function does not validate pointers or capacity.
 
 **Parameters:**
 
-`destination` — Writable destination region.  
-`source` — Readable source region.  
+`destination` — Valid non-null writable destination region.  
+`source` — Valid non-null readable source region.  
 `size` — Number of bytes to process.
 
-**Context:** `0x05`
-
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x00050400` | `SUCCESS` | Move bytes | — |
-| `0x01050300` | `SUCCESS_NOOP` | Skip zero-size operation or identical addresses | — |
-| `0x81050100` | `ERROR_INVALID_ARGUMENT` | Validate `destination` | Argument 0 (`destination`) |
-| `0x81050201` | `ERROR_INVALID_ARGUMENT` | Validate `source` | Argument 1 (`source`) |
-
-**C++:** `catalyst::RESULT catalyst::move(void* destination, const void* source, NUINT size)`.
+**C++:** `void catalyst::move(void* destination, const void* source, NUINT size)`.
 
 
 #### catmm_compare
 
 ```c
-CATALYST_RESULT catmm_compare(
+CATALYST_SBYTE catmm_compare(
     const void* first,
     const void* second,
-    CATALYST_NUINT size,
-    CATALYST_SBYTE* comparison
+    CATALYST_NUINT size
 );
 ```
 
-Compares `size` unsigned bytes lexicographically and writes −1, 0, or 1 to `*comparison` according to whether the first region precedes, equals, or follows the second. Empty regions and identical addresses compare equal. The output must not overlap either input region.
+Compares `size` unsigned bytes lexicographically. Empty regions and identical addresses compare equal. The caller establishes the storage preconditions; this function does not validate pointers or capacity.
 
 **Parameters:**
 
-`first` — First readable region.  
-`second` — Second readable region.  
-`size` — Number of bytes to process.  
-`comparison` — Receives −1, 0, or 1.
+`first` — Valid non-null first readable region.  
+`second` — Valid non-null second readable region.  
+`size` — Number of bytes to process.
 
-**Context:** `0x06`
+**Returns:** −1, 0, or 1 when the first region precedes, equals, or follows the second.
 
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x00060400` | `SUCCESS` | Write comparison | — |
-| `0x81060100` | `ERROR_INVALID_ARGUMENT` | Validate `first` | Argument 0 (`first`) |
-| `0x81060201` | `ERROR_INVALID_ARGUMENT` | Validate `second` | Argument 1 (`second`) |
-| `0x81060303` | `ERROR_INVALID_ARGUMENT` | Validate `comparison` | Argument 3 (`comparison`) |
-
-Invalid arguments leave the comparison output unchanged.
-
-**C++:** `catalyst::RESULT catalyst::compare(const void* first, const void* second, NUINT size, SBYTE* comparison)`.
+**C++:** `catalyst::SBYTE catalyst::compare(const void* first, const void* second, NUINT size)`.
 
 
 #### catmm_set
 
 ```c
-CATALYST_RESULT catmm_set(
+void catmm_set(
     void* memory,
     CATALYST_BYTE value,
     CATALYST_NUINT size
 );
 ```
 
-Fills the `size`-byte region at `memory` with `value`.
+Fills the `size`-byte region at `memory` with `value`. Zero size leaves storage unchanged. The caller establishes the storage preconditions; this function does not validate pointers or capacity.
 
 **Parameters:**
 
-`memory` — Address of the memory region.  
+`memory` — Valid non-null writable memory region.  
 `value` — Byte to write throughout the region.  
 `size` — Number of bytes to process.
 
-**Context:** `0x07`
-
-**Results:**
-
-| Result | Status | Operation | Detail |
-| --- | --- | --- | --- |
-| `0x00070300` | `SUCCESS` | Fill bytes | — |
-| `0x01070200` | `SUCCESS_NOOP` | Skip zero-size fill | — |
-| `0x81070100` | `ERROR_INVALID_ARGUMENT` | Validate `memory` | Argument 0 (`memory`) |
-
-**C++:** `catalyst::RESULT catalyst::set(void* memory, BYTE value, NUINT size)`.
+**C++:** `void catalyst::set(void* memory, BYTE value, NUINT size)`.
 
 
 ## Allocation backends
