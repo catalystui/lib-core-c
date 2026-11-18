@@ -140,7 +140,7 @@ CATALYST_RESULT catrl_array_create(
 );
 ```
 
-Creates a fixed-length array of length elements, each `element_size` bytes. All elements are zero-filled; zero length is valid and requires no element storage.
+Creates a fixed-length array of `length` elements, each `element_size` bytes. All elements are zero-filled; zero length is valid and requires no element storage.
 
 **Parameters:**
 
@@ -204,7 +204,7 @@ void catrl_array_get(
 );
 ```
 
-Copies the element at index into value, which must hold `element_size` bytes.
+Copies the element at `index` into `value`.
 
 **Parameters:**
 
@@ -548,7 +548,7 @@ Inserts a key/value association or updates an existing key without increasing th
 
 `map` — Map handle.  
 `key` — Readable key of the configured key size.  
-`value` — Readable value of the configured byte size.
+`value` — Readable value of the configured value size in bytes.
 
 **Context:** `0x11`
 
@@ -634,7 +634,7 @@ void catrl_map_at(
 );
 ```
 
-Copies the key and value at an unordered enumeration index to their respective outputs, sized `key_size` and `value_size` bytes.
+Copies the key and value at an unordered enumeration index to their respective output buffers.
 
 **Parameters:**
 

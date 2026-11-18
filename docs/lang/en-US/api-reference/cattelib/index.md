@@ -783,7 +783,7 @@ CATALYST_RESULT catte_utf8_to_utf16le(
 );
 ```
 
-Converts a null-terminated UTF-8 string to UTF-16LE. All valid Unicode scalars are preserved.
+Converts a null-terminated UTF-8 string to UTF-16LE. All decoded Unicode scalars after an optional initial BOM are preserved.
 
 **Parameters:**
 
@@ -896,7 +896,7 @@ CATALYST_RESULT catte_utf16le_to_utf8(
 );
 ```
 
-Converts a null-terminated UTF-16LE string to UTF-8. All valid Unicode scalars are preserved.
+Converts a null-terminated UTF-16LE string to UTF-8. All decoded Unicode scalars after an optional initial BOM are preserved.
 
 **Parameters:**
 

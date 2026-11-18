@@ -556,7 +556,7 @@ typedef CATALYST_BYTE CATALYST_STATUS_CODE;
 
 #### CATALYST_CONTEXT_CODE
 
-Identifies the context in which an operation was performed. Its meaning is unique within the associated implementation’s scope. Within Core, a context normally identifies a method within its module. Core reporting methods use their assigned context ID on every outcome, including successful results. This differs from FDEFSPEC Revision 1, which requires a zero context for Success-level results.
+Identifies the context in which an operation was performed. Its meaning is unique within the associated implementation’s scope. Within Core, a context normally identifies a method within its module. Core reporting methods use their assigned context ID on every outcome, including successful results.
 
 ```c
 typedef CATALYST_BYTE CATALYST_CONTEXT_CODE;
@@ -652,7 +652,7 @@ For `SBYTE`, `SHORT`, and `INT`, the C90 header uses `SCHAR_MIN`, `SHRT_MIN`, an
 
 ### Status code constants
 
-The following values are exposed by CATALYST. `CATALYST_STATUS_CODE_ERROR_DEPENDENCY_FAILURE` (`0x8A`) is defined by the current Core header but is not listed in FDEFSPEC Revision 1. All other unlisted status values are reserved and their meanings are undefined. An em dash in the status-defined detail column does not prohibit an implementation from defining detail at the context or operation level.
+The following values are defined by FDEFSPEC and exposed by CATALYST. All unlisted status values are reserved and their meanings are undefined. An em dash in the status-defined detail column does not prohibit an implementation from defining detail at the context or operation level.
 
 C constants use the prefix `CATALYST_STATUS_CODE_`; corresponding C++ constants use `catalyst::STATUS_CODE_`.
 

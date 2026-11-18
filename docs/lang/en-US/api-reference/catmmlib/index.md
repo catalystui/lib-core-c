@@ -110,7 +110,7 @@ CATALYST_RESULT catmm_realloc(
 
 Resizes the allocation at `*memory`, preserving the smaller of the original and requested byte counts. New bytes are zero-filled. The returned allocation has the same extent and alignment guarantees as [`catmm_alloc`](#catmm_alloc). A null allocation is treated as an allocation request, which requires a nonzero size. A zero size releases a non-null allocation and clears its pointer on success. Even an unchanged size replaces the allocation.
 
-If replacement allocation fails, the existing allocation and pointer remain unchanged. If releasing the old block fails, the pointer value is unchanged. The replacement is released on a best-effort basis; the old allocation may no longer be usable after a release failure. On successful replacement, old pointers are invalid.
+If replacement allocation fails, the existing allocation and pointer remain unchanged. If releasing the old block fails, the pointer value is unchanged, but payload access is not guaranteed. If a replacement was allocated, the function attempts to release it; failure of that cleanup is fatal. On successful replacement, old pointers are invalid.
 
 **Parameters:**
 
