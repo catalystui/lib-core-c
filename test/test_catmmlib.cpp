@@ -214,20 +214,6 @@ int main() {
         return 16;
     }
 
-    /* ---------------------------------------------------------------------------------------------
-     * Invalid argument tests.
-     * --------------------------------------------------------------------------------------------- */
-
-    printf("Testing invalid realloc: memory == 0...\n");
-    result = RESULT();
-    result = catalyst::realloc(0, 64);
-    print_result("realloc invalid memory", result);
-
-    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x02 || result.operation != 0x01 || result.detail != 0) {
-        printf("Expected invalid argument error for memory == 0.\n");
-        return 17;
-    }
-
     // Exercise the byte operations, including both overlap directions.
     BYTE source[6] = {0, 1, 2, 3, 4, 5};
     BYTE destination[6] = {0, 0, 0, 0, 0, 0};
@@ -267,16 +253,10 @@ int main() {
 
     // A direct allocation failure and a delegated realloc failure have different contexts.
     memory = 0;
-    result = catalyst::alloc(&memory, 0);
-    if (memory != 0 || result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x01 || result.operation != 0x02 || result.detail != 1) return 32;
-    result = catalyst::realloc(&memory, 0);
-    if (memory != 0 || result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x02 || result.operation != 0x02 || result.detail != 1) return 33;
     result = catalyst::alloc(&memory, CATALYST_NUINT_MAX);
     if (memory != 0 || result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x01 || result.operation != 0x04 || result.detail != 0) return 34;
     result = catalyst::realloc(&memory, CATALYST_NUINT_MAX);
     if (memory != 0 || result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW || result.context != 0x02 || result.operation != 0x02 || result.detail != 0x04) return 35;
-    result = catalyst::free(0);
-    if (result.status != STATUS_CODE_ERROR_INVALID_ARGUMENT || result.context != 0x03 || result.operation != 0x01 || result.detail != 0) return 36;
     if (catalyst::compare(destination, source, 0) != 0) return 37;
     catalyst::set(destination, (BYTE) 0, 6);
     if (destination[0] != 0) return 38;

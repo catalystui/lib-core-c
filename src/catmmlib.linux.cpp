@@ -16,18 +16,11 @@
 using namespace catalyst;
 
 // Allocation and release share context and equivalent operation IDs across backends.
-// Alloc: 01 output, 02 size, 03 page query, 04 extent, 05 rounding, 06 OS allocation, 07 success.
-// Free: 01 pointer, 02 OS release, 03 success.
+// Alloc: 03 page query, 04 extent, 05 rounding, 06 OS allocation, 07 success.
+// Free: 02 OS release, 03 success.
 
 extern "C" CATALYST_RESULT catmm_alloc(void** memory, CATALYST_NUINT size) {
-    // Validate, initialize parameters
-    if (memory == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x01, 0x01, 0);
-    }
     *memory = 0;
-    if (size == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x01, 0x02, 1);
-    }
 
     // Get system page size
     long pageSizeLong = sysconf(_SC_PAGESIZE);
@@ -62,10 +55,6 @@ extern "C" CATALYST_RESULT catmm_alloc(void** memory, CATALYST_NUINT size) {
 }
 
 extern "C" CATALYST_RESULT catmm_free(void* memory) {
-    // Validate, initialize parameters
-    if (memory == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x03, 0x01, 0);
-    }
 
     // Get header then deallocate
     BYTE* bytes = (BYTE*) memory;

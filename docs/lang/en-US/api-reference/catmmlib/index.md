@@ -9,7 +9,7 @@ Provides memory allocation, release, resizing, and byte operations.
 
 ## Conventions
 
-- All sizes are byte counts. Allocation, resizing and release report `CATALYST_RESULT` by value. Byte primitives are non-reporting and require valid non-null pointers, even for zero-length operations.
+- All sizes are byte counts. Allocation, resizing and release report `CATALYST_RESULT` by value. All caller pointers must be valid and non-null, even for zero-length byte operations; a stored allocation pointer may be null for a nonzero-size realloc request. Caller preconditions are not checked. Byte primitives are non-reporting.
 - Allocation returns zero-filled payloads; use only the requested extent. The payload is not the original page-aligned allocation base; no adjustable or over-alignment guarantee is provided.
 - Release only live CATMMLIB allocations, through the same allocator backend. Foreign pointers, repeated frees and access during release are outside the contract.
 - Copy, move, compare and set operate on any valid readable/writable byte storage, not just CATMMLIB allocations. They do not check capacity or allocate memory.
@@ -100,8 +100,6 @@ Allocates `size` zero-filled bytes and stores the address in `*memory`. The outp
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x00010700` | `SUCCESS` | Allocate payload | — |
-| `0x81010100` | `ERROR_INVALID_ARGUMENT` | Validate `memory` | Argument 0 (`memory`) |
-| `0x81010201` | `ERROR_INVALID_ARGUMENT` | Validate `size` | Argument 1 (`size`) |
 | `0x820103DD` | `ERROR_INVALID_STATE` | Query page size (Linux) | Linux `errno` if 1–255, otherwise zero. |
 | `0x90010400` | `ERROR_BUFFER_OVERFLOW` | Check header plus payload extent | — |
 | `0x90010500` | `ERROR_BUFFER_OVERFLOW` | Check page rounding (Linux) | — |
@@ -137,8 +135,6 @@ If replacement allocation fails, the existing allocation and pointer remain unch
 | `0x00020200` | `SUCCESS` | Allocate when `*memory` is null | — |
 | `0x00020300` | `SUCCESS` | Release when `size` is zero | — |
 | `0x00020700` | `SUCCESS` | Replace allocation | — |
-| `0x81020100` | `ERROR_INVALID_ARGUMENT` | Validate `memory` | Argument 0 (`memory`) |
-| `0x81020201` | `ERROR_INVALID_ARGUMENT` | Allocate when `*memory` is null | Argument 1 (`size`) |
 | `0x82020203` | `ERROR_INVALID_STATE` | Allocate when `*memory` is null | `catmm_alloc` operation `0x03`: Query page size (Linux) |
 | `0x82020302` | `ERROR_INVALID_STATE` | Release when `size` is zero | `catmm_free` operation `0x02`: native release failed. |
 | `0x82020403` | `ERROR_INVALID_STATE` | Allocate replacement | `catmm_alloc` operation `0x03`: Query page size (Linux) |
@@ -177,7 +173,6 @@ Releases a live CATMMLIB allocation at its original payload address. The caller'
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x00030300` | `SUCCESS` | Release allocation | — |
-| `0x81030100` | `ERROR_INVALID_ARGUMENT` | Validate `memory` | Argument 0 (`memory`) |
 | `0x820302DD` | `ERROR_INVALID_STATE` | Release native memory | Linux `errno` if 1–255, otherwise zero; zero on Windows/Darwin. |
 
 No payload access guarantee after release failure.

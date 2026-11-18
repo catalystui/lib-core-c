@@ -24,13 +24,13 @@ typedef struct CATALYST_MEMORY_HEADER {
     CATALYST_NUINT allocated_size;
 } CATALYST_MEMORY_HEADER;
 
-/** Allocate a nonzero number of zero-filled bytes; return a null pointer on failure. */
+/** Allocate a nonzero number of zero-filled bytes into valid output storage; write null on failure. */
 CATMMLIB_API CATALYST_RESULT catmm_alloc(void** memory, CATALYST_NUINT size);
 
-/** Resize an allocation, preserving existing bytes. A zero size frees a non-null allocation. */
+/** Resize a live allocation or allocate when *memory is null. Size must be nonzero if *memory is null; zero otherwise releases the allocation. */
 CATMMLIB_API CATALYST_RESULT catmm_realloc(void** memory, CATALYST_NUINT size);
 
-/** Release an allocation returned by CATMMLIB; the caller's pointer is not cleared. */
+/** Release a live non-null allocation returned by CATMMLIB; the caller's pointer is not cleared. */
 CATMMLIB_API CATALYST_RESULT catmm_free(void* memory);
 
 /** Copy bytes between valid non-null, non-overlapping regions; zero size or identical addresses are a no-op. */

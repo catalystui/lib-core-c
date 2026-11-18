@@ -7,14 +7,10 @@ using namespace catalyst;
 // Contexts 0x04 through 0x07 are retired; byte primitives do not report.
 
 CATALYST_RESULT catmm_realloc(void** memory, CATALYST_NUINT size) {
-    // Validate, initialize parameters
-    if (memory == 0) {
-        return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x02, 0x01, 0);
-    }
     if (*memory == 0) {
         RESULT allocResult;
         allocResult = catmm_alloc(memory, size);
-        return RESULT(allocResult.status, 0x02, 0x02, allocResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? allocResult.detail : (status_code_is_success(allocResult.status) ? 0 : allocResult.operation));
+        return RESULT(allocResult.status, 0x02, 0x02, status_code_is_success(allocResult.status) ? 0 : allocResult.operation);
     }
     if (size == 0) {
         RESULT freeResult;
@@ -32,7 +28,7 @@ CATALYST_RESULT catmm_realloc(void** memory, CATALYST_NUINT size) {
     RESULT allocResult;
     allocResult = catmm_alloc(&newMemory, size);
     if (!status_code_is_success(allocResult.status)) {
-        return RESULT(allocResult.status, 0x02, 0x04, allocResult.status == STATUS_CODE_ERROR_INVALID_ARGUMENT ? allocResult.detail : allocResult.operation);
+        return RESULT(allocResult.status, 0x02, 0x04, allocResult.operation);
     }
 
     // Copy the data
