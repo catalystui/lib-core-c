@@ -1,6 +1,8 @@
 # Assumptions
 
-Core provides foundational computing primitives. Its functions follow a common set of assumptions concerning the validity of an invocation and the outcome of an operation. These assumptions apply equally to public functions, C++ wrappers, and internal functions.
+**The caller is responsible for the validity of the invocation. The function is responsible for the outcome of the operation.**
+
+These principles apply to public C functions, C++ wrappers, and internal helpers alike.
 
 ## Contents
 
@@ -15,82 +17,80 @@ Core provides foundational computing primitives. Its functions follow a common s
 
 **A function performs validation if, and only if, that validation is necessary to determine or safely produce the outcome of its operation when all caller preconditions are satisfied.**
 
-Validation is divided into two categories: contract validation and operational validation. The distinction is whether a condition is a prerequisite for invoking a function correctly or a condition the function must evaluate to perform its intended operation.
+<div style="display:flex;flex-wrap:wrap;gap:0.85rem;margin:0.8rem 0 1rem;">
+<div style="flex:1 1 38%;min-width:min(100%, 14rem);box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);">
+<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin-bottom:0.55rem;opacity:0.85;"><circle cx="12" cy="7" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>
+<small style="opacity:0.8;">Caller responsibility</small>
 
 ### Contract Validation
 
-Contract validation establishes that the preconditions of a function are satisfied. It is the responsibility of the caller.
-
-These preconditions include, where applicable, valid readable and writable memory, accessible extents, required termination, initialized objects, live and correctly typed handles, object lifetime, alignment, non-overlap, synchronization, valid indices for direct indexed access, and nonzero configured element sizes.
-
-Core assumes that these preconditions have been satisfied. It does not repeat contract validation or report Results for violations of the calling contract. A violation is outside the guarantees of the function.
-
-For example, copying a specified number of bytes requires the caller to provide valid source and destination regions of sufficient size. The copy operation does not independently establish whether those regions are valid.
-
-This design allows a precondition established by a caller to remain established throughout subsequent operations. It avoids redundant checks and reporting, and allows foundational primitives to be composed without repeatedly paying the cost of validating the same conditions. Internal invariants are established during creation and maintained through mutation rather than repeatedly inspected to detect programmer misuse.
+<p><strong>Can the function be invoked correctly?</strong></p>
+<p>Establish valid pointers, accessible extents, initialization, lifetime, alignment, synchronization, and other documented preconditions (such as valid direct-access indices).</p>
+<p style="margin-bottom:0;">Core assumes these conditions hold. Violating them is outside the function's guarantees, not a reportable outcome.</p>
+</div>
+<div style="flex:1 1 38%;min-width:min(100%, 14rem);box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);">
+<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin-bottom:0.55rem;opacity:0.85;"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M8 12l3 3 5-6M9 2v3m6-3v3M9 19v3m6-3v3M2 9h3m-3 6h3m14-6h3m-3 6h3"/></svg>
+<small style="opacity:0.8;">Function responsibility</small>
 
 ### Operational Validation
 
-Operational validation determines whether the intended operation can succeed, even when all caller preconditions have been satisfied. It is the responsibility of the function.
+<p><strong>Can the operation succeed?</strong></p>
+<p>Detect malformed data, unrepresentable values, insufficient supplied capacity, extent overflow, allocation or I/O failure, and other reportable operational conditions.</p>
+<p style="margin-bottom:0;">Check as part of the operation, before unsafe access or irreversible changes. Never read beyond the caller's accessible extent.</p>
+</div>
+</div>
 
-Examples include malformed text encountered during decoding, unrepresentable codepoints, insufficient supplied capacity, overflow of a requested extent, allocation failures, native I/O failures, and missing values when the requested retrieval cannot produce a value.
+**Why?** Establish preconditions once, then compose operations without repeatedly checking them. Internal invariants are established during creation and maintained through mutation. This avoids redundant work without hiding genuine operational failures as caller preconditions.
 
-For example, a text conversion may receive valid source and destination pointers with accessible storage but encounter malformed encoded data or discover that the supplied destination capacity is insufficient. These are operational conditions, not violations of the calling contract.
-
-Operational validation is performed as part of the operation, rather than as a separate preliminary validation pass. Necessary checks take place before unsafe access or irreversible changes. A function must not read beyond the accessible extent established by its contract.
-
-This design allows Core to report conditions that genuinely affect the outcome of an operation without requiring the caller to perform the operation in advance to determine whether it will succeed. Operational failures must not be reclassified as caller preconditions merely to avoid validation or reporting.
+<div style="box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);margin:1rem 0;">
+<strong>Example · Decoding UTF-8</strong>
+<div style="text-align:center;margin:0.9rem 0 0.4rem;">
+<code>E2 82 AC</code> <span style="opacity:0.75;">or</span> <code>E2 00</code>
+<div style="margin-top:0.3rem;">Caller provides accessible input and valid, separate output storage.</div>
+<div style="text-align:center;line-height:1.3;padding:0.3rem 0;opacity:0.82;font-size:0.9em;" aria-hidden="true">↓</div>
+<div style="padding:0.65rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:6px;max-width:22rem;margin:auto;"><code>catte_utf8_decode</code><br/><small>Function determines encoding validity</small></div>
+<div style="text-align:center;line-height:1.3;padding:0.3rem 0;opacity:0.82;font-size:0.9em;" aria-hidden="true">↓</div>
+<div style="display:flex;flex-wrap:wrap;gap:0.65rem;justify-content:center;">
+<div style="flex:1 1 10rem;min-width:0;padding:0.65rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:6px;"><strong><code>SUCCESS</code></strong><br/>U+20AC (€)</div>
+<div style="flex:1 1 10rem;min-width:0;padding:0.65rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:6px;overflow-wrap:anywhere;"><strong><code>ERROR_MALFORMED_INPUT</code></strong><br/>Truncated sequence</div>
+</div>
+</div>
+</div>
 
 ## Results
 
 **A function returns a Result if, and only if, its intended operation requires distinguishing a meaningful warning, error, or fatal outcome from ordinary successful behavior when all caller preconditions are satisfied.**
 
-A Result describes the outcome of an operation. It is not a mechanism for acknowledging that a function was invoked correctly, nor is it required simply because a function produces output.
-
 ### Determining the Return Type
 
-First, establish the natural contract of the function: its purpose, the preconditions imposed on the caller, its ordinary outputs, and the outcomes that must be distinguished. Assume that all caller preconditions have been satisfied.
+Define the function's purpose, preconditions, ordinary outputs, and reportable outcomes. Assume all caller preconditions hold, then follow the first applicable branch:
 
-Apply the following questions in order, stopping at the first applicable answer.
+<div role="group" aria-label="Return type decision flowchart" style="margin:1rem auto;max-width:40rem;width:100%;">
+<div style="box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);display:flex;flex-direction:column;justify-content:center;text-align:center;max-width:24rem;margin:0 auto;">Start with the function's contract</div>
+<div style="text-align:center;line-height:1.3;padding:0.3rem 0;opacity:0.82;font-size:0.9em;" aria-hidden="true">↓</div>
+<div style="display:grid;grid-template-columns:minmax(0, 3fr) minmax(0, 2fr);gap:0.6rem;align-items:stretch;">
+<div style="box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);display:flex;flex-direction:column;justify-content:center;text-align:center;"><strong>Must the operation distinguish a warning, error, or fatal outcome?</strong></div>
+<div style="box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);display:flex;flex-direction:column;justify-content:center;text-align:center;border-color:color-mix(in srgb, currentColor 35%, transparent);"><small>Yes →</small><strong><code>RESULT</code></strong><small>Data via arguments</small></div>
+<div style="text-align:center;line-height:1.3;padding:0.3rem 0;opacity:0.82;font-size:0.9em;">No ↓</div><div></div>
+<div style="box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);display:flex;flex-direction:column;justify-content:center;text-align:center;"><strong>Does it produce a single ordinary value?</strong></div>
+<div style="box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);display:flex;flex-direction:column;justify-content:center;text-align:center;border-color:color-mix(in srgb, currentColor 35%, transparent);"><small>Yes →</small><strong>Value</strong><small>Corresponding Catalyst type</small></div>
+<div style="text-align:center;line-height:1.3;padding:0.3rem 0;opacity:0.82;font-size:0.9em;">No ↓</div><div></div>
+<div style="box-sizing:border-box;min-width:0;padding:1rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);display:flex;flex-direction:column;justify-content:center;text-align:center;border-color:color-mix(in srgb, currentColor 35%, transparent);"><strong><code>void</code></strong><small>Outputs via arguments or mutation</small></div><div></div>
+</div>
+</div>
 
-1. **Can the operation produce a warning, error, or fatal outcome that its contract requires the caller to distinguish?**
+Return `CATALYST_RESULT` (`RESULT` in C++) by value on every exit, including success; return additional data through arguments. Multiple outputs alone do not require a Result.
 
-   If yes, return `CATALYST_RESULT` (`RESULT` in C++). Return any additional data through output arguments. Every exit from the function returns the Result by value, including successful outcomes.
-
-   For example, memory allocation may fail despite a valid invocation, and UTF-8 decoding may encounter malformed input. Both operations require a Result.
-
-2. **Otherwise, does the function produce a single ordinary value?**
-
-   If yes, return that value directly using its corresponding Catalyst type. This includes computations, comparisons, predicates, accessors, and conversions that are total over their documented input domain.
-
-   For example, a byte comparison returns an ordering value, and a collection membership predicate returns a Boolean value.
-
-3. **Otherwise, does the function perform work without a single ordinary return value?**
-
-   Return `void`. Any necessary outputs are written through arguments, or the function mutates existing storage. Multiple output values alone do not justify a Result.
-
-   For example, copying bytes into valid destination storage and retrieving an array element at a valid index into an output buffer do not require a Result.
-
-| Function | Return Type | Reason |
+| Function | Returns | Why? |
 | --- | --- | --- |
-| `catmm_alloc` | `CATALYST_RESULT` | Allocation can fail. |
-| `catte_utf8_decode` | `CATALYST_RESULT` | Encoded data can be malformed. |
-| `catrl_map_get` | `CATALYST_RESULT` | The requested key may be absent, preventing retrieval. |
-| `catrl_map_contains` | `CATALYST_BOOL` | Presence and absence are both ordinary Boolean outcomes. |
-| `catmm_compare` | `CATALYST_SBYTE` | The comparison produces an ordinary ordering value. |
-| `catmm_copy` | `void` | Copying over valid storage has no reportable outcome or ordinary return value. |
-| `catrl_array_get` | `void` | A valid index is a caller precondition; the element is copied into an output buffer. |
+| [`catmm_alloc`](../api-reference/catmmlib/index.md#catmm_alloc) | `CATALYST_RESULT` | Allocation may fail. |
+| [`catmm_compare`](../api-reference/catmmlib/index.md#catmm_compare) | `CATALYST_SBYTE` | Comparison produces an ordinary value. |
+| [`catmm_copy`](../api-reference/catmmlib/index.md#catmm_copy) | `void` | Writes into existing storage. |
 
-Ordinary values such as zero, false, equality, an empty collection, and absence do not inherently constitute failures. A no-op alone does not require reporting. For a function that already requires a Result, a no-op follows its documented result contract.
-
-The distinction depends on the purpose of the operation. A membership query succeeds by determining whether a value exists, regardless of the answer. A retrieval operation that cannot produce its requested value may instead require reporting its absence as an error.
+Zero, false, equality, emptiness, absence, and no-ops are not inherently failures. For example, `catrl_map_contains` succeeds by returning whether a key exists; `catrl_map_get` reports an error when it cannot retrieve the requested value. An operation that already requires a Result follows its documented no-op contract.
 
 ### Reporting Boundaries
 
-Operational validation and reporting belong at the outermost function boundary responsible for the operation's observable contract and failure handling. Once the necessary conditions have been established, subsequent operations can use non-reporting primitives.
+Report at the outermost boundary responsible for operational validation and failure handling. Use non-reporting primitives once their preconditions have been established. An internal step that can still produce a reportable outcome must report it; performance is not a reason to suppress required diagnostics.
 
-An internal function that can still produce a warning, error, or fatal outcome that its caller must distinguish also returns a Result. Required diagnostics are not suppressed because a function is small, frequently invoked, or performance-sensitive.
-
-Reporting functions return the four-byte Result directly and document the validity of any output arguments on each outcome. Non-reporting functions do not construct or propagate Results.
-
-The caller is responsible for the validity of the invocation. The function is responsible for the outcome of the operation.
+Document output validity for each outcome. Non-reporting functions do not construct or propagate Results.
