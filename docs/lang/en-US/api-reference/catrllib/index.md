@@ -8,18 +8,6 @@ Provides fixed-length arrays, sets, maps, and stacks of byte-represented element
 **Library:** `catrl`  
 **Dependencies:** `catmm`
 
-## Conventions
-
-- Reporting functions return `CATALYST_RESULT` by value. Membership predicates return `CATALYST_BOOL`, count accessors return `CATALYST_NUINT`, and indexed access, removal and clear procedures return `void`. All handles must be live and correctly typed; pointers must refer to valid readable/writable storage of the required extent. Caller preconditions are not checked.
-- Element, key and value sizes are nonzero byte counts. Lengths, counts and indices count elements or associations; indices start at zero and must be less than the current length or count. An array may have zero elements.
-- Collections copy exactly the configured number of bytes. Pointers embedded in stored values are shallow copies; referenced resources remain caller-owned. Set and map key equality compares every byte, including padding. Supply consistent byte representations.
-- Inputs and outputs must not overlap. Provide buffers of the configured sizes; no typed alignment of internal bytes is promised.
-- Creation clears the output handle before attempting allocation. Any existing handle is replaced, not destroyed. Arrays allocate element storage at creation when their length is nonzero; sets, maps and stacks start without element storage and allocate it as needed.
-- Query outputs are unchanged on recoverable failure and may be unspecified after fatal failure. Recoverable mutation failures leave logical contents unchanged. Set/map enumeration order is unspecified and can change on mutation.
-- Clear retains capacity and does not securely erase bytes. After destroy is attempted, the handle must not be reused, even if cleanup reports failure. Foreign, stale or incorrectly typed handles are outside the contract. Concurrent access involving mutation or destruction requires external synchronization.
-
-On failure, detail may identify an internal reporting helper or CATMMLIB allocation operation. Collection invariants are established by creation and maintained by mutation, not repeatedly revalidated. Fatal results arising from allocation or cleanup may invalidate the affected collection.
-
 ## Type Summary
 
 | C Type | C++ Type | Description |
@@ -58,7 +46,7 @@ On failure, detail may identify an internal reporting helper or CATMMLIB allocat
 | [`catrl_set_contains`](#catrl_set_contains) | Reports whether the set contains the specified value. |
 | [`catrl_set_count`](#catrl_set_count) | Returns the number of distinct elements. |
 | [`catrl_set_at`](#catrl_set_at) | Copies the element at an unordered enumeration index into value. |
-| [`catrl_set_clear`](#catrl_set_clear) | Removes all elements without releasing `capacity` or zeroing the stored bytes. |
+| [`catrl_set_clear`](#catrl_set_clear) | Removes all elements without releasing storage capacity or zeroing the stored bytes. An empty collection is unchanged. |
 
 ### Map
 
@@ -72,7 +60,7 @@ On failure, detail may identify an internal reporting helper or CATMMLIB allocat
 | [`catrl_map_contains`](#catrl_map_contains) | Reports whether the map contains the specified key. |
 | [`catrl_map_count`](#catrl_map_count) | Returns the number of key/value associations. |
 | [`catrl_map_at`](#catrl_map_at) | Copies the key and value at an unordered enumeration index to their respective outputs, sized `key_size` and `value_size` bytes. |
-| [`catrl_map_clear`](#catrl_map_clear) | Removes all associations without releasing `capacity` or zeroing stored bytes. |
+| [`catrl_map_clear`](#catrl_map_clear) | Removes all associations without releasing storage capacity or zeroing stored bytes. |
 
 ### Stack
 
@@ -84,9 +72,11 @@ On failure, detail may identify an internal reporting helper or CATMMLIB allocat
 | [`catrl_stack_pop`](#catrl_stack_pop) | Copies the top element into value and removes it. |
 | [`catrl_stack_peek`](#catrl_stack_peek) | Copies the top element into value without removing it. |
 | [`catrl_stack_count`](#catrl_stack_count) | Returns the number of elements. |
-| [`catrl_stack_clear`](#catrl_stack_clear) | Removes all elements without releasing `capacity` or zeroing stored bytes. |
+| [`catrl_stack_clear`](#catrl_stack_clear) | Removes all elements without releasing storage capacity or zeroing stored bytes. |
 
 ## Type Details
+
+Collections own copies of their elements, keys, and values, each of the configured byte size. Embedded pointers are shallow copies; referenced resources remain caller-owned. Internal byte storage has no typed alignment guarantee. Handles must be live and correctly typed; concurrent access involving mutation or destruction requires external synchronization. A handle must not be reused after destruction is attempted, even if cleanup fails.
 
 ### CATALYST_ARRAY
 
@@ -100,7 +90,7 @@ typedef struct CATALYST_ARRAY CATALYST_ARRAY;
 
 ### CATALYST_SET
 
-Opaque handle to a set of distinct byte values. Create with [`catrl_set_create`](#catrl_set_create) and release with [`catrl_set_destroy`](#catrl_set_destroy).
+Opaque handle to a set of distinct byte values. Equality compares every byte, including padding. Enumeration order is unspecified and may change on mutation. Create with [`catrl_set_create`](#catrl_set_create) and release with [`catrl_set_destroy`](#catrl_set_destroy).
 
 ```c
 typedef struct CATALYST_SET CATALYST_SET;
@@ -110,7 +100,7 @@ typedef struct CATALYST_SET CATALYST_SET;
 
 ### CATALYST_MAP
 
-Opaque handle to a map of unique byte keys and associated values. Create with [`catrl_map_create`](#catrl_map_create) and release with [`catrl_map_destroy`](#catrl_map_destroy).
+Opaque handle to a map of unique byte keys and associated values. Key equality compares every byte, including padding. Enumeration order is unspecified and may change on mutation. Create with [`catrl_map_create`](#catrl_map_create) and release with [`catrl_map_destroy`](#catrl_map_destroy).
 
 ```c
 typedef struct CATALYST_MAP CATALYST_MAP;
@@ -136,6 +126,8 @@ typedef struct CATALYST_STACK CATALYST_STACK;
 
 ## Function Details
 
+Input and output buffers must not overlap. Creation clears the output handle before allocation and replaces any existing handle without destroying it. Recoverable mutation failures leave logical contents unchanged; fatal failures may invalidate the collection.
+
 ### Array
 
 #### catrl_array_create
@@ -148,7 +140,7 @@ CATALYST_RESULT catrl_array_create(
 );
 ```
 
-Creates a fixed-length array of length elements, each `element_size` bytes. All elements are zero-filled; zero length is valid.
+Creates a fixed-length array of length elements, each `element_size` bytes. All elements are zero-filled; zero length is valid and requires no element storage.
 
 **Parameters:**
 
@@ -217,10 +209,8 @@ Copies the element at index into value, which must hold `element_size` bytes.
 **Parameters:**
 
 `array` — Array handle.  
-`index` — Zero-based index strictly below the collection length or count.
-`value` — Writable buffer receiving the value.
-
-**Returns:** Nothing.
+`index` — Zero-based index strictly below the array length.  
+`value` — Writable buffer of at least the configured element size in bytes.
 
 **C++:** `void catalyst::array_get(const ARRAY* array, NUINT index, void* value)`.
 
@@ -240,10 +230,8 @@ Replaces the element at index with a copy of `element_size` bytes from value.
 **Parameters:**
 
 `array` — Array handle.  
-`index` — Zero-based index strictly below the collection length or count.
-`value` — Readable value to copy or match.
-
-**Returns:** Nothing.
+`index` — Zero-based index strictly below the array length.  
+`value` — Readable element of the configured byte size.
 
 **C++:** `void catalyst::array_set(ARRAY* array, NUINT index, const void* value)`.
 
@@ -260,7 +248,7 @@ Returns the fixed number of elements.
 
 `array` — Valid live array handle.
 
-**Returns:** The fixed number of elements. No validation or Result reporting is performed.
+**Returns:** The fixed number of elements.
 
 **C++:** `catalyst::NUINT catalyst::array_length(const ARRAY* array)`.
 
@@ -276,7 +264,7 @@ CATALYST_RESULT catrl_set_create(
 );
 ```
 
-Creates an empty set of `element_size`-byte elements.
+Creates an empty set of `element_size`-byte elements. Element storage is allocated as needed.
 
 **Parameters:**
 
@@ -338,7 +326,7 @@ Copies `value` into the set if no byte-identical element exists. Grows storage a
 **Parameters:**
 
 `set` — Set handle.  
-`value` — Readable value to copy or match.
+`value` — Readable element of the configured byte size.
 
 **Context:** `0x08`
 
@@ -371,9 +359,7 @@ Removes a byte-identical element. Absence or emptiness is a no-op.
 **Parameters:**
 
 `set` — Set handle.  
-`value` — Readable value to copy or match.
-
-**Returns:** Nothing. Absence or emptiness is a no-op.
+`value` — Readable element of the configured byte size.
 
 **C++:** `void catalyst::set_remove(SET* set, const void* value)`.
 
@@ -392,7 +378,7 @@ Reports whether the set contains the specified value.
 **Parameters:**
 
 `set` — Set handle.  
-`value` — Readable value to copy or match.
+`value` — Readable element of the configured byte size.
 
 **Returns:** `TRUE` if present, otherwise `FALSE`.
 
@@ -411,7 +397,7 @@ Returns the number of distinct elements.
 
 `set` — Valid live set handle.
 
-**Returns:** The number of distinct elements. No validation or Result reporting is performed.
+**Returns:** The number of distinct elements.
 
 **C++:** `catalyst::NUINT catalyst::set_count(const SET* set)`.
 
@@ -431,10 +417,8 @@ Copies the element at an unordered enumeration index into value.
 **Parameters:**
 
 `set` — Set handle.  
-`index` — Zero-based index strictly below the collection length or count.
-`value` — Writable buffer receiving the value.
-
-**Returns:** Nothing.
+`index` — Zero-based index strictly below the collection count.  
+`value` — Writable buffer of at least the configured element size in bytes.
 
 **C++:** `void catalyst::set_at(const SET* set, NUINT index, void* value)`.
 
@@ -447,13 +431,11 @@ void catrl_set_clear(
 );
 ```
 
-Removes all elements without releasing `capacity` or zeroing the stored bytes.
+Removes all elements without releasing storage capacity or zeroing the stored bytes. An empty collection is unchanged.
 
 **Parameters:**
 
 `set` — Set handle.
-
-**Returns:** Nothing. Absence or emptiness is a no-op.
 
 **C++:** `void catalyst::set_clear(SET* set)`.
 
@@ -470,7 +452,7 @@ CATALYST_RESULT catrl_map_create(
 );
 ```
 
-Creates an empty map with fixed `key_size` and `value_size` bytes per association.
+Creates an empty map with fixed `key_size` and `value_size` bytes per association. Element storage is allocated as needed.
 
 **Parameters:**
 
@@ -536,7 +518,7 @@ Retrieves the value associated with a byte-identical key. If the key is absent, 
 
 `map` — Map handle.  
 `key` — Readable key of the configured key size.  
-`value` — Writable buffer receiving the value.
+`value` — Writable buffer of at least the configured value size in bytes.
 
 **Context:** `0x10`
 
@@ -566,7 +548,7 @@ Inserts a key/value association or updates an existing key without increasing th
 
 `map` — Map handle.  
 `key` — Readable key of the configured key size.  
-`value` — Readable value to copy or match.
+`value` — Readable value of the configured byte size.
 
 **Context:** `0x11`
 
@@ -599,8 +581,6 @@ Removes an association with a byte-identical key. Absence or emptiness is a no-o
 
 `map` — Map handle.  
 `key` — Readable key of the configured key size.
-
-**Returns:** Nothing. Absence or emptiness is a no-op.
 
 **C++:** `void catalyst::map_remove(MAP* map, const void* key)`.
 
@@ -638,7 +618,7 @@ Returns the number of key/value associations.
 
 `map` — Valid live map handle.
 
-**Returns:** The number of key/value associations. No validation or Result reporting is performed.
+**Returns:** The number of key/value associations.
 
 **C++:** `catalyst::NUINT catalyst::map_count(const MAP* map)`.
 
@@ -659,11 +639,9 @@ Copies the key and value at an unordered enumeration index to their respective o
 **Parameters:**
 
 `map` — Map handle.  
-`index` — Zero-based index strictly below the collection length or count.
-`key` — Writable buffer receiving the key.  
-`value` — Writable buffer receiving the value.
-
-**Returns:** Nothing.
+`index` — Zero-based index strictly below the collection count.  
+`key` — Writable buffer of at least the configured key size in bytes.  
+`value` — Writable buffer of at least the configured value size in bytes.
 
 **C++:** `void catalyst::map_at(const MAP* map, NUINT index, void* key, void* value)`.
 
@@ -676,13 +654,11 @@ void catrl_map_clear(
 );
 ```
 
-Removes all associations without releasing `capacity` or zeroing stored bytes.
+Removes all associations without releasing storage capacity or zeroing stored bytes. An empty collection is unchanged.
 
 **Parameters:**
 
 `map` — Map handle.
-
-**Returns:** Nothing. Absence or emptiness is a no-op.
 
 **C++:** `void catalyst::map_clear(MAP* map)`.
 
@@ -698,7 +674,7 @@ CATALYST_RESULT catrl_stack_create(
 );
 ```
 
-Creates an empty stack with `element_size` bytes per element.
+Creates an empty stack with `element_size` bytes per element. Element storage is allocated as needed.
 
 **Parameters:**
 
@@ -760,7 +736,7 @@ Copies value to the top of the stack. Grows storage as needed.
 **Parameters:**
 
 `stack` — Stack handle.  
-`value` — Readable value to copy or match.
+`value` — Readable element of the configured byte size.
 
 **Context:** `0x19`
 
@@ -792,7 +768,7 @@ Copies the top element into `value` and removes it. An empty stack returns `ERRO
 **Parameters:**
 
 `stack` — Stack handle.  
-`value` — Writable buffer receiving the value.
+`value` — Writable buffer of at least the configured element size in bytes.
 
 **Context:** `0x1A`
 
@@ -820,7 +796,7 @@ Copies the top element into `value` without removing it. An empty stack returns 
 **Parameters:**
 
 `stack` — Stack handle.  
-`value` — Writable buffer receiving the value.
+`value` — Writable buffer of at least the configured element size in bytes.
 
 **Context:** `0x1B`
 
@@ -846,7 +822,7 @@ Returns the number of elements.
 
 `stack` — Valid live stack handle.
 
-**Returns:** The number of elements. No validation or Result reporting is performed.
+**Returns:** The number of elements.
 
 **C++:** `catalyst::NUINT catalyst::stack_count(const STACK* stack)`.
 
@@ -859,12 +835,10 @@ void catrl_stack_clear(
 );
 ```
 
-Removes all elements without releasing `capacity` or zeroing stored bytes.
+Removes all elements without releasing storage capacity or zeroing stored bytes. An empty collection is unchanged.
 
 **Parameters:**
 
 `stack` — Stack handle.
-
-**Returns:** Nothing. Absence or emptiness is a no-op.
 
 **C++:** `void catalyst::stack_clear(STACK* stack)`.

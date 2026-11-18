@@ -7,7 +7,7 @@ Provides the foundational numeric types, text representations, and operation res
 **Namespace:** `catalyst`  
 **Library:** Header-only.
 
-The definitions are based on the [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/specifications/languages/fdefspec/). This reference describes the actual Core API; see [Context code](#catalyst_context_code) and [Status code constants](#status-code-constants) for Core-specific result conventions.
+The definitions are based on the [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/specifications/languages/fdefspec/).
 
 ## Contents
 
@@ -556,7 +556,7 @@ typedef CATALYST_BYTE CATALYST_STATUS_CODE;
 
 #### CATALYST_CONTEXT_CODE
 
-Identifies the context in which an operation was performed. Its meaning is unique within the associated implementation’s scope. Within Core, a context normally identifies a method within its module. The value is implementation-defined for every status level, including `SUCCESS_NOOP`. Core reporting methods use their assigned context ID on every outcome, including successful results. This differs from FDEFSPEC Revision 1, which requires a zero context for Success-level results.
+Identifies the context in which an operation was performed. Its meaning is unique within the associated implementation’s scope. Within Core, a context normally identifies a method within its module. Core reporting methods use their assigned context ID on every outcome, including successful results. This differs from FDEFSPEC Revision 1, which requires a zero context for Success-level results.
 
 ```c
 typedef CATALYST_BYTE CATALYST_CONTEXT_CODE;
@@ -566,7 +566,7 @@ typedef CATALYST_BYTE CATALYST_CONTEXT_CODE;
 
 #### CATALYST_OPERATION_CODE
 
-Identifies a distinct operation within an execution context. Within a Core method, each distinct result-reporting site has its own operation code, including successful sites. Meanings are local to that context; consult the reporting method’s reference. Undefined values are unknown. The returned context identifies the reporting method on success as well as on other outcomes.
+Identifies a distinct operation within an execution context. Within a Core method, each distinct result-reporting site has its own operation code, including successful sites. Meanings are local to that context; consult the reporting method’s reference. Undefined values are unknown.
 
 ```c
 typedef CATALYST_BYTE CATALYST_OPERATION_CODE;
@@ -606,7 +606,7 @@ typedef struct CATALYST_RESULT {
 
 Results are written in this reference as `0xSSCCOODD`, where `SS`, `CC`, `OO`, and `DD` are the status, context, operation, and detail bytes, respectively. The notation expresses field significance, not a requirement to pack the fields into a native integer.
 
-Reporting Core functions return `CATALYST_RESULT` by value (C++ wrappers return `RESULT`); callers may ignore the returned value. Non-reporting functions return their ordinary value or `void`. A C aggregate has no automatic default initialization unless initialized by its declaration or storage duration.
+A C aggregate has no automatic default initialization unless initialized by its declaration or storage duration.
 
 **C++:** `catalyst::RESULT` publicly derives from this structure. See [RESULT members](#result-members).
 
@@ -697,7 +697,7 @@ C constants use the prefix `CATALYST_STATUS_CODE_`; corresponding C++ constants 
 | `CATALYST_STATUS_CODE_FATAL` | `0xC0` | Operation failed due to an unrecoverable error. | — |
 | `CATALYST_STATUS_CODE_FATAL_INVARIANT_VIOLATION` | `0xC1` | A fundamental invariant was violated, indicating critical logic error or data corruption. | — |
 
-For `ERROR_DEPENDENCY_FAILURE`, the operation code identifies the reporting operation, which may also identify the failing dependency. The detail byte is the dependency’s status, not a context or operation code. The constant is exposed by the headers; current CATMMLIB, CATTELIB and CATRLLIB reporting functions instead use the applicable status and documented detail for their failure sites.
+For `ERROR_DEPENDENCY_FAILURE`, the operation code identifies the reporting operation, which may also identify the failing dependency. The detail byte is the dependency’s status, not a context or operation code.
 
 ### Status level mask
 
@@ -728,7 +728,7 @@ These C++ constants have no corresponding named C constants.
 
 ## Function Details
 
-The status predicates classify status levels, not individual named status values. They do not produce an operation result. The C forms are comparison-expression macros; the C++ functions return a `catalyst::BOOL`.
+The status predicates classify status levels, not individual named status values. The C forms are comparison-expression macros; the C++ functions return a `catalyst::BOOL`.
 
 ### CATALYST_STATUS_CODE_IS_SUCCESS
 

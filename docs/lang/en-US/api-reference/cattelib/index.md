@@ -7,16 +7,6 @@ Provides encoding, decoding, length, and conversion operations for ASCII, Window
 **Namespace:** `catalyst`  
 **Library:** `catte`
 
-## Conventions
-
-- Reporting functions return `CATALYST_RESULT` by value. ASCII decoding and ASCII/Windows-1252 length counting return ordinary values directly. All pointer arguments require valid readable or writable storage.
-- Encode/decode process one codepoint, including U+0000. They neither append a separate terminator nor skip a BOM.
-- `produced` counts destination code units; `consumed` counts source code units. UTF-16LE counts two-byte code units, not bytes.
-- Encoders require up to four UTF-8 units or two UTF-16LE units of writable storage. Single-unit decoders require a readable code unit; UTF-8/UTF-16LE decoders require the indicated sequence or an accessible NUL terminator if truncated. UTF-8 decoding never reads past that terminator. No arbitrary unterminated buffer extent is inferred.
-- Length and conversion functions consume null-terminated input; lengths exclude the terminator. UTF-8 and UTF-16LE length/conversion functions skip an initial BOM (EF BB BF or FF FE), not internal U+FEFF. A malformed terminated string needs no padding after its terminator.
-- Conversions write a zero code-unit terminator on `SUCCESS` or `WARNING_PARTIAL`. A warning indicates substitution with `?`. On error, the destination may contain a converted prefix without a terminator; the function does not roll back earlier writes. A zero capacity is rejected before writing. The two conversions without a capacity argument require a destination large enough for the entire converted string and its terminator.
-- Use separate storage for input and output and for distinct output arguments. Caller pointers, accessible extents, and required termination are preconditions, not checked by Core. Encoding validity, representability and explicitly supplied destination capacities are operational checks.
-
 ## Constant Summary
 
 | Constant | Description |
@@ -81,6 +71,8 @@ Provides encoding, decoding, length, and conversion operations for ASCII, Window
 On Windows/Cygwin, expands to `__declspec(dllexport)` with `CATTELIB_EXPORTS`, or `__declspec(dllimport)` with `CATTELIB_USE_DLL`. Otherwise empty.
 
 ## Function Details
+
+Single-codepoint encoders and decoders treat U+0000 as data. They neither append a separate terminator nor skip a byte order mark (BOM). Input and output storage, including distinct output arguments, must not overlap.
 
 ### ASCII
 
@@ -288,12 +280,12 @@ CATALYST_RESULT catte_utf8_encode(
 );
 ```
 
-Encodes a Unicode scalar as one to four UTF-8 code units. The destination must accommodate four units. `produced` is zero until encoding succeeds; an invalid scalar leaves the destination unchanged.
+Encodes a Unicode scalar as one to four UTF-8 code units. `produced` is zero until encoding succeeds; an invalid scalar leaves the destination unchanged.
 
 **Parameters:**
 
 `codepoint` — Codepoint to encode.  
-`utf8w` — Writable buffer for up to four code units.  
+`utf8w` — Writable buffer of at least four code units.  
 `produced` — Receives the number of code units written.
 
 **Context:** `0x07`
@@ -326,7 +318,7 @@ Decodes one Unicode scalar from UTF-8 and reports the number of code units consu
 
 **Parameters:**
 
-`utf8` — Readable input containing the complete encoded sequence.  
+`utf8` — Readable input containing the indicated sequence or an accessible NUL terminator if truncated. No bytes beyond the terminator are read.  
 `codepoint` — Receives the decoded codepoint.  
 `consumed` — Receives the number of code units read.
 
@@ -371,7 +363,7 @@ CATALYST_RESULT catte_utf8_length(
 );
 ```
 
-Counts Unicode scalars in a null-terminated UTF-8 string, excluding the terminator and any leading BOM. This is not a byte or grapheme count. `length` is zero on failure.
+Counts Unicode scalars in a null-terminated UTF-8 string, excluding the terminator and any leading UTF-8 BOM (EF BB BF). Malformed terminated input requires no padding beyond its terminator. This is not a byte or grapheme count. `length` is zero on failure.
 
 **Parameters:**
 
@@ -415,13 +407,13 @@ CATALYST_RESULT catte_utf16le_encode(
 );
 ```
 
-Encodes a Unicode scalar as one UTF-16LE code unit or a surrogate pair. The destination must accommodate two units. `produced` is zero until encoding succeeds; an invalid scalar leaves the destination unchanged.
+Encodes a Unicode scalar as one UTF-16LE code unit or a surrogate pair. `produced` is zero until encoding succeeds; an invalid scalar leaves the destination unchanged.
 
 **Parameters:**
 
 `codepoint` — Codepoint to encode.  
-`utf16lew` — Writable buffer for up to two code units.  
-`produced` — Receives the number of code units written.
+`utf16lew` — Writable buffer of at least two UTF-16LE code units.  
+`produced` — Receives the number of UTF-16LE code units written (not bytes).
 
 **Context:** `0x0A`
 
@@ -451,9 +443,9 @@ Decodes one Unicode scalar from UTF-16LE and reports the number of code units co
 
 **Parameters:**
 
-`utf16le` — Readable input containing the complete encoded sequence.  
+`utf16le` — Readable input containing the indicated sequence or an accessible NUL code unit if truncated.  
 `codepoint` — Receives the decoded codepoint.  
-`consumed` — Receives the number of code units read.
+`consumed` — Receives the number of UTF-16LE code units read (not bytes).
 
 **Context:** `0x0B`
 
@@ -479,7 +471,7 @@ CATALYST_RESULT catte_utf16le_length(
 );
 ```
 
-Counts Unicode scalars in a null-terminated UTF-16LE string, excluding the terminator and any leading BOM. A surrogate pair counts as one scalar. `length` is zero on failure.
+Counts Unicode scalars in a null-terminated UTF-16LE string, excluding the terminator and any leading UTF-16LE BOM (FF FE). Malformed terminated input requires no padding beyond its terminator. A surrogate pair counts as one scalar. `length` is zero on failure.
 
 **Parameters:**
 
@@ -501,7 +493,9 @@ Counts Unicode scalars in a null-terminated UTF-16LE string, excluding the termi
 
 ### String conversions
 
-Conversions write a destination terminator on success or warning; no destination BOM is added. On failure a written prefix may remain unterminated. There is no rollback or produced-length output.
+Conversions write a zero code-unit terminator on success or warning; no destination BOM is added. On failure a written prefix may remain unterminated. There is no rollback or produced-length output. A zero supplied capacity is rejected before writing.
+
+UTF-8 and UTF-16LE source strings skip an initial BOM (EF BB BF or FF FE, respectively), not internal U+FEFF. Malformed terminated input requires no padding after the terminator.
 
 #### catte_ascii_to_cp1252
 
@@ -512,12 +506,12 @@ CATALYST_RESULT catte_ascii_to_cp1252(
 );
 ```
 
-Converts a null-terminated ASCII string to Windows-1252. Destination must hold at least the source byte count plus one terminator; no capacity parameter is provided. Source bytes above 0x7F are replaced by '?'.
+Converts a null-terminated ASCII string to Windows-1252. Source bytes above 0x7F are replaced by '?'.
 
 **Parameters:**
 
 `ascii` — Readable null-terminated input.  
-`cp1252w` — Writable destination buffer.
+`cp1252w` — Writable destination buffer of at least the source byte count plus one terminator.
 
 **Context:** `0x0D`
 
@@ -546,7 +540,7 @@ Converts a null-terminated ASCII string to UTF-8. Source bytes above 0x7F are re
 **Parameters:**
 
 `ascii` — Readable null-terminated input.  
-`utf8w` — Writable destination buffer.  
+`utf8w` — Writable destination buffer of at least `capacity` code units.  
 `capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x0E`
@@ -578,8 +572,8 @@ Converts a null-terminated ASCII string to UTF-16LE. Source bytes above 0x7F are
 **Parameters:**
 
 `ascii` — Readable null-terminated input.  
-`utf16lew` — Writable destination buffer.  
-`capacity` — Destination capacity in code units, including the terminator.
+`utf16lew` — Writable destination buffer of at least `capacity` code units.  
+`capacity` — Destination capacity in two-byte UTF-16LE code units, including the terminator.
 
 **Context:** `0x0F`
 
@@ -604,12 +598,12 @@ CATALYST_RESULT catte_cp1252_to_ascii(
 );
 ```
 
-Converts a null-terminated Windows-1252 string to ASCII. Destination must hold at least the source byte count plus one terminator; no capacity parameter is provided. Undefined source bytes and values not representable in ASCII are replaced by '?'.
+Converts a null-terminated Windows-1252 string to ASCII. Undefined source bytes and values not representable in ASCII are replaced by '?'.
 
 **Parameters:**
 
 `cp1252` — Readable null-terminated input.  
-`ascii` — Writable destination buffer.
+`ascii` — Writable destination buffer of at least the source byte count plus one terminator.
 
 **Context:** `0x10`
 
@@ -638,7 +632,7 @@ Converts a null-terminated Windows-1252 string to UTF-8. Undefined source bytes 
 **Parameters:**
 
 `cp1252` — Readable null-terminated input.  
-`utf8w` — Writable destination buffer.  
+`utf8w` — Writable destination buffer of at least `capacity` code units.  
 `capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x11`
@@ -670,8 +664,8 @@ Converts a null-terminated Windows-1252 string to UTF-16LE. Undefined source byt
 **Parameters:**
 
 `cp1252` — Readable null-terminated input.  
-`utf16lew` — Writable destination buffer.  
-`capacity` — Destination capacity in code units, including the terminator.
+`utf16lew` — Writable destination buffer of at least `capacity` code units.  
+`capacity` — Destination capacity in two-byte UTF-16LE code units, including the terminator.
 
 **Context:** `0x12`
 
@@ -702,7 +696,7 @@ Converts a null-terminated UTF-8 string to ASCII. Unrepresentable values are rep
 **Parameters:**
 
 `utf8` — Readable null-terminated input.  
-`ascii` — Writable destination buffer.  
+`ascii` — Writable destination buffer of at least `capacity` code units.  
 `capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x13`
@@ -748,7 +742,7 @@ Converts a null-terminated UTF-8 string to Windows-1252. Unrepresentable values 
 **Parameters:**
 
 `utf8` — Readable null-terminated input.  
-`cp1252w` — Writable destination buffer.  
+`cp1252w` — Writable destination buffer of at least `capacity` code units.  
 `capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x14`
@@ -794,8 +788,8 @@ Converts a null-terminated UTF-8 string to UTF-16LE. All valid Unicode scalars a
 **Parameters:**
 
 `utf8` — Readable null-terminated input.  
-`utf16lew` — Writable destination buffer.  
-`capacity` — Destination capacity in code units, including the terminator.
+`utf16lew` — Writable destination buffer of at least `capacity` code units.  
+`capacity` — Destination capacity in two-byte UTF-16LE code units, including the terminator.
 
 **Context:** `0x15`
 
@@ -839,7 +833,7 @@ Converts a null-terminated UTF-16LE string to ASCII. Unrepresentable values are 
 **Parameters:**
 
 `utf16le` — Readable null-terminated input.  
-`ascii` — Writable destination buffer.  
+`ascii` — Writable destination buffer of at least `capacity` code units.  
 `capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x16`
@@ -873,7 +867,7 @@ Converts a null-terminated UTF-16LE string to Windows-1252. Unrepresentable valu
 **Parameters:**
 
 `utf16le` — Readable null-terminated input.  
-`cp1252w` — Writable destination buffer.  
+`cp1252w` — Writable destination buffer of at least `capacity` code units.  
 `capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x17`
@@ -907,7 +901,7 @@ Converts a null-terminated UTF-16LE string to UTF-8. All valid Unicode scalars a
 **Parameters:**
 
 `utf16le` — Readable null-terminated input.  
-`utf8w` — Writable destination buffer.  
+`utf8w` — Writable destination buffer of at least `capacity` code units.  
 `capacity` — Destination capacity in code units, including the terminator.
 
 **Context:** `0x18`

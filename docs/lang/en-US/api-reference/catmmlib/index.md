@@ -7,15 +7,6 @@ Provides memory allocation, release, resizing, and byte operations.
 **Namespace:** `catalyst`  
 **Library:** `catmm`
 
-## Conventions
-
-- All sizes are byte counts. Allocation, resizing and release report `CATALYST_RESULT` by value. All caller pointers must be valid and non-null, even for zero-length byte operations; a stored allocation pointer may be null for a nonzero-size realloc request. Caller preconditions are not checked. Byte primitives are non-reporting.
-- Allocation returns zero-filled payloads; use only the requested extent. The payload is not the original page-aligned allocation base; no adjustable or over-alignment guarantee is provided.
-- Release only live CATMMLIB allocations, through the same allocator backend. Foreign pointers, repeated frees and access during release are outside the contract.
-- Copy, move, compare and set operate on any valid readable/writable byte storage, not just CATMMLIB allocations. They do not check capacity or allocate memory.
-
-In result patterns, `DD` is a runtime detail byte (`0x00`–`0xFF`). Allocation and release use the same context and operation IDs across backends.
-
 ## Type Summary
 
 | C Type | C++ Type | Description |
@@ -86,11 +77,11 @@ CATALYST_RESULT catmm_alloc(
 );
 ```
 
-Allocates `size` zero-filled bytes and stores the address in `*memory`. The output is cleared before allocation and remains null on failure. An existing pointer is replaced without releasing its allocation.
+Allocates `size` zero-filled bytes and stores the address in `*memory`. The output is cleared before allocation and remains null on failure. An existing pointer is replaced without releasing its allocation. Use only the requested payload extent. The returned address is not the original page-aligned allocation base; no adjustable or over-alignment guarantee is provided.
 
 **Parameters:**
 
-`memory` — Receives the allocation address; cleared on failure.  
+`memory` — Writable pointer storage receiving the allocation address.  
 `size` — Requested allocation size in bytes; must be nonzero.
 
 **Context:** `0x01`
@@ -117,13 +108,13 @@ CATALYST_RESULT catmm_realloc(
 );
 ```
 
-Resizes the allocation at `*memory`, preserving the smaller of the original and requested byte counts. New bytes are zero-filled. A null allocation is treated as an allocation request, which requires a nonzero size. A zero size releases a non-null allocation and clears its pointer on success. Even an unchanged size replaces the allocation.
+Resizes the allocation at `*memory`, preserving the smaller of the original and requested byte counts. New bytes are zero-filled. The returned allocation has the same extent and alignment guarantees as [`catmm_alloc`](#catmm_alloc). A null allocation is treated as an allocation request, which requires a nonzero size. A zero size releases a non-null allocation and clears its pointer on success. Even an unchanged size replaces the allocation.
 
 If replacement allocation fails, the existing allocation and pointer remain unchanged. If releasing the old block fails, the pointer value is unchanged. The replacement is released on a best-effort basis; the old allocation may no longer be usable after a release failure. On successful replacement, old pointers are invalid.
 
 **Parameters:**
 
-`memory` — Address of the allocation pointer; updated on success.  
+`memory` — Writable storage containing null or the original payload address of a live CATMMLIB allocation from the same backend; updated on success.  
 `size` — New allocation size in bytes; zero releases a non-null allocation.
 
 **Context:** `0x02`
@@ -147,8 +138,6 @@ If replacement allocation fails, the existing allocation and pointer remain unch
 | `0x91020406` | `ERROR_ALLOCATION_FAILED` | Allocate replacement | `catmm_alloc` operation `0x06`: Allocate native memory |
 | `0xC1020502` | `FATAL_INVARIANT_VIOLATION` | Release replacement after old-block release failed | `catmm_free` operation `0x02`: cleanup failed. |
 
-If the allocation pointer is null and the requested size is zero, the delegated allocation reports argument 1 as invalid.
-
 **C++:** `catalyst::RESULT catalyst::realloc(void** memory, NUINT size)`.
 
 
@@ -160,11 +149,11 @@ CATALYST_RESULT catmm_free(
 );
 ```
 
-Releases a live CATMMLIB allocation at its original payload address. The caller's pointer is not cleared, and the allocation metadata must be intact.
+Releases a live CATMMLIB allocation at its original payload address. The caller's pointer is not cleared. The allocation metadata must be intact; the payload must not be accessed during release. After release is attempted, payload access is not guaranteed.
 
 **Parameters:**
 
-`memory` — Original payload address of a live CATMMLIB allocation; must not be null.
+`memory` — Original payload address of a live CATMMLIB allocation from the same backend.
 
 **Context:** `0x03`
 
@@ -175,12 +164,12 @@ Releases a live CATMMLIB allocation at its original payload address. The caller'
 | `0x00030300` | `SUCCESS` | Release allocation | — |
 | `0x820302DD` | `ERROR_INVALID_STATE` | Release native memory | Linux `errno` if 1–255, otherwise zero; zero on Windows/Darwin. |
 
-No payload access guarantee after release failure.
-
 **C++:** `catalyst::RESULT catalyst::free(void* memory)`.
 
 
 ### Byte operations
+
+These functions operate on any valid byte storage, including memory not allocated by CATMMLIB.
 
 #### catmm_copy
 
@@ -192,12 +181,12 @@ void catmm_copy(
 );
 ```
 
-Copies `size` bytes from `source` to `destination`. The regions must not overlap unless both pointers are identical. Zero size or identical addresses leaves storage unchanged. The caller establishes the storage preconditions; this function does not validate pointers or capacity.
+Copies `size` bytes from `source` to `destination`. The regions must not overlap unless both pointers are identical. Zero size or identical addresses leaves storage unchanged.
 
 **Parameters:**
 
-`destination` — Valid non-null writable destination region.  
-`source` — Valid non-null readable source region.  
+`destination` — Valid non-null writable destination region of at least `size` bytes.  
+`source` — Valid non-null readable source region of at least `size` bytes.  
 `size` — Number of bytes to process.
 
 **C++:** `void catalyst::copy(void* destination, const void* source, NUINT size)`.
@@ -213,12 +202,12 @@ void catmm_move(
 );
 ```
 
-Copies `size` bytes from `source` to `destination`, preserving the original source bytes when the regions overlap. Zero size or identical addresses leaves storage unchanged. The caller establishes the storage preconditions; this function does not validate pointers or capacity.
+Copies `size` bytes from `source` to `destination`, preserving the original source bytes when the regions overlap. Zero size or identical addresses leaves storage unchanged.
 
 **Parameters:**
 
-`destination` — Valid non-null writable destination region.  
-`source` — Valid non-null readable source region.  
+`destination` — Valid non-null writable destination region of at least `size` bytes.  
+`source` — Valid non-null readable source region of at least `size` bytes.  
 `size` — Number of bytes to process.
 
 **C++:** `void catalyst::move(void* destination, const void* source, NUINT size)`.
@@ -234,12 +223,12 @@ CATALYST_SBYTE catmm_compare(
 );
 ```
 
-Compares `size` unsigned bytes lexicographically. Empty regions and identical addresses compare equal. The caller establishes the storage preconditions; this function does not validate pointers or capacity.
+Compares `size` unsigned bytes lexicographically. Empty regions and identical addresses compare equal.
 
 **Parameters:**
 
-`first` — Valid non-null first readable region.  
-`second` — Valid non-null second readable region.  
+`first` — Valid non-null first readable region of at least `size` bytes.  
+`second` — Valid non-null second readable region of at least `size` bytes.  
 `size` — Number of bytes to process.
 
 **Returns:** −1, 0, or 1 when the first region precedes, equals, or follows the second.
@@ -257,11 +246,11 @@ void catmm_set(
 );
 ```
 
-Fills the `size`-byte region at `memory` with `value`. Zero size leaves storage unchanged. The caller establishes the storage preconditions; this function does not validate pointers or capacity.
+Fills the `size`-byte region at `memory` with `value`. Zero size leaves storage unchanged.
 
 **Parameters:**
 
-`memory` — Valid non-null writable memory region.  
+`memory` — Valid non-null writable region of at least `size` bytes.  
 `value` — Byte to write throughout the region.  
 `size` — Number of bytes to process.
 
