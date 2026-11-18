@@ -4,6 +4,14 @@
 
 *The native foundational C ABI libraries for CatalystUI.*
 
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.4rem;margin:0.35rem 0 1rem;">
+<a href="https://github.com/catalystui/lib-core-c/blob/main/LICENSE"><img style="display:block;width:auto;height:20px;max-width:100% !important;padding:0 !important;margin:0;" src="https://img.shields.io/badge/License-Apache--2.0-blue?style=flat-square&amp;logo=apache&amp;logoColor=white" alt="License: Apache-2.0"></a>
+<img style="display:block;width:auto;height:20px;max-width:100% !important;padding:0 !important;margin:0;" src="https://img.shields.io/badge/Interface-C%20ABI-00599C?style=flat-square&amp;logo=c&amp;logoColor=white" alt="Interface: C ABI">
+<img style="display:block;width:auto;height:20px;max-width:100% !important;padding:0 !important;margin:0;" src="https://img.shields.io/badge/Build-CMake%204.3%2B-064F8C?style=flat-square&amp;logo=cmake&amp;logoColor=white" alt="Build: CMake 4.3+">
+<a href="https://github.com/catalystui/lib-core-c/commits/main"><img style="display:block;width:auto;height:20px;max-width:100% !important;padding:0 !important;margin:0;" src="https://img.shields.io/github/last-commit/catalystui/lib-core-c/main?style=flat-square&amp;logo=github&amp;logoColor=white" alt="Last commit"></a>
+<a href="https://github.com/catalystui/lib-core-c/actions/workflows/compile.yml"><img style="display:block;width:auto;height:20px;max-width:100% !important;padding:0 !important;margin:0;" src="https://img.shields.io/github/actions/workflow/status/catalystui/lib-core-c/compile.yml?branch=main&amp;style=flat-square&amp;logo=github&amp;logoColor=white" alt="Compile status"></a>
+</div>
+
 Core provides portable building blocks based on the [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/specifications/languages/fdefspec/) and [Foundational Relations Specification (FRELSPEC)](https://catalystui.org/specifications/languages/frelspec/). Its native C ABI allows libraries to share data representations and operations independently of programming language, operating system, or hardware.
 
 Core is designed to be implementable even on 8-bit systems. It is independent of every layer and sensory domain of the CatalystUI model, and exists to support them all.
