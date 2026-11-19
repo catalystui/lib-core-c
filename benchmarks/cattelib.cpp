@@ -10,6 +10,7 @@ static const NUINT SCALARS = 1024;
 static const NUINT REPEAT = 1024 * 1024;
 static const NUINT STRING_REPEAT = 3000;
 static CODEPOINT points[SCALARS];
+static CODEPOINT cp1252_points[SCALARS];
 static BYTE utf8_units[SCALARS][4];
 static UTF16LE_CODE_UNIT utf16_units[SCALARS][2];
 static BYTE utf8[SCALARS * 4 + 1];
@@ -36,6 +37,7 @@ static void prepare(BOOL mixed) {
         for (NUINT j = 0; j < p8; ++j) utf8[n8++] = utf8_units[i][j];
         for (NUINT j = 0; j < p16; ++j) utf16[n16++] = utf16_units[i][j];
         cp1252[i] = mixed ? (BYTE) (0x80u + (i % 32)) : (BYTE) v;
+        catte_cp1252_decode(cp1252 + i, &cp1252_points[i]);
     }
     utf8[n8] = 0;
     utf16[n16] = UTF16LE_CODE_UNIT(0, 0);
@@ -152,8 +154,8 @@ static double run(int mode) {
             case 13: r = catte_cp1252_to_utf16le(cp1252, output16, SCALARS*2+1); checksum += output16[index].lsb; break;
             case 14: r = catte_cp1252_decode(cp1252+index, &decoded); checksum += (UINT) decoded; break;
             case 15: r = table_decode(cp1252+index, &decoded); checksum += (UINT) decoded; break;
-            case 16: r = catte_cp1252_encode(points[index], output8); checksum += output8[0]; break;
-            default: r = table_encode(points[index], output8); checksum += output8[0]; break;
+            case 16: r = catte_cp1252_encode(cp1252_points[index], output8); checksum += output8[0]; break;
+            default: r = table_encode(cp1252_points[index], output8); checksum += output8[0]; break;
         }
         checksum += (UINT) r;
     }
