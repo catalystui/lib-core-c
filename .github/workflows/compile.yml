@@ -205,3 +205,26 @@ jobs:
           (Get-Content "$avr/cmakecfg.h" -Raw).Replace('TARGET_STDC_VERSION 0','TARGET_STDC_VERSION 199901L') | Set-Content "$avr/cmakecfg.h"
           clang++ -target avr -mmcu=atmega328p -ffreestanding -std=c++11 -pedantic-errors -Os -Iinclude "-I$avr" -c src/cattelib.cpp -o "$avr/cattelib-wider.o"
           file "$avr/cattelib-fallback.o" "$avr/cattelib-wider.o"
+
+      - name: Compare arithmetic widths
+        if: matrix.arch == 'x64'
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $dir = 'target/ci/widths'
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          $s = Get-Content src/cattelib.cpp -Raw
+          $s.Replace('#if CATALYST_SUPPORTS_32BIT','#if 0').Replace('#elif CATALYST_SUPPORTS_16BIT','#elif 0').Replace('#if CATALYST_SUPPORTS_16BIT && !CATALYST_SUPPORTS_32BIT','#if 0') | Set-Content "$dir/byte.cpp"
+          $s.Replace('#if CATALYST_SUPPORTS_32BIT','#if 0').Replace('#if CATALYST_SUPPORTS_16BIT && !CATALYST_SUPPORTS_32BIT','#if CATALYST_SUPPORTS_16BIT') | Set-Content "$dir/word.cpp"
+          # Compare scalar arithmetic at 64 bits without changing the public ABI.
+          $s64 = $s.Replace('CATALYST_SUPPORTS_32BIT','CATALYST_SUPPORTS_64BIT')
+          $s64 = [regex]::Replace($s64,'\bUINT\b','ULONG')
+          $s64 | Set-Content "$dir/long.cpp"
+          foreach ($compiler in 'g++','clang++') {
+            foreach ($variant in 'byte','word','current','long') {
+              $source = if ($variant -eq 'current') { 'src/cattelib.cpp' } else { "$dir/$variant.cpp" }
+              & $compiler -O3 -std=c++11 -Iinclude -Itarget/ci/generated $source benchmarks/cattelib.cpp -o "$dir/$variant"
+              Write-Host "WIDTH $compiler $variant"
+              & "./$dir/$variant"
+              size "$dir/$variant"
+            }
+          }
