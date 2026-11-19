@@ -1754,7 +1754,16 @@ int main() {
                 } while (++low != 0);
             } while (++middle != 0);
         } while (++high <= 0x10);
-        // This exhaustive host test is run with a pointer-width count capable of holding the total.
+        // Independent reference: Python's UTF-8 and UTF-16LE encoders over every Unicode scalar.
+#if TARGET_SIZEOF_VOID_P == 8
+        const NUINT expected_fingerprint = ((NUINT) 0xD880C8CDUL << 32) | (NUINT) 0xC0173000UL;
+#else
+        const NUINT expected_fingerprint = (NUINT) 0xC0173000UL;
+#endif
+        if (checked != (NUINT) 1112064UL || fingerprint != expected_fingerprint) {
+            std::printf("FAIL: exhaustive Unicode scalar count or encoding fingerprint\n");
+            return 1;
+        }
         std::printf("PASS: exhaustive Unicode scalars=%lu fingerprint=%lX\n",
             (unsigned long) checked, (unsigned long) fingerprint);
     }
