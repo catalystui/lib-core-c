@@ -172,6 +172,29 @@ CATALYST_NUINT catte_cp1252_length(CATALYST_CP1252 cp1252) {
 
 /* Encode a known Unicode scalar into four writable UTF-8 units. */
 static BYTE encode_utf8_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w) {
+#if CATALYST_SUPPORTS_32BIT
+    UINT value = CODEPOINT(codepoint);
+    if (value < (UINT) 0x80u) {
+        utf8w[0] = (BYTE) value;
+        return 1;
+    }
+    if (value < (UINT) 0x800u) {
+        utf8w[0] = (BYTE) ((UINT) 0xC0u | (value >> 6));
+        utf8w[1] = (BYTE) ((UINT) 0x80u | (value & (UINT) 0x3Fu));
+        return 2;
+    }
+    if (value < (UINT) 0x10000u) {
+        utf8w[0] = (BYTE) ((UINT) 0xE0u | (value >> 12));
+        utf8w[1] = (BYTE) ((UINT) 0x80u | ((value >> 6) & (UINT) 0x3Fu));
+        utf8w[2] = (BYTE) ((UINT) 0x80u | (value & (UINT) 0x3Fu));
+        return 3;
+    }
+    utf8w[0] = (BYTE) ((UINT) 0xF0u | (value >> 18));
+    utf8w[1] = (BYTE) ((UINT) 0x80u | ((value >> 12) & (UINT) 0x3Fu));
+    utf8w[2] = (BYTE) ((UINT) 0x80u | ((value >> 6) & (UINT) 0x3Fu));
+    utf8w[3] = (BYTE) ((UINT) 0x80u | (value & (UINT) 0x3Fu));
+    return 4;
+#else
     // Prepare code units
     BYTE codepoint1 = codepoint.byte1;
     BYTE codepoint2 = codepoint.byte2;
@@ -215,6 +238,7 @@ static BYTE encode_utf8_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8
         utf8w[3] = (BYTE) ((BYTE) 0x80u | t3);
         return 4;
     }
+#endif
 }
 
 CATALYST_RESULT catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, CATALYST_NUINT* produced) {
@@ -267,10 +291,15 @@ CATALYST_RESULT catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepo
             // Invalid continuation byte
             return RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x07, 0);
         }
+#if CATALYST_SUPPORTS_32BIT
+        *codepoint = CODEPOINT(((UINT) (codeunit0 & (BYTE) 0x1Fu) << 6) |
+                              (UINT) (codeunit1 & (BYTE) 0x3Fu));
+#else
         BYTE t0 = (BYTE) (codeunit0 & (BYTE) 0x1Fu);
         BYTE t1 = (BYTE) (codeunit1 & (BYTE) 0x3Fu);
         codepoint->byte2 = (BYTE) (t0 >> 2);
         codepoint->byte3 = (BYTE) (((t0 & (BYTE) 0x03u) << 6) | t1);
+#endif
         *consumed = 2;
         return RESULT(STATUS_CODE_SUCCESS, 0x08, 0x08, 0);
     }
@@ -300,11 +329,17 @@ CATALYST_RESULT catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepo
             // Invalid surrogate codepoint
             return RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x0D, 0);
         }
-        BYTE t0 = (BYTE) (codeunit0 & 0x0Fu);
-        BYTE t1 = (BYTE) (codeunit1 & 0x3Fu);
-        BYTE t2 = (BYTE) (codeunit2 & 0x3Fu);
+#if CATALYST_SUPPORTS_32BIT
+        *codepoint = CODEPOINT(((UINT) (codeunit0 & (BYTE) 0x0Fu) << 12) |
+                              ((UINT) (codeunit1 & (BYTE) 0x3Fu) << 6) |
+                              (UINT) (codeunit2 & (BYTE) 0x3Fu));
+#else
+        BYTE t0 = (BYTE) (codeunit0 & (BYTE) 0x0Fu);
+        BYTE t1 = (BYTE) (codeunit1 & (BYTE) 0x3Fu);
+        BYTE t2 = (BYTE) (codeunit2 & (BYTE) 0x3Fu);
         codepoint->byte2 = (BYTE) ((t0 << 4) | (t1 >> 2));
-        codepoint->byte3 = (BYTE) (((t1 & 0x03u) << 6) | t2);
+        codepoint->byte3 = (BYTE) (((t1 & (BYTE) 0x03u) << 6) | t2);
+#endif
         *consumed = 3;
         return RESULT(STATUS_CODE_SUCCESS, 0x08, 0x0E, 0);
     }
@@ -338,6 +373,12 @@ CATALYST_RESULT catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepo
             // Codepoints above U+10FFFF
             return RESULT(STATUS_CODE_ERROR_MALFORMED_INPUT, 0x08, 0x14, 0);
         }
+#if CATALYST_SUPPORTS_32BIT
+        *codepoint = CODEPOINT(((UINT) (codeunit0 & (BYTE) 0x07u) << 18) |
+                              ((UINT) (codeunit1 & (BYTE) 0x3Fu) << 12) |
+                              ((UINT) (codeunit2 & (BYTE) 0x3Fu) << 6) |
+                              (UINT) (codeunit3 & (BYTE) 0x3Fu));
+#else
         BYTE t0 = (BYTE) (codeunit0 & (BYTE) 0x07u);
         BYTE t1 = (BYTE) (codeunit1 & (BYTE) 0x3Fu);
         BYTE t2 = (BYTE) (codeunit2 & (BYTE) 0x3Fu);
@@ -346,6 +387,7 @@ CATALYST_RESULT catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepo
         codepoint->byte1 = (BYTE) ((t0 << 2) | (t1 >> 4));
         codepoint->byte2 = (BYTE) (((t1 & (BYTE) 0x0Fu) << 4) | (t2 >> 2));
         codepoint->byte3 = (BYTE) (((t2 & (BYTE) 0x03u) << 6) | t3);
+#endif
         *consumed = 4;
         return RESULT(STATUS_CODE_SUCCESS, 0x08, 0x15, 0); // Valid 4-byte sequence
     }
@@ -364,6 +406,11 @@ CATALYST_RESULT catte_utf8_length(CATALYST_UTF8 utf8, CATALYST_NUINT* length) {
 
     NUINT count = 0;
     while (*utf8) {
+        if (*utf8 < (BYTE) 0x80u) {
+            ++count;
+            ++utf8;
+            continue;
+        }
         CODEPOINT codepoint;
         NUINT consumed;
         RESULT decodeResult;
@@ -393,6 +440,15 @@ static BYTE encode_utf16le_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_U
     }
 
     // Surrogate pair
+#if CATALYST_SUPPORTS_32BIT
+    UINT value = (UINT) CODEPOINT(codepoint) - (UINT) 0x10000u;
+    UINT high = (UINT) 0xD800u | (value >> 10);
+    UINT low = (UINT) 0xDC00u | (value & (UINT) 0x03FFu);
+    utf16lew[0].lsb = (BYTE) high;
+    utf16lew[0].msb = (BYTE) (high >> 8);
+    utf16lew[1].lsb = (BYTE) low;
+    utf16lew[1].msb = (BYTE) (low >> 8);
+#else
     BYTE x2 = (BYTE) (codepoint1 - (BYTE) 0x01u);
     BYTE x1 = codepoint2;
     BYTE x0 = codepoint3;
@@ -409,6 +465,7 @@ static BYTE encode_utf16le_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_U
     utf16lew[0].lsb = hs_lo8;
     utf16lew[1].msb = (BYTE) ((BYTE) 0xDCu | ls_hi2);
     utf16lew[1].lsb = ls_lo8;
+#endif
     return 2;
 }
 
@@ -465,6 +522,11 @@ CATALYST_RESULT catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOIN
     }
 
     // Extract the 20-bit codepoint from the surrogate pair
+#if CATALYST_SUPPORTS_32BIT
+    UINT high = ((UINT) (codeunit0 & (BYTE) 0x03u) << 8) | (UINT) codeunit1;
+    UINT low = ((UINT) (codeunit2 & (BYTE) 0x03u) << 8) | (UINT) codeunit3;
+    *codepoint = CODEPOINT((UINT) 0x10000u + ((high << 10) | low));
+#else
     BYTE hs_hi = (BYTE) (codeunit0 & (BYTE) 0x03u);
     BYTE hs_lo = codeunit1;
     BYTE ls_hi = (BYTE) (codeunit2 & (BYTE) 0x03u);
@@ -478,6 +540,7 @@ CATALYST_RESULT catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOIN
     codepoint->byte1 = (BYTE) (p2 + (BYTE) 0x01u);
     codepoint->byte2 = p1;
     codepoint->byte3 = p0;
+#endif
     *consumed = 2;
     return RESULT(STATUS_CODE_SUCCESS, 0x0B, 0x08, 0);
 }
@@ -492,6 +555,11 @@ CATALYST_RESULT catte_utf16le_length(CATALYST_UTF16LE utf16le, CATALYST_NUINT* l
 
     NUINT count = 0;
     while (utf16le[0].msb != 0 || utf16le[0].lsb != 0) {
+        if (utf16le[0].msb < (BYTE) 0xD8u || utf16le[0].msb > (BYTE) 0xDFu) {
+            ++count;
+            ++utf16le;
+            continue;
+        }
         CODEPOINT codepoint;
         NUINT consumed;
         RESULT decodeResult;
@@ -619,12 +687,17 @@ CATALYST_RESULT catte_cp1252_to_utf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8
         RESULT decodeResult;
         NUINT i;
 
-        decodeResult = catte_cp1252_decode(cp1252 + read, &codepoint);
-        if (status_code_is_warning(decodeResult.status)) {
-            status = STATUS_CODE_WARNING_PARTIAL;
-        }
+        if (cp1252[read] < (BYTE) 0x80u) {
+            output[0] = cp1252[read];
+            produced = 1;
+        } else {
+            decodeResult = catte_cp1252_decode(cp1252 + read, &codepoint);
+            if (status_code_is_warning(decodeResult.status)) {
+                status = STATUS_CODE_WARNING_PARTIAL;
+            }
 
-        produced = encode_utf8_scalar(codepoint, output);
+            produced = encode_utf8_scalar(codepoint, output);
+        }
 
         if (produced >= (capacity - write)) {
             return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x11, 0x06, 0);
@@ -658,12 +731,18 @@ CATALYST_RESULT catte_cp1252_to_utf16le(CATALYST_CP1252 cp1252, CATALYST_UTF16LE
         RESULT decodeResult;
         NUINT i;
 
-        decodeResult = catte_cp1252_decode(cp1252 + read, &codepoint);
-        if (status_code_is_warning(decodeResult.status)) {
-            status = STATUS_CODE_WARNING_PARTIAL;
-        }
+        if (cp1252[read] < (BYTE) 0x80u) {
+            output[0].msb = 0;
+            output[0].lsb = cp1252[read];
+            produced = 1;
+        } else {
+            decodeResult = catte_cp1252_decode(cp1252 + read, &codepoint);
+            if (status_code_is_warning(decodeResult.status)) {
+                status = STATUS_CODE_WARNING_PARTIAL;
+            }
 
-        produced = encode_utf16le_scalar(codepoint, output);
+            produced = encode_utf16le_scalar(codepoint, output);
+        }
 
         if (produced >= (capacity - write)) {
             return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x12, 0x06, 0);
@@ -702,14 +781,19 @@ CATALYST_RESULT catte_utf8_to_ascii(CATALYST_UTF8 utf8, CATALYST_ASCIIW asciiw, 
         RESULT decodeResult;
         RESULT encodeResult;
 
-        decodeResult = catte_utf8_decode(utf8, &codepoint, &consumed);
-        if (!status_code_is_success(decodeResult.status)) {
-            return RESULT(decodeResult.status, 0x13, 0x04, decodeResult.operation);
-        }
+        if (utf8[0] < (BYTE) 0x80u) {
+            consumed = 1;
+            output[0] = utf8[0];
+        } else {
+            decodeResult = catte_utf8_decode(utf8, &codepoint, &consumed);
+            if (!status_code_is_success(decodeResult.status)) {
+                return RESULT(decodeResult.status, 0x13, 0x04, decodeResult.operation);
+            }
 
-        encodeResult = catte_ascii_encode(codepoint, output);
-        if (status_code_is_warning(encodeResult.status)) {
-            status = STATUS_CODE_WARNING_PARTIAL;
+            encodeResult = catte_ascii_encode(codepoint, output);
+            if (status_code_is_warning(encodeResult.status)) {
+                status = STATUS_CODE_WARNING_PARTIAL;
+            }
         }
 
         if ((capacity - write) <= 1) {
@@ -745,14 +829,19 @@ CATALYST_RESULT catte_utf8_to_cp1252(CATALYST_UTF8 utf8, CATALYST_CP1252W cp1252
         RESULT decodeResult;
         RESULT encodeResult;
 
-        decodeResult = catte_utf8_decode(utf8, &codepoint, &consumed);
-        if (!status_code_is_success(decodeResult.status)) {
-            return RESULT(decodeResult.status, 0x14, 0x04, decodeResult.operation);
-        }
+        if (utf8[0] < (BYTE) 0x80u) {
+            consumed = 1;
+            output[0] = utf8[0];
+        } else {
+            decodeResult = catte_utf8_decode(utf8, &codepoint, &consumed);
+            if (!status_code_is_success(decodeResult.status)) {
+                return RESULT(decodeResult.status, 0x14, 0x04, decodeResult.operation);
+            }
 
-        encodeResult = catte_cp1252_encode(codepoint, output);
-        if (status_code_is_warning(encodeResult.status)) {
-            status = STATUS_CODE_WARNING_PARTIAL;
+            encodeResult = catte_cp1252_encode(codepoint, output);
+            if (status_code_is_warning(encodeResult.status)) {
+                status = STATUS_CODE_WARNING_PARTIAL;
+            }
         }
 
         if ((capacity - write) <= 1) {
@@ -788,12 +877,19 @@ CATALYST_RESULT catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf1
         RESULT decodeResult;
         NUINT i;
 
-        decodeResult = catte_utf8_decode(utf8, &codepoint, &consumed);
-        if (!status_code_is_success(decodeResult.status)) {
-            return RESULT(decodeResult.status, 0x15, 0x04, decodeResult.operation);
-        }
+        if (utf8[0] < (BYTE) 0x80u) {
+            consumed = 1;
+            output[0].msb = 0;
+            output[0].lsb = utf8[0];
+            produced = 1;
+        } else {
+            decodeResult = catte_utf8_decode(utf8, &codepoint, &consumed);
+            if (!status_code_is_success(decodeResult.status)) {
+                return RESULT(decodeResult.status, 0x15, 0x04, decodeResult.operation);
+            }
 
-        produced = encode_utf16le_scalar(codepoint, output);
+            produced = encode_utf16le_scalar(codepoint, output);
+        }
 
         if (produced >= (capacity - write)) {
             return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x15, 0x06, 0);
@@ -832,14 +928,19 @@ CATALYST_RESULT catte_utf16le_to_ascii(CATALYST_UTF16LE utf16le, CATALYST_ASCIIW
         RESULT decodeResult;
         RESULT encodeResult;
 
-        decodeResult = catte_utf16le_decode(utf16le, &codepoint, &consumed);
-        if (!status_code_is_success(decodeResult.status)) {
-            return RESULT(decodeResult.status, 0x16, 0x04, decodeResult.operation);
-        }
+        if (utf16le[0].msb == 0 && utf16le[0].lsb < (BYTE) 0x80u) {
+            consumed = 1;
+            output[0] = utf16le[0].lsb;
+        } else {
+            decodeResult = catte_utf16le_decode(utf16le, &codepoint, &consumed);
+            if (!status_code_is_success(decodeResult.status)) {
+                return RESULT(decodeResult.status, 0x16, 0x04, decodeResult.operation);
+            }
 
-        encodeResult = catte_ascii_encode(codepoint, output);
-        if (status_code_is_warning(encodeResult.status)) {
-            status = STATUS_CODE_WARNING_PARTIAL;
+            encodeResult = catte_ascii_encode(codepoint, output);
+            if (status_code_is_warning(encodeResult.status)) {
+                status = STATUS_CODE_WARNING_PARTIAL;
+            }
         }
 
         if ((capacity - write) <= 1) {
@@ -875,14 +976,19 @@ CATALYST_RESULT catte_utf16le_to_cp1252(CATALYST_UTF16LE utf16le, CATALYST_CP125
         RESULT decodeResult;
         RESULT encodeResult;
 
-        decodeResult = catte_utf16le_decode(utf16le, &codepoint, &consumed);
-        if (!status_code_is_success(decodeResult.status)) {
-            return RESULT(decodeResult.status, 0x17, 0x04, decodeResult.operation);
-        }
+        if (utf16le[0].msb == 0 && utf16le[0].lsb < (BYTE) 0x80u) {
+            consumed = 1;
+            output[0] = utf16le[0].lsb;
+        } else {
+            decodeResult = catte_utf16le_decode(utf16le, &codepoint, &consumed);
+            if (!status_code_is_success(decodeResult.status)) {
+                return RESULT(decodeResult.status, 0x17, 0x04, decodeResult.operation);
+            }
 
-        encodeResult = catte_cp1252_encode(codepoint, output);
-        if (status_code_is_warning(encodeResult.status)) {
-            status = STATUS_CODE_WARNING_PARTIAL;
+            encodeResult = catte_cp1252_encode(codepoint, output);
+            if (status_code_is_warning(encodeResult.status)) {
+                status = STATUS_CODE_WARNING_PARTIAL;
+            }
         }
 
         if ((capacity - write) <= 1) {
@@ -918,12 +1024,18 @@ CATALYST_RESULT catte_utf16le_to_utf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W u
         RESULT decodeResult;
         NUINT i;
 
-        decodeResult = catte_utf16le_decode(utf16le, &codepoint, &consumed);
-        if (!status_code_is_success(decodeResult.status)) {
-            return RESULT(decodeResult.status, 0x18, 0x04, decodeResult.operation);
-        }
+        if (utf16le[0].msb == 0 && utf16le[0].lsb < (BYTE) 0x80u) {
+            consumed = 1;
+            output[0] = utf16le[0].lsb;
+            produced = 1;
+        } else {
+            decodeResult = catte_utf16le_decode(utf16le, &codepoint, &consumed);
+            if (!status_code_is_success(decodeResult.status)) {
+                return RESULT(decodeResult.status, 0x18, 0x04, decodeResult.operation);
+            }
 
-        produced = encode_utf8_scalar(codepoint, output);
+            produced = encode_utf8_scalar(codepoint, output);
+        }
 
         if (produced >= (capacity - write)) {
             return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x18, 0x06, 0);
