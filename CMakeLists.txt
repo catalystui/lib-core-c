@@ -7,27 +7,6 @@ metadata("catalyst" 1 0 0 "alpha.2" "Foundational C ABI libraries for CatalystUI
 configure("${TARGET_VENDOR}" "${TARGET_SYSTEM}" "${TARGET_ARCHITECTURE}")
 define("cmake/CMakeConfig.h" "cmakecfg.h")
 
-# Establish exact scalar widths and IEEE 754 format support without executing target code.
-include(CheckTypeSize)
-foreach(type SHORT INT LONG FLOAT DOUBLE)
-    string(TOLOWER "${type}" name)
-    check_type_size("${name}" CATALYST_TARGET_SIZEOF_${type} LANGUAGE C)
-endforeach()
-include(CheckCXXSourceCompiles)
-if(CMAKE_C_COMPILER_ID STREQUAL CMAKE_CXX_COMPILER_ID AND
-   CMAKE_C_COMPILER_VERSION STREQUAL CMAKE_CXX_COMPILER_VERSION)
-    check_cxx_source_compiles("#include <limits>
-typedef char check[(sizeof(float) == 4 && std::numeric_limits<float>::is_iec559) ? 1 : -1];
-int main() { return 0; }" CATALYST_TARGET_IEC559_SINGLE)
-    check_cxx_source_compiles("#include <limits>
-typedef char check[(sizeof(double) == 8 && std::numeric_limits<double>::is_iec559) ? 1 : -1];
-int main() { return 0; }" CATALYST_TARGET_IEC559_DOUBLE)
-else()
-    set(CATALYST_TARGET_IEC559_SINGLE 0)
-    set(CATALYST_TARGET_IEC559_DOUBLE 0)
-endif()
-define("config/catalystcfg.h.in" "catalystcfg.h")
-
 # cattelib
 add_library(cattelib_shared SHARED)
 add_library(cattelib_static STATIC)
