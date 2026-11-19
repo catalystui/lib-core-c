@@ -1764,8 +1764,14 @@ int main() {
             std::printf("FAIL: exhaustive Unicode scalar count or encoding fingerprint\n");
             return 1;
         }
-        std::printf("PASS: exhaustive Unicode scalars=%lu fingerprint=%lX\n",
+#if TARGET_SIZEOF_VOID_P == 8
+        std::printf("PASS: exhaustive Unicode scalars=%lu fingerprint=%08lX%08lX\n",
+            (unsigned long) checked, (unsigned long) (fingerprint >> 32),
+            (unsigned long) (fingerprint & (NUINT) 0xFFFFFFFFUL));
+#else
+        std::printf("PASS: exhaustive Unicode scalars=%lu fingerprint=%08lX\n",
             (unsigned long) checked, (unsigned long) fingerprint);
+#endif
     }
 #endif
 
@@ -1779,7 +1785,7 @@ int main() {
         writable[0].msb = 0x12;
         writable[1].lsb = 0x78;
         writable[1].msb = 0x56;
-        const BYTE* bytes = (const BYTE*) units;
+        const unsigned char* bytes = (const unsigned char*) units;
         if (sizeof(CATALYST_CODEPOINT) != 4 || sizeof(CATALYST_RESULT) != 4 ||
             sizeof(UTF16LE_CODE_UNIT) != 2 || bytes[0] != 0x34 || bytes[1] != 0x12 ||
             bytes[2] != 0x78 || bytes[3] != 0x56 || sizeof(NUINT) != sizeof(void*) ||
