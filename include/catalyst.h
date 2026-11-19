@@ -145,22 +145,6 @@ typedef const CATALYST_UTF8_CODE_UNIT* CATALYST_UTF8;
 typedef struct CATALYST_UTF16LE_CODE_UNIT {
     CATALYST_BYTE lsb; /* Low byte of the UTF-16 code unit; first byte in UTF-16LE storage. */
     CATALYST_BYTE msb; /* High byte of the UTF-16 code unit; second byte in UTF-16LE storage. */
-#ifdef __cplusplus
-    CATALYST_UTF16LE_CODE_UNIT() : lsb(0), msb(0) {}
-    CATALYST_UTF16LE_CODE_UNIT(CATALYST_BYTE msb, CATALYST_BYTE lsb) : lsb(lsb), msb(msb) {}
-#if CATALYST_SUPPORTS_16BIT
-    explicit CATALYST_UTF16LE_CODE_UNIT(CATALYST_USHORT value)
-        : lsb((CATALYST_BYTE) value), msb((CATALYST_BYTE) (value >> 8)) {}
-    CATALYST_UTF16LE_CODE_UNIT& operator=(CATALYST_USHORT value) {
-        lsb = (CATALYST_BYTE) value;
-        msb = (CATALYST_BYTE) (value >> 8);
-        return *this;
-    }
-    operator CATALYST_USHORT() const {
-        return (CATALYST_USHORT) (((CATALYST_USHORT) msb << 8) | (CATALYST_USHORT) lsb);
-    }
-#endif
-#endif
 } CATALYST_UTF16LE_CODE_UNIT;
 
 /* Two ordered, non-overlapping byte fields occupy the entire object, in C and C++. */

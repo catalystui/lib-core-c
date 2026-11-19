@@ -158,6 +158,18 @@ jobs:
           g++ -O3 -std=c++98 -pedantic-errors -Iinclude "-I$fallback" src/cattelib.cpp test/test_cattelib.cpp -o "$fallback/test"
           & "./$fallback/test"
 
+          # Exercise the intermediate-width algorithms on the same host.
+          (Get-Content "$fallback/cmakecfg.h" -Raw).Replace('TARGET_SIZEOF_SHORT 0','TARGET_SIZEOF_SHORT 2') | Set-Content "$fallback/cmakecfg.h"
+          @'
+          #include "catalyst.h"
+          #if !CATALYST_SUPPORTS_16BIT || CATALYST_SUPPORTS_32BIT || !CATALYST_SUPPORTS_64BIT
+          #error "Expected 16-bit intermediate arithmetic with the required pointer-width representation."
+          #endif
+          '@ | gcc -std=c90 -pedantic-errors -Iinclude "-I$fallback" -x c -c -o "$fallback/headers16.o" -
+          g++ -O3 -std=c++98 -pedantic-errors -Iinclude "-I$fallback" src/cattelib.cpp test/test_cattelib.cpp -o "$fallback/test16"
+          & "./$fallback/test16"
+          (Get-Content "$fallback/cmakecfg.h" -Raw).Replace('TARGET_SIZEOF_SHORT 2','TARGET_SIZEOF_SHORT 0') | Set-Content "$fallback/cmakecfg.h"
+
           # The numeric header can also expose only mandatory byte types.
           (Get-Content "$fallback/cmakecfg.h" -Raw).Replace('TARGET_SIZEOF_LONG 8','TARGET_SIZEOF_LONG 0') | Set-Content "$fallback/cmakecfg.h"
           @'
@@ -185,7 +197,7 @@ jobs:
           #include "catalyst.h"
           #include "cattelib.h"
           #if !CATALYST_SUPPORTS_16BIT || CATALYST_SUPPORTS_32BIT || CATALYST_SUPPORTS_64BIT
-          #error "AVR fallback configuration must not use wider scalar arithmetic."
+          #error "AVR intermediate configuration must expose 16-bit but not 32-bit or 64-bit types."
           #endif
           '@ | clang -target avr -mmcu=atmega328p -ffreestanding -std=c90 -pedantic-errors -Iinclude "-I$avr" -x c -c -o "$avr/headers.o" -
           clang++ -target avr -mmcu=atmega328p -ffreestanding -std=c++98 -pedantic-errors -Os -Iinclude "-I$avr" -c src/cattelib.cpp -o "$avr/cattelib-fallback.o"

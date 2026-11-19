@@ -502,13 +502,16 @@ static BYTE encode_utf16le_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_U
 #if CATALYST_SUPPORTS_16BIT && !CATALYST_SUPPORTS_32BIT
     USHORT value = (USHORT) (((USHORT) codepoint.byte2 << 8) | (USHORT) codepoint.byte3);
     if (codepoint.byte1 == 0) {
-        utf16lew[0] = value;
+        utf16lew[0].lsb = (BYTE) value;
+        utf16lew[0].msb = (BYTE) (value >> 8);
         return 1;
     }
     USHORT high = (USHORT) ((USHORT) 0xD800u | ((USHORT) (codepoint.byte1 - (BYTE) 1) << 6) | (value >> 10));
     USHORT low = (USHORT) ((USHORT) 0xDC00u | (value & (USHORT) 0x03FFu));
-    utf16lew[0] = high;
-    utf16lew[1] = low;
+    utf16lew[0].lsb = (BYTE) high;
+    utf16lew[0].msb = (BYTE) (high >> 8);
+    utf16lew[1].lsb = (BYTE) low;
+    utf16lew[1].msb = (BYTE) (low >> 8);
     return 2;
 #else
     // Prepare code units
@@ -962,7 +965,7 @@ CATALYST_RESULT catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf1
 
     while (utf8[0] != (BYTE) '\0') {
         CODEPOINT codepoint;
-        UTF16LE_CODE_UNIT output[2];
+        CATALYST_UTF16LE_CODE_UNIT output[2];
         NUINT consumed;
         NUINT produced;
         RESULT decodeResult;
