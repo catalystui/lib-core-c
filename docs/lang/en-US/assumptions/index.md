@@ -6,12 +6,99 @@ These principles apply to public C functions, C++ wrappers, and internal helpers
 
 ## Contents
 
+- [Numerics and Arithmetic](#numerics-and-arithmetic)
+  - [Numeric Representations](#numeric-representations)
+  - [Arithmetic](#arithmetic)
 - [Validation](#validation)
   - [Contract Validation](#contract-validation)
   - [Operational Validation](#operational-validation)
 - [Results](#results)
   - [Determining the Return Type](#determining-the-return-type)
   - [Reporting Boundaries](#reporting-boundaries)
+
+## Numerics and Arithmetic
+
+**Core depends on Catalyst's numerical guarantees, not the numerical flexibility of its implementation language. Every fundamental operation must be implementable on an 8-bit system.**
+
+### Numeric Representations
+
+The [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/specifications/languages/fdefspec/) defines the exact composition and interpretation of numeric values. C and C++ types implement these definitions; they do not replace them.
+
+<div style="box-sizing:border-box;padding:1.2rem;border:1px solid color-mix(in srgb, currentColor 19%, transparent);border-radius:12px;background:color-mix(in srgb, currentColor 3%, transparent);margin:1rem 0;">
+<div style="text-align:center;font-weight:600;margin-bottom:0.9rem;">Fixed-width integer representations</div>
+<div style="display:flex;flex-direction:column;gap:0.75rem;max-width:35rem;margin:auto;">
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.4rem 0.85rem;">
+<div style="flex:1 1 13rem;min-width:0;"><strong><code>BYTE / SBYTE</code></strong><br/><small style="overflow-wrap:anywhere;">Required</small></div>
+<div style="flex:1 1 12rem;min-width:0;display:flex;align-items:center;gap:0.25rem;" aria-label="8 bits"><span style="flex:0 1 calc((100% - 1.75rem) / 8);aspect-ratio:1;border:1px solid color-mix(in srgb, currentColor 45%, transparent);border-radius:3px;background:color-mix(in srgb, currentColor 17%, transparent);"></span></div>
+<small style="min-width:3.5rem;text-align:right;">8 bits</small>
+</div>
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.4rem 0.85rem;">
+<div style="flex:1 1 13rem;min-width:0;"><strong><code>USHORT / SHORT</code></strong><br/><small style="overflow-wrap:anywhere;">CATALYST_SUPPORTS_16BIT</small></div>
+<div style="flex:1 1 12rem;min-width:0;display:flex;align-items:center;gap:0.25rem;" aria-label="16 bits"><span style="flex:0 1 calc((100% - 1.75rem) / 8);aspect-ratio:1;border:1px solid color-mix(in srgb, currentColor 24%, transparent);border-radius:3px;background:color-mix(in srgb, currentColor 7%, transparent);"></span><span style="flex:0 1 calc((100% - 1.75rem) / 8);aspect-ratio:1;border:1px solid color-mix(in srgb, currentColor 24%, transparent);border-radius:3px;background:color-mix(in srgb, currentColor 7%, transparent);"></span></div>
+<small style="min-width:3.5rem;text-align:right;">16 bits</small>
+</div>
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.4rem 0.85rem;">
+<div style="flex:1 1 13rem;min-width:0;"><strong><code>UINT / INT</code></strong><br/><small style="overflow-wrap:anywhere;">CATALYST_SUPPORTS_32BIT</small></div>
+<div style="flex:1 1 12rem;min-width:0;display:flex;align-items:center;gap:0.25rem;" aria-label="32 bits"><span style="flex:0 1 calc((100% - 1.75rem) / 8);aspect-ratio:1;border:1px solid color-mix(in srgb, currentColor 24%, transparent);border-radius:3px;background:color-mix(in srgb, currentColor 7%, transparent);"></span><span style="flex:0 1 calc((100% - 1.75rem) / 8);aspect-ratio:1;border:1px solid color-mix(in srgb, currentColor 24%, transparent);border-radius:3px;background:color-mix(in srgb, currentColor 7%, transparent);"></span><span style="flex:0 1 calc((100% - 1.75rem) / 8);aspect-ratio:1;border:1px solid color-mix(in srgb, currentColor 24%, transparent);border-radius:3px;background:color-mix(in srgb, currentColor 7%, transparent);"></span><span style="flex:0 1 calc((100% - 1.75rem) / 8);aspect-ratio:1;border:1px solid color-mix(in srgb, currentColor 24%, transparent);border-radius:3px;background:color-mix(in srgb, currentColor 7%, transparent);"></span></div>
+<small style="min-width:3.5rem;text-align:right;">32 bits</small>
+</div>
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.4rem 0.85rem;">
+<div style="flex:1 1 13rem;min-width:0;"><strong><code>ULONG / LONG</code></strong><br/><small style="overflow-wrap:anywhere;">CATALYST_SUPPORTS_64BIT</small></div>
+<div style="flex:1 1 12rem;min-width:0;display:flex;align-items:center;gap:0.25rem;" aria-label="64 bits"><span style="flex:0 1 calc((100% - 1.75rem) / 8);aspect-ratio:1;border:1px solid color-mix(in srgb, currentColor 24%, transparent);border-radius:3px;background:color-mix(in srgb, currentColor 7%, transparent);"></span><span style="flex:0 1 calc((100% - 1.75rem) / 8);aspect-ratio:1;border:1px solid color-mix(in srgb, currentColor 24%, transparent);border-radius:3px;background:color-mix(in srgb, currentColor 7%, transparent);"></span><span style="flex:0 1 calc((100% - 1.75rem) / 8);aspect-ratio:1;border:1px solid color-mix(in srgb, currentColor 24%, transparent);border-radius:3px;background:color-mix(in srgb, currentColor 7%, transparent);"></span><span style="flex:0 1 calc((100% - 1.75rem) / 8);aspect-ratio:1;border:1px solid color-mix(in srgb, currentColor 24%, transparent);border-radius:3px;background:color-mix(in srgb, currentColor 7%, transparent);"></span><span style="flex:0 1 calc((100% - 1.75rem) / 8);aspect-ratio:1;border:1px solid color-mix(in srgb, currentColor 24%, transparent);border-radius:3px;background:color-mix(in srgb, currentColor 7%, transparent);"></span><span style="flex:0 1 calc((100% - 1.75rem) / 8);aspect-ratio:1;border:1px solid color-mix(in srgb, currentColor 24%, transparent);border-radius:3px;background:color-mix(in srgb, currentColor 7%, transparent);"></span><span style="flex:0 1 calc((100% - 1.75rem) / 8);aspect-ratio:1;border:1px solid color-mix(in srgb, currentColor 24%, transparent);border-radius:3px;background:color-mix(in srgb, currentColor 7%, transparent);"></span><span style="flex:0 1 calc((100% - 1.75rem) / 8);aspect-ratio:1;border:1px solid color-mix(in srgb, currentColor 24%, transparent);border-radius:3px;background:color-mix(in srgb, currentColor 7%, transparent);"></span></div>
+<small style="min-width:3.5rem;text-align:right;">64 bits</small>
+</div>
+</div>
+<div style="text-align:center;margin-top:0.9rem;opacity:0.8;"><small>Each square represents eight bits, not a native memory address or byte order.</small></div>
+</div>
+
+The `CATALYST_SUPPORTS_*` definitions indicate whether Catalyst provides an optional representation, not whether the processor executes arithmetic of that width directly. A conforming C implementation may lack an exact Catalyst representation.
+
+Access optional types only under their corresponding `#if` guards. Explicit shifts and masks may access logical bits of supported scalar representations; native memory layout must not be assumed. Preserve defined byte order and the target-specific, pointer-width representation of `NINT` and `NUINT`.
+
+### Arithmetic
+
+All arithmetic, including intermediate calculations, uses Catalyst-defined numeric types. Native language types must not substitute for unavailable Catalyst representations.
+
+<div style="box-sizing:border-box;padding:1.2rem;border:1px solid color-mix(in srgb, currentColor 19%, transparent);border-radius:12px;background:color-mix(in srgb, currentColor 3%, transparent);margin:1rem 0;text-align:center;">
+<strong>Example · Adding two 64-bit unsigned values</strong>
+<div style="max-width:33rem;margin:0.9rem auto 0;">
+<div style="padding:0.65rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:6px;">One mathematical operation</div>
+<div style="opacity:0.75;padding:0.3rem 0;" aria-hidden="true">↓</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%, 11rem),1fr));gap:0.6rem;">
+<div style="padding:0.75rem 0.4rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:6px;display:flex;flex-direction:column;justify-content:center;gap:0.25rem;">
+<small style="overflow-wrap:anywhere;opacity:0.8;"><code>#if SUPPORTS_64BIT</code></small>
+<strong>1 × 64-bit</strong>
+<code>ULONG</code>
+<small>Optional optimization</small>
+</div>
+<div style="padding:0.75rem 0.4rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:6px;display:flex;flex-direction:column;justify-content:center;gap:0.25rem;">
+<small style="overflow-wrap:anywhere;opacity:0.8;"><code>#elif SUPPORTS_32BIT</code></small>
+<strong>2 × 32-bit</strong>
+<code>UINT</code>
+<small>Optional optimization</small>
+</div>
+<div style="padding:0.75rem 0.4rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:6px;display:flex;flex-direction:column;justify-content:center;gap:0.25rem;">
+<small style="overflow-wrap:anywhere;opacity:0.8;"><code>#elif SUPPORTS_16BIT</code></small>
+<strong>4 × 16-bit</strong>
+<code>USHORT</code>
+<small>Optional optimization</small>
+</div>
+<div style="padding:0.75rem 0.4rem;border:1px solid color-mix(in srgb, currentColor 40%, transparent);border-radius:6px;display:flex;flex-direction:column;justify-content:center;gap:0.25rem;">
+<small style="overflow-wrap:anywhere;opacity:0.8;"><code>#else</code></small>
+<strong>8 × 8-bit</strong>
+<code>BYTE</code>
+<small>Universal fallback</small>
+</div>
+</div>
+<div style="opacity:0.75;padding:0.3rem 0;" aria-hidden="true">↓</div>
+<div style="padding:0.65rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:6px;">Identical sum and carry</div>
+</div>
+<div style="margin-top:0.65rem;opacity:0.8;"><small>Conceptual compile-time selection; SUPPORTS_* abbreviates CATALYST_SUPPORTS_*.</small></div>
+</div>
+
+Establish the byte-based implementation first. Wider supported Catalyst types may then optimize the same operation conditionally, preserving its mathematical behavior and observable guarantees. Account for carry, overflow, truncation, signedness, and integer promotions without relying on unsupported widths.
+
+**Why?** A byte-based foundation preserves universality and encourages alternative solutions. Conditional arithmetic lets implementations exploit available representations without changing their contracts.
 
 ## Validation
 
