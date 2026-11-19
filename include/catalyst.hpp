@@ -113,41 +113,7 @@ typedef ::CATALYST_UTF8_CODE_UNIT UTF8_CODE_UNIT;
 typedef ::CATALYST_UTF8W UTF8W;
 typedef ::CATALYST_UTF8 UTF8;
 
-struct UTF16LE_CODE_UNIT : public ::CATALYST_UTF16LE_CODE_UNIT {
-    UTF16LE_CODE_UNIT() {
-        lsb = (BYTE) 0;
-        msb = (BYTE) 0;
-    }
-    /* Arguments are high byte, low byte; stored fields remain low byte, high byte. */
-    UTF16LE_CODE_UNIT(BYTE msb, BYTE lsb) {
-        this->msb = msb;
-        this->lsb = lsb;
-    }
-    UTF16LE_CODE_UNIT(const ::CATALYST_UTF16LE_CODE_UNIT& codeunit) {
-        lsb = codeunit.lsb;
-        msb = codeunit.msb;
-    }
-    UTF16LE_CODE_UNIT& operator=(const ::CATALYST_UTF16LE_CODE_UNIT& codeunit) {
-        lsb = codeunit.lsb;
-        msb = codeunit.msb;
-        return *this;
-    }
-
-#if CATALYST_SUPPORTS_16BIT
-    explicit UTF16LE_CODE_UNIT(USHORT value) {
-        msb = (BYTE) ((value >> 8) & (USHORT) 0x00FFu);
-        lsb = (BYTE) (value & (USHORT) 0x00FFu);
-    }
-    UTF16LE_CODE_UNIT& operator=(USHORT value) {
-        msb = (BYTE) ((value >> 8) & (USHORT) 0x00FFu);
-        lsb = (BYTE) (value & (USHORT) 0x00FFu);
-        return *this;
-    }
-    operator USHORT() const {
-        return ((USHORT) msb << 8) | (USHORT)lsb;
-    }
-#endif
-};
+typedef ::CATALYST_UTF16LE_CODE_UNIT UTF16LE_CODE_UNIT;
 typedef ::CATALYST_UTF16LEW UTF16LEW;
 typedef ::CATALYST_UTF16LE UTF16LE;
 

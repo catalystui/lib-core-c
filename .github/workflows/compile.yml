@@ -130,3 +130,70 @@ jobs:
           #include "catalyst.hpp"
           #include "cattelib.hpp"
           '@ | g++ ${{ matrix.flags }} -std=c++${{ matrix.cpp }} -pedantic-errors -Iinclude -Itarget/ci/generated -x c++ -c -o target/ci/headers-cpp.o -
+
+      - name: Verify optional-width fallback and 8-bit target compilation
+        if: matrix.arch == 'x64'
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $fallback = 'target/ci/fallback'
+          $avr = 'target/ci/avr'
+          New-Item -ItemType Directory -Path $fallback,$avr -Force | Out-Null
+          @'
+          #define TARGET_STDC_VERSION 0
+          #define TARGET_SIZEOF_VOID_P 8
+          '@ | Set-Content "$fallback/cmakecfg.h"
+          @'
+          #define CATALYST_TARGET_SIZEOF_SHORT 0
+          #define CATALYST_TARGET_SIZEOF_INT 0
+          #define CATALYST_TARGET_SIZEOF_LONG 8
+          #define CATALYST_TARGET_SIZEOF_FLOAT 0
+          #define CATALYST_TARGET_SIZEOF_DOUBLE 0
+          #define CATALYST_TARGET_IEC559_SINGLE 0
+          #define CATALYST_TARGET_IEC559_DOUBLE 0
+          '@ | Set-Content "$fallback/catalystcfg.h"
+          @'
+          #include "catalyst.h"
+          #if CATALYST_SUPPORTS_16BIT || CATALYST_SUPPORTS_32BIT || !CATALYST_SUPPORTS_64BIT
+          #error "Fallback must provide only bytes and the required pointer-width representation."
+          #endif
+          '@ | gcc -std=c90 -pedantic-errors -Iinclude "-I$fallback" -x c -c -o "$fallback/headers.o" -
+          g++ -O3 -std=c++98 -pedantic-errors -Iinclude "-I$fallback" src/cattelib.cpp test/test_cattelib.cpp -o "$fallback/test"
+          & "./$fallback/test"
+
+          # The numeric header can also expose only mandatory byte types.
+          (Get-Content "$fallback/catalystcfg.h" -Raw).Replace('CATALYST_TARGET_SIZEOF_LONG 8','CATALYST_TARGET_SIZEOF_LONG 0') | Set-Content "$fallback/catalystcfg.h"
+          @'
+          #include "catalyst.c90.h"
+          #if CATALYST_SUPPORTS_16BIT || CATALYST_SUPPORTS_32BIT || CATALYST_SUPPORTS_64BIT
+          #error "Unexpected optional integer representation."
+          #endif
+          typedef char byte_check[(sizeof(CATALYST_BYTE) == 1 && CATALYST_SBYTE_MIN == -128) ? 1 : -1];
+          '@ | gcc -std=c90 -pedantic-errors -Iinclude "-I$fallback" -x c -c -o "$fallback/byte-only.o" -
+          (Get-Content "$fallback/catalystcfg.h" -Raw).Replace('CATALYST_TARGET_SIZEOF_LONG 0','CATALYST_TARGET_SIZEOF_LONG 8') | Set-Content "$fallback/catalystcfg.h"
+
+          # Compile the portable library for a real 8-bit AVR instruction set.
+          @'
+          #define TARGET_STDC_VERSION 0
+          #define TARGET_SIZEOF_VOID_P 2
+          '@ | Set-Content "$avr/cmakecfg.h"
+          @'
+          #define CATALYST_TARGET_SIZEOF_SHORT 2
+          #define CATALYST_TARGET_SIZEOF_INT 2
+          #define CATALYST_TARGET_SIZEOF_LONG 0
+          #define CATALYST_TARGET_SIZEOF_FLOAT 0
+          #define CATALYST_TARGET_SIZEOF_DOUBLE 0
+          #define CATALYST_TARGET_IEC559_SINGLE 0
+          #define CATALYST_TARGET_IEC559_DOUBLE 0
+          '@ | Set-Content "$avr/catalystcfg.h"
+          @'
+          #include "catalyst.h"
+          #include "cattelib.h"
+          #if !CATALYST_SUPPORTS_16BIT || CATALYST_SUPPORTS_32BIT || CATALYST_SUPPORTS_64BIT
+          #error "AVR fallback configuration must not use wider scalar arithmetic."
+          #endif
+          '@ | clang -target avr -mmcu=atmega328p -ffreestanding -std=c90 -pedantic-errors -Iinclude "-I$avr" -x c -c -o "$avr/headers.o" -
+          clang++ -target avr -mmcu=atmega328p -ffreestanding -std=c++98 -pedantic-errors -Os -Iinclude "-I$avr" -c src/cattelib.cpp -o "$avr/cattelib-fallback.o"
+          # Enable the AVR compiler's exact-width C99 integer types as well.
+          (Get-Content "$avr/cmakecfg.h" -Raw).Replace('TARGET_STDC_VERSION 0','TARGET_STDC_VERSION 199901L') | Set-Content "$avr/cmakecfg.h"
+          clang++ -target avr -mmcu=atmega328p -ffreestanding -std=c++11 -pedantic-errors -Os -Iinclude "-I$avr" -c src/cattelib.cpp -o "$avr/cattelib-wider.o"
+          file "$avr/cattelib-fallback.o" "$avr/cattelib-wider.o"

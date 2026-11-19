@@ -188,12 +188,7 @@ Signed sixteen-bit integer.
 
 <span data-heading-badge="CATALYST_SUPPORTS_16BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_16BIT to be 1"></span>
 
-**C90:**
-```c
-#if CATALYST_SUPPORTS_16BIT
-typedef signed short CATALYST_SHORT;
-#endif
-```
+**C90:** First of `signed short`, `signed int`, or `signed long` satisfying the exact width and range checks.
 **C99+:**
 ```c
 #if CATALYST_SUPPORTS_16BIT
@@ -210,12 +205,7 @@ Unsigned sixteen-bit integer.
 
 <span data-heading-badge="CATALYST_SUPPORTS_16BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_16BIT to be 1"></span>
 
-**C90:**
-```c
-#if CATALYST_SUPPORTS_16BIT
-typedef unsigned short CATALYST_USHORT;
-#endif
-```
+**C90:** First of `unsigned short`, `unsigned int`, or `unsigned long` satisfying the exact width and range checks.
 **C99+:**
 ```c
 #if CATALYST_SUPPORTS_16BIT
@@ -232,12 +222,7 @@ Signed thirty-two-bit integer.
 
 <span data-heading-badge="CATALYST_SUPPORTS_32BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_32BIT to be 1"></span>
 
-**C90:**
-```c
-#if CATALYST_SUPPORTS_32BIT
-typedef signed int CATALYST_INT;
-#endif
-```
+**C90:** First of `signed short`, `signed int`, or `signed long` satisfying the exact width and range checks.
 **C99+:**
 ```c
 #if CATALYST_SUPPORTS_32BIT
@@ -254,12 +239,7 @@ Unsigned thirty-two-bit integer.
 
 <span data-heading-badge="CATALYST_SUPPORTS_32BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_32BIT to be 1"></span>
 
-**C90:**
-```c
-#if CATALYST_SUPPORTS_32BIT
-typedef unsigned int CATALYST_UINT;
-#endif
-```
+**C90:** First of `unsigned short`, `unsigned int`, or `unsigned long` satisfying the exact width and range checks.
 **C99+:**
 ```c
 #if CATALYST_SUPPORTS_32BIT
@@ -276,7 +256,7 @@ Signed sixty-four-bit integer.
 
 <span data-heading-badge="CATALYST_SUPPORTS_64BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_64BIT to be 1"></span>
 
-**C90:** Not available.  
+**C90:** First of `signed short`, `signed int`, or `signed long` satisfying the exact 64-bit width and range checks.  
 **C99+:**
 ```c
 #if CATALYST_SUPPORTS_64BIT
@@ -293,7 +273,7 @@ Unsigned sixty-four-bit integer.
 
 <span data-heading-badge="CATALYST_SUPPORTS_64BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_64BIT to be 1"></span>
 
-**C90:** Not available.  
+**C90:** First of `unsigned short`, `unsigned int`, or `unsigned long` satisfying the exact 64-bit width and range checks.  
 **C99+:**
 ```c
 #if CATALYST_SUPPORTS_64BIT
@@ -306,7 +286,7 @@ typedef uint64_t CATALYST_ULONG;
 
 #### CATALYST_SINGLE
 
-A binary floating-point type with 24 bits of significand precision, exponent limits −125 through 128 as defined by the corresponding `<float.h>` macros, and storage of 4 bytes. Storage size is checked at compile time.
+IEEE 754 binary32. The build establishes IEC 559 support with the matching C++ toolchain, and the C header checks binary radix, 24-bit precision, exponent limits −125 through 128, and four-byte storage.
 
 <span data-heading-badge="CATALYST_SUPPORTS_SINGLE" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_SINGLE to be 1"></span>
 
@@ -320,7 +300,7 @@ typedef float CATALYST_SINGLE;
 
 #### CATALYST_DOUBLE
 
-A binary floating-point type with 53 bits of significand precision, exponent limits −1021 through 1024 as defined by the corresponding `<float.h>` macros, and storage of 8 bytes. Storage size is checked at compile time.
+IEEE 754 binary64. The build establishes IEC 559 support with the matching C++ toolchain, and the C header checks binary radix, 53-bit precision, exponent limits −1021 through 1024, and eight-byte storage.
 
 <span data-heading-badge="CATALYST_SUPPORTS_DOUBLE" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_DOUBLE to be 1"></span>
 
@@ -520,7 +500,7 @@ typedef struct CATALYST_UTF16LE_CODE_UNIT {
 `lsb` — Least significant byte, stored first.  
 `msb` — Most significant byte, stored second.
 
-**C++:** `catalyst::UTF16LE_CODE_UNIT` publicly derives from this structure. See [UTF16LE_CODE_UNIT members](#utf16le_code_unit-members).
+**C++:** `catalyst::UTF16LE_CODE_UNIT` aliases this same type, with C++ constructors and optional numeric conversions. C and C++ arrays use the same element type and two-byte storage. See [UTF16LE_CODE_UNIT members](#utf16le_code_unit-members).
 
 #### CATALYST_UTF16LE
 
@@ -621,17 +601,17 @@ The limit macros remain available in C++; optional bounds require the correspond
 | `CATALYST_BIT_MIN` | 0 | `CATALYST_BIT_MAX` | 1 | — |
 | `CATALYST_NIBBLE_MIN` | 0 | `CATALYST_NIBBLE_MAX` | 15 | — |
 | `CATALYST_BYTE_MIN` | 0 | `CATALYST_BYTE_MAX` | 255 | — |
-| `CATALYST_SBYTE_MIN` | Native minimum | `CATALYST_SBYTE_MAX` | 127 | — |
-| `CATALYST_SHORT_MIN` | Native minimum | `CATALYST_SHORT_MAX` | 32,767 | `CATALYST_SUPPORTS_16BIT` is 1 |
+| `CATALYST_SBYTE_MIN` | −128 | `CATALYST_SBYTE_MAX` | 127 | — |
+| `CATALYST_SHORT_MIN` | −32,768 | `CATALYST_SHORT_MAX` | 32,767 | `CATALYST_SUPPORTS_16BIT` is 1 |
 | `CATALYST_USHORT_MIN` | 0 | `CATALYST_USHORT_MAX` | 65,535 | `CATALYST_SUPPORTS_16BIT` is 1 |
-| `CATALYST_INT_MIN` | Native minimum | `CATALYST_INT_MAX` | 2,147,483,647 | `CATALYST_SUPPORTS_32BIT` is 1 |
+| `CATALYST_INT_MIN` | −2,147,483,648 | `CATALYST_INT_MAX` | 2,147,483,647 | `CATALYST_SUPPORTS_32BIT` is 1 |
 | `CATALYST_UINT_MIN` | 0 | `CATALYST_UINT_MAX` | 4,294,967,295 | `CATALYST_SUPPORTS_32BIT` is 1 |
 | `CATALYST_LONG_MIN` | −9,223,372,036,854,775,808 | `CATALYST_LONG_MAX` | 9,223,372,036,854,775,807 | `CATALYST_SUPPORTS_64BIT` is 1 |
 | `CATALYST_ULONG_MIN` | 0 | `CATALYST_ULONG_MAX` | 18,446,744,073,709,551,615 | `CATALYST_SUPPORTS_64BIT` is 1 |
 | `CATALYST_NINT_MIN` | Selected signed minimum | `CATALYST_NINT_MAX` | Selected signed maximum | — |
 | `CATALYST_NUINT_MIN` | 0 | `CATALYST_NUINT_MAX` | Selected unsigned maximum | — |
 
-For `SBYTE`, `SHORT`, and `INT`, the C90 header uses `SCHAR_MIN`, `SHRT_MIN`, and `INT_MIN`, respectively; the C99 header uses the corresponding exact-width minima (−128, −32,768, and −2,147,483,648). Native-width limits alias the selected type’s limits. No floating-point limit macros are provided by CATALYST.
+Signed minima and maxima are exact for every supported width. C90 uses the limits of the verified native type; C99+ uses exact-width types. Native-width limits alias the selected Catalyst type’s limits. No floating-point limit macros are provided by CATALYST.
 
 ### Boolean constants
 
@@ -985,7 +965,7 @@ The integer formed from `byte0` through `byte3`, in decreasing significance.
 
 ### UTF16LE_CODE_UNIT members
 
-**Base type:** [`CATALYST_UTF16LE_CODE_UNIT`](#catalyst_utf16le_code_unit).
+**C type:** [`CATALYST_UTF16LE_CODE_UNIT`](#catalyst_utf16le_code_unit).
 
 #### UTF16LE_CODE_UNIT default constructor
 
@@ -1185,7 +1165,7 @@ The integer in `0xSSCCOODD` significance order.
 
 ## Target Configuration
 
-The public C header includes the generated `cmakecfg.h` and selects a numeric representation using the configured target C standard. The same selection applies when the C++ header is included.
+The public C header includes the generated `cmakecfg.h` and `catalystcfg.h`. The configured C standard selects the numeric header; the same selection applies in C++. Configuration probes establish native type sizes and IEC 559 support without executing target code.
 
 ### Configuration definitions
 
@@ -1211,10 +1191,10 @@ Each availability definition is 0 when its corresponding representation is unava
 
 | Header | Description |
 | --- | --- |
-| `catalyst.c90.h` | Uses `<limits.h>` to test native types. Requires eight-bit bytes, tests `short` for sixteen-bit support and `int` for thirty-two-bit support, and does not provide sixty-four-bit types. |
+| `catalyst.c90.h` | Requires eight-bit bytes and exact signed ranges. Tests the configured size and limits of `short`, `int`, and `long` for each optional width (16, 32, 64). |
 | `catalyst.c99.h` | Uses `<stdint.h>` exact-width types when the corresponding range macros are available. Requires the eight-bit pair. |
 
-These headers are selected through `catalyst.h`; they are not separate modules. The compile-time size-check typedefs `CATALYST_requires_float_4_bytes` and `CATALYST_requires_double_8_bytes` are implementation checks, not application data types.
+These headers are selected through `catalyst.h`; they are not separate modules. Compile-time checks enforce pointer width and the specified sizes and layouts of Codepoint, UTF-16LE code units, and Result. Implementation-check typedefs are not application data types. Floating-point support is optional and unavailable if the build cannot establish the required format.
 
 ## See Also
 

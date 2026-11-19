@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <limits>
 
 #include "catalyst.hpp"
 #include "cattelib.hpp"
@@ -119,7 +120,7 @@ int main() {
         result = ascii_encode(codepoint, output);
 
         if (
-            output[0] != (BYTE) '?' ||
+            output[0] != (BYTE) 0x3F ||
             result.status != STATUS_CODE_WARNING_PARTIAL || result.context != 0x01 || result.operation != 0x02 || result.detail != 0
         ) {
             std::printf("FAIL: catte_ascii_encode U+0080\n");
@@ -1689,6 +1690,132 @@ int main() {
         UTF16LE_CODE_UNIT output[4];
         result = utf8_to_utf16le(truncated4second, output, 4);
         if (result.status != STATUS_CODE_ERROR_MALFORMED_INPUT || result.context != 0x15 || result.operation != 0x04 || result.detail != 0x0F) failed++;
+    }
+
+    // Verify every Unicode scalar and both complete encoding/decoding Result contracts.
+#if TARGET_SIZEOF_VOID_P >= 4
+    {
+        BYTE high = 0;
+        NUINT checked = 0;
+        NUINT fingerprint = 0;
+        do {
+            BYTE middle = 0;
+            do {
+                BYTE low = 0;
+                do {
+                    if (high == 0 && middle >= 0xD8 && middle <= 0xDF) continue;
+                    CODEPOINT original(0, high, middle, low);
+                    CODEPOINT decoded;
+                    BYTE utf8[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+                    UTF16LE_CODE_UNIT utf16le[2];
+                    NUINT produced = 0;
+                    NUINT consumed = 0;
+                    BYTE expected8 = high != 0 ? 4 : middle >= 8 ? 3 :
+                        middle != 0 || low >= 0x80 ? 2 : 1;
+                    BYTE expected16 = high != 0 ? 2 : 1;
+                    RESULT r = utf8_encode(original, utf8, &produced);
+                    if (r.status != STATUS_CODE_SUCCESS || r.context != 0x07 ||
+                        r.operation != (expected8 == 1 ? 0x03 : expected8 == 2 ? 0x05 : expected8 == 3 ? 0x08 : 0x09) ||
+                        r.detail != 0 || produced != expected8) {
+                        std::printf("FAIL: exhaustive UTF-8 encode\n");
+                        return 1;
+                    }
+                    r = utf8_decode(utf8, &decoded, &consumed);
+                    if (r.status != STATUS_CODE_SUCCESS || r.context != 0x08 ||
+                        r.operation != (expected8 == 1 ? (low == 0 ? 0x04 : 0x05) :
+                            expected8 == 2 ? 0x08 : expected8 == 3 ? 0x0E : 0x15) ||
+                        r.detail != 0 || consumed != produced ||
+                        decoded.byte0 != 0 || decoded.byte1 != high || decoded.byte2 != middle || decoded.byte3 != low) {
+                        std::printf("FAIL: exhaustive UTF-8 roundtrip\n");
+                        return 1;
+                    }
+                    for (BYTE i = 0; i < expected8; ++i)
+                        fingerprint = (NUINT) ((fingerprint * (NUINT) 33) ^ utf8[i]);
+                    r = utf16le_encode(original, utf16le, &produced);
+                    if (r.status != STATUS_CODE_SUCCESS || r.context != 0x0A ||
+                        r.operation != (expected16 == 1 ? 0x05 : 0x06) ||
+                        r.detail != 0 || produced != expected16) {
+                        std::printf("FAIL: exhaustive UTF-16LE encode\n");
+                        return 1;
+                    }
+                    r = utf16le_decode(utf16le, &decoded, &consumed);
+                    if (r.status != STATUS_CODE_SUCCESS || r.context != 0x0B ||
+                        r.operation != (expected16 == 1 ? (middle == 0 && low == 0 ? 0x04 : 0x06) : 0x08) ||
+                        r.detail != 0 || consumed != produced ||
+                        decoded.byte0 != 0 || decoded.byte1 != high || decoded.byte2 != middle || decoded.byte3 != low) {
+                        std::printf("FAIL: exhaustive UTF-16LE roundtrip\n");
+                        return 1;
+                    }
+                    for (BYTE i = 0; i < expected16; ++i) {
+                        fingerprint = (NUINT) ((fingerprint * (NUINT) 33) ^ utf16le[i].lsb);
+                        fingerprint = (NUINT) ((fingerprint * (NUINT) 33) ^ utf16le[i].msb);
+                    }
+                    ++checked;
+                } while (++low != 0);
+            } while (++middle != 0);
+        } while (++high <= 0x10);
+        // Independent reference: Python's UTF-8 and UTF-16LE encoders over every Unicode scalar.
+#if TARGET_SIZEOF_VOID_P == 8
+        const NUINT expected_fingerprint = ((NUINT) 0xD880C8CDUL << 32) | (NUINT) 0xC0173000UL;
+#else
+        const NUINT expected_fingerprint = (NUINT) 0xC0173000UL;
+#endif
+        if (checked != (NUINT) 1112064UL || fingerprint != expected_fingerprint) {
+            std::printf("FAIL: exhaustive Unicode scalar count or encoding fingerprint\n");
+            return 1;
+        }
+#if TARGET_SIZEOF_VOID_P == 8
+        std::printf("PASS: exhaustive Unicode scalars=%lu fingerprint=%08lX%08lX\n",
+            (unsigned long) checked, (unsigned long) (fingerprint >> 32),
+            (unsigned long) (fingerprint & (NUINT) 0xFFFFFFFFUL));
+#else
+        std::printf("PASS: exhaustive Unicode scalars=%lu fingerprint=%08lX\n",
+            (unsigned long) checked, (unsigned long) fingerprint);
+#endif
+    }
+#endif
+
+    // Verify the public representations and C/C++ UTF-16LE array identity.
+    {
+        CODEPOINT codepoint(0x00, 0x10, 0xFF, 0xFF);
+        RESULT result(0x83, 0x08, 0x0F, 0x02);
+        UTF16LE_CODE_UNIT units[2];
+        CATALYST_UTF16LEW writable = units;
+        writable[0].lsb = 0x34;
+        writable[0].msb = 0x12;
+        writable[1].lsb = 0x78;
+        writable[1].msb = 0x56;
+        const unsigned char* bytes = (const unsigned char*) units;
+        if (sizeof(CATALYST_CODEPOINT) != 4 || sizeof(CATALYST_RESULT) != 4 ||
+            sizeof(UTF16LE_CODE_UNIT) != 2 || bytes[0] != 0x34 || bytes[1] != 0x12 ||
+            bytes[2] != 0x78 || bytes[3] != 0x56 || sizeof(NUINT) != sizeof(void*) ||
+            CATALYST_SBYTE_MIN != -128 || CATALYST_SBYTE_MAX != 127) failed++;
+#if CATALYST_SUPPORTS_16BIT
+        if (sizeof(USHORT) != 2 || CATALYST_SHORT_MIN != -32768L ||
+            (USHORT) units[0] != (USHORT) 0x1234u) failed++;
+#endif
+#if CATALYST_SUPPORTS_32BIT
+        if (sizeof(UINT) != 4 || CATALYST_INT_MIN != (-2147483647L - 1L) ||
+            (UINT) codepoint != (UINT) 0x0010FFFFu ||
+            (UINT) result != (UINT) 0x83080F02u) failed++;
+        result = (UINT) 0x40120304u;
+        if (result.status != 0x40 || result.context != 0x12 ||
+            result.operation != 0x03 || result.detail != 0x04) failed++;
+#endif
+#if CATALYST_SUPPORTS_64BIT
+        if (sizeof(ULONG) != 8 || (ULONG) CATALYST_LONG_MAX != (CATALYST_ULONG_MAX >> 1) ||
+            CATALYST_LONG_MIN + CATALYST_LONG_MAX != -1) failed++;
+#endif
+#if CATALYST_SUPPORTS_SINGLE
+        if (sizeof(SINGLE) != 4 || !std::numeric_limits<SINGLE>::is_iec559 ||
+            !std::numeric_limits<SINGLE>::has_infinity || !std::numeric_limits<SINGLE>::has_quiet_NaN ||
+            std::numeric_limits<SINGLE>::has_denorm != std::denorm_present) failed++;
+#endif
+#if CATALYST_SUPPORTS_DOUBLE
+        if (sizeof(DOUBLE) != 8 || !std::numeric_limits<DOUBLE>::is_iec559 ||
+            !std::numeric_limits<DOUBLE>::has_infinity || !std::numeric_limits<DOUBLE>::has_quiet_NaN ||
+            std::numeric_limits<DOUBLE>::has_denorm != std::denorm_present) failed++;
+#endif
     }
 
     // ------------------------------------------------------------

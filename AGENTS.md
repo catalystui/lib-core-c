@@ -68,11 +68,11 @@ Requirements for CatalystUI Core.
 
 ## Build and verification
 
-- Preserve shared CMake infrastructure, cmakecfg.h, existing presets, and static/shared targets. Initialize cmake submodule recursively; no build/CI/submodule workarounds without approval.
+- Preserve shared CMake infrastructure, cmakecfg.h, catalystcfg.h, existing presets, and static/shared targets. Initialize cmake submodule recursively; no build/CI/submodule workarounds without approval.
 - Runtime executables, tests, DLLs, versioned shared libraries and ABI aliases belong directly in debug/ or release/. Development archives/import libraries/unversioned linker aliases belong in flat lib/. Unix runtime dependencies resolve relative to binaries; linker aliases point to runtime ABI aliases. Shared build-cmake derives names/versions from metadata; preserve library names and targets (catte).
 - Example v1.5.2: MSVC `libcatte.lib`, `catte.lib`, `catte15.dll` (full resource version); Linux `libcatte.a`, `libcatte.so`, `libcatte.so.1.5`, `libcatte.so.1.5.2`; macOS `libcatte.a`, `libcatte.dylib`, `libcatte.1.5.dylib`, `libcatte.1.5.2.dylib`. Unix aliases are symlinks.
 - Use existing standalone test/test_<library>.cpp programs, no new framework. Test wrappers, normal/boundary/no-op/failure behavior and all four Result bytes; never violate caller preconditions. Test byte and wider paths for equivalence; verify claimed optimization benefits.
-- Verify C90/C++98 and C99/C++11 builds/headers where possible; review arithmetic and representation assumptions independently. x86/x64 builds do not establish actual 8-bit compatibility. Report tests performed, limitations, and conflicts.
+- Verify C90/C++98 and C99/C++11 builds/headers where possible; review arithmetic and representation assumptions independently. Test optional-width fallbacks and AVR compilation; cross-compilation does not establish hardware execution. Report tests performed, limitations, and conflicts.
 
 ## Commits
 
