@@ -199,6 +199,29 @@ static BYTE encode_utf8_value(UINT value, CATALYST_UTF8W utf8w) {
 
 /* Encode a validated scalar into four writable bytes. Also avoids packing in string conversions. */
 static BYTE encode_utf8_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w) {
+#if CATALYST_SUPPORTS_16BIT && !CATALYST_SUPPORTS_32BIT
+    USHORT value = (USHORT) (((USHORT) codepoint.byte2 << 8) | (USHORT) codepoint.byte3);
+    if (codepoint.byte1 == 0) {
+        if (value < (USHORT) 0x80u) {
+            utf8w[0] = (BYTE) value;
+            return 1;
+        }
+        if (value < (USHORT) 0x800u) {
+            utf8w[0] = (BYTE) ((USHORT) 0xC0u | (value >> 6));
+            utf8w[1] = (BYTE) ((USHORT) 0x80u | (value & (USHORT) 0x3Fu));
+            return 2;
+        }
+        utf8w[0] = (BYTE) ((USHORT) 0xE0u | (value >> 12));
+        utf8w[1] = (BYTE) ((USHORT) 0x80u | ((value >> 6) & (USHORT) 0x3Fu));
+        utf8w[2] = (BYTE) ((USHORT) 0x80u | (value & (USHORT) 0x3Fu));
+        return 3;
+    }
+    utf8w[0] = (BYTE) ((BYTE) 0xF0u | (codepoint.byte1 >> 2));
+    utf8w[1] = (BYTE) ((USHORT) 0x80u | ((USHORT) (codepoint.byte1 & (BYTE) 0x03u) << 4) | (value >> 12));
+    utf8w[2] = (BYTE) ((USHORT) 0x80u | ((value >> 6) & (USHORT) 0x3Fu));
+    utf8w[3] = (BYTE) ((USHORT) 0x80u | (value & (USHORT) 0x3Fu));
+    return 4;
+#else
     // Prepare code units
     BYTE codepoint1 = codepoint.byte1;
     BYTE codepoint2 = codepoint.byte2;
@@ -242,6 +265,7 @@ static BYTE encode_utf8_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8
         utf8w[3] = (BYTE) ((BYTE) 0x80u | t3);
         return 4;
     }
+#endif
 }
 
 CATALYST_RESULT catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, CATALYST_NUINT* produced) {
@@ -310,6 +334,10 @@ CATALYST_RESULT catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepo
 #if CATALYST_SUPPORTS_32BIT
         *codepoint = CODEPOINT(((UINT) (codeunit0 & (BYTE) 0x1Fu) << 6) |
                               (UINT) (codeunit1 & (BYTE) 0x3Fu));
+#elif CATALYST_SUPPORTS_16BIT
+        USHORT value = (USHORT) (((USHORT) (codeunit0 & (BYTE) 0x1Fu) << 6) | (USHORT) (codeunit1 & (BYTE) 0x3Fu));
+        codepoint->byte2 = (BYTE) (value >> 8);
+        codepoint->byte3 = (BYTE) value;
 #else
         BYTE t0 = (BYTE) (codeunit0 & (BYTE) 0x1Fu);
         BYTE t1 = (BYTE) (codeunit1 & (BYTE) 0x3Fu);
@@ -349,6 +377,10 @@ CATALYST_RESULT catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepo
         *codepoint = CODEPOINT(((UINT) (codeunit0 & (BYTE) 0x0Fu) << 12) |
                               ((UINT) (codeunit1 & (BYTE) 0x3Fu) << 6) |
                               (UINT) (codeunit2 & (BYTE) 0x3Fu));
+#elif CATALYST_SUPPORTS_16BIT
+        USHORT value = (USHORT) (((USHORT) (codeunit0 & (BYTE) 0x0Fu) << 12) | ((USHORT) (codeunit1 & (BYTE) 0x3Fu) << 6) | (USHORT) (codeunit2 & (BYTE) 0x3Fu));
+        codepoint->byte2 = (BYTE) (value >> 8);
+        codepoint->byte3 = (BYTE) value;
 #else
         BYTE t0 = (BYTE) (codeunit0 & (BYTE) 0x0Fu);
         BYTE t1 = (BYTE) (codeunit1 & (BYTE) 0x3Fu);
@@ -394,6 +426,11 @@ CATALYST_RESULT catte_utf8_decode(CATALYST_UTF8 utf8, CATALYST_CODEPOINT* codepo
                               ((UINT) (codeunit1 & (BYTE) 0x3Fu) << 12) |
                               ((UINT) (codeunit2 & (BYTE) 0x3Fu) << 6) |
                               (UINT) (codeunit3 & (BYTE) 0x3Fu));
+#elif CATALYST_SUPPORTS_16BIT
+        USHORT value = (USHORT) (((USHORT) (codeunit1 & (BYTE) 0x0Fu) << 12) | ((USHORT) (codeunit2 & (BYTE) 0x3Fu) << 6) | (USHORT) (codeunit3 & (BYTE) 0x3Fu));
+        codepoint->byte1 = (BYTE) (((codeunit0 & (BYTE) 0x07u) << 2) | ((codeunit1 & (BYTE) 0x30u) >> 4));
+        codepoint->byte2 = (BYTE) (value >> 8);
+        codepoint->byte3 = (BYTE) value;
 #else
         BYTE t0 = (BYTE) (codeunit0 & (BYTE) 0x07u);
         BYTE t1 = (BYTE) (codeunit1 & (BYTE) 0x3Fu);
@@ -462,6 +499,18 @@ static BYTE encode_utf16le_value(UINT value, CATALYST_UTF16LEW utf16lew) {
 #endif
 
 static BYTE encode_utf16le_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW utf16lew) {
+#if CATALYST_SUPPORTS_16BIT && !CATALYST_SUPPORTS_32BIT
+    USHORT value = (USHORT) (((USHORT) codepoint.byte2 << 8) | (USHORT) codepoint.byte3);
+    if (codepoint.byte1 == 0) {
+        utf16lew[0] = value;
+        return 1;
+    }
+    USHORT high = (USHORT) ((USHORT) 0xD800u | ((USHORT) (codepoint.byte1 - (BYTE) 1) << 6) | (value >> 10));
+    USHORT low = (USHORT) ((USHORT) 0xDC00u | (value & (USHORT) 0x03FFu));
+    utf16lew[0] = high;
+    utf16lew[1] = low;
+    return 2;
+#else
     // Prepare code units
     BYTE codepoint1 = codepoint.byte1;
     BYTE codepoint2 = codepoint.byte2;
@@ -492,6 +541,7 @@ static BYTE encode_utf16le_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_U
     utf16lew[1].msb = (BYTE) ((BYTE) 0xDCu | ls_hi2);
     utf16lew[1].lsb = ls_lo8;
     return 2;
+#endif
 }
 
 CATALYST_RESULT catte_utf16le_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT* produced) {
@@ -564,6 +614,13 @@ CATALYST_RESULT catte_utf16le_decode(CATALYST_UTF16LE utf16le, CATALYST_CODEPOIN
     UINT high = ((UINT) (codeunit0 & (BYTE) 0x03u) << 8) | (UINT) codeunit1;
     UINT low = ((UINT) (codeunit2 & (BYTE) 0x03u) << 8) | (UINT) codeunit3;
     *codepoint = CODEPOINT((UINT) 0x10000u + ((high << 10) | low));
+#elif CATALYST_SUPPORTS_16BIT
+    USHORT high = (USHORT) (((USHORT) (codeunit0 & (BYTE) 0x03u) << 8) | (USHORT) codeunit1);
+    USHORT low = (USHORT) (((USHORT) (codeunit2 & (BYTE) 0x03u) << 8) | (USHORT) codeunit3);
+    USHORT value = (USHORT) (((high & (USHORT) 0x3Fu) << 10) | low);
+    codepoint->byte1 = (BYTE) ((high >> 6) + (USHORT) 1);
+    codepoint->byte2 = (BYTE) (value >> 8);
+    codepoint->byte3 = (BYTE) value;
 #else
     BYTE hs_hi = (BYTE) (codeunit0 & (BYTE) 0x03u);
     BYTE hs_lo = codeunit1;
