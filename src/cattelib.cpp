@@ -14,7 +14,7 @@ CATALYST_RESULT catte_ascii_encode(const CATALYST_CODEPOINT codepoint, CATALYST_
     BYTE codepoint3 = codepoint.byte3;
     if (codepoint0 != 0 || codepoint1 != 0 || codepoint2 != 0 || codepoint3 >= (BYTE) 0x80) {
         // Not a valid ASCII character
-        asciiw[0] = (BYTE) '?';
+        asciiw[0] = (BYTE) 0x3F;
         return RESULT(STATUS_CODE_WARNING_PARTIAL, 0x01, 0x02, 0);
     } else if (codepoint3 == 0) {
         // Handle U+0000 (NUL)
@@ -107,7 +107,7 @@ CATALYST_RESULT catte_cp1252_encode(const CATALYST_CODEPOINT codepoint, CATALYST
     }
 
     // Not a valid CP1252 character
-    cp1252w[0] = (BYTE) '?';
+    cp1252w[0] = (BYTE) 0x3F;
     return RESULT(STATUS_CODE_WARNING_PARTIAL, 0x04, 0x1E, 0);
 }
 
@@ -158,7 +158,7 @@ CATALYST_RESULT catte_cp1252_decode(CATALYST_CP1252 cp1252, CATALYST_CODEPOINT* 
     codepoint->byte0 = 0;
     codepoint->byte1 = 0;
     codepoint->byte2 = 0;
-    codepoint->byte3 = (BYTE) '?';
+    codepoint->byte3 = (BYTE) 0x3F;
     return RESULT(STATUS_CODE_WARNING_PARTIAL, 0x05, 0x1F, 0);
 }
 
@@ -515,7 +515,7 @@ CATALYST_RESULT catte_ascii_to_cp1252(CATALYST_ASCII ascii, CATALYST_CP1252W cp1
         if (ascii[index] < (BYTE) 0x80u) {
             cp1252w[index] = ascii[index];
         } else {
-            cp1252w[index] = (BYTE) '?';
+            cp1252w[index] = (BYTE) 0x3F;
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
@@ -543,7 +543,7 @@ CATALYST_RESULT catte_ascii_to_utf8(CATALYST_ASCII ascii, CATALYST_UTF8W utf8w, 
         if (ascii[read] < (BYTE) 0x80u) {
             utf8w[write] = ascii[read];
         } else {
-            utf8w[write] = (BYTE) '?';
+            utf8w[write] = (BYTE) 0x3F;
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
@@ -574,7 +574,7 @@ CATALYST_RESULT catte_ascii_to_utf16le(CATALYST_ASCII ascii, CATALYST_UTF16LEW u
         if (ascii[read] < (BYTE) 0x80u) {
             utf16lew[write].lsb = ascii[read];
         } else {
-            utf16lew[write].lsb = (BYTE) '?';
+            utf16lew[write].lsb = (BYTE) 0x3F;
             status = STATUS_CODE_WARNING_PARTIAL;
         }
 
@@ -594,7 +594,7 @@ CATALYST_RESULT catte_cp1252_to_ascii(CATALYST_CP1252 cp1252, CATALYST_ASCIIW as
         if (cp1252[index] < (BYTE) 0x80u) {
             asciiw[index] = cp1252[index];
         } else {
-            asciiw[index] = (BYTE) '?';
+            asciiw[index] = (BYTE) 0x3F;
             status = STATUS_CODE_WARNING_PARTIAL;
         }
         ++index;

@@ -119,7 +119,7 @@ int main() {
         result = ascii_encode(codepoint, output);
 
         if (
-            output[0] != (BYTE) '?' ||
+            output[0] != (BYTE) 0x3F ||
             result.status != STATUS_CODE_WARNING_PARTIAL || result.context != 0x01 || result.operation != 0x02 || result.detail != 0
         ) {
             std::printf("FAIL: catte_ascii_encode U+0080\n");
@@ -1689,6 +1689,39 @@ int main() {
         UTF16LE_CODE_UNIT output[4];
         result = utf8_to_utf16le(truncated4second, output, 4);
         if (result.status != STATUS_CODE_ERROR_MALFORMED_INPUT || result.context != 0x15 || result.operation != 0x04 || result.detail != 0x0F) failed++;
+    }
+
+    // Verify the public representations and C/C++ UTF-16LE array identity.
+    {
+        CODEPOINT codepoint(0x00, 0x10, 0xFF, 0xFF);
+        RESULT result(0x83, 0x08, 0x0F, 0x02);
+        UTF16LE_CODE_UNIT units[2];
+        CATALYST_UTF16LEW writable = units;
+        writable[0].lsb = 0x34;
+        writable[0].msb = 0x12;
+        writable[1].lsb = 0x78;
+        writable[1].msb = 0x56;
+        const BYTE* bytes = (const BYTE*) units;
+        if (sizeof(CATALYST_CODEPOINT) != 4 || sizeof(CATALYST_RESULT) != 4 ||
+            sizeof(UTF16LE_CODE_UNIT) != 2 || bytes[0] != 0x34 || bytes[1] != 0x12 ||
+            bytes[2] != 0x78 || bytes[3] != 0x56 || sizeof(NUINT) != sizeof(void*) ||
+            CATALYST_SBYTE_MIN != -128 || CATALYST_SBYTE_MAX != 127) failed++;
+#if CATALYST_SUPPORTS_16BIT
+        if (sizeof(USHORT) != 2 || CATALYST_SHORT_MIN != -32768L ||
+            (USHORT) units[0] != (USHORT) 0x1234u) failed++;
+#endif
+#if CATALYST_SUPPORTS_32BIT
+        if (sizeof(UINT) != 4 || CATALYST_INT_MIN != (-2147483647L - 1L) ||
+            (UINT) codepoint != (UINT) 0x0010FFFFu ||
+            (UINT) result != (UINT) 0x83080F02u) failed++;
+        result = (UINT) 0x40120304u;
+        if (result.status != 0x40 || result.context != 0x12 ||
+            result.operation != 0x03 || result.detail != 0x04) failed++;
+#endif
+#if CATALYST_SUPPORTS_64BIT
+        if (sizeof(ULONG) != 8 || (ULONG) CATALYST_LONG_MAX != (CATALYST_ULONG_MAX >> 1) ||
+            CATALYST_LONG_MIN + CATALYST_LONG_MAX != -1) failed++;
+#endif
     }
 
     // ------------------------------------------------------------
