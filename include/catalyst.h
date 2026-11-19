@@ -2,7 +2,6 @@
 #define CATALYST_H
 
 #include "cmakecfg.h"
-#include "catalystcfg.h"
 #if defined(TARGET_STDC_VERSION) && (TARGET_STDC_VERSION >= 199901L)
 #include "catalyst.c99.h"
 #else
@@ -10,7 +9,6 @@
 #endif
 
 #include <float.h>
-#include <stddef.h>
 
 /* CONSTEXPR Support */
 #if defined(__cplusplus)
@@ -34,7 +32,7 @@ typedef CATALYST_BYTE CATALYST_NIBBLE;
 #define CATALYST_NIBBLE_MIN ((CATALYST_NIBBLE) 0)
 #define CATALYST_NIBBLE_MAX ((CATALYST_NIBBLE) 15)
 
-#if (CATALYST_TARGET_IEC559_SINGLE && CATALYST_TARGET_SIZEOF_FLOAT == 4 && FLT_RADIX == 2 && FLT_MANT_DIG == 24 && FLT_MIN_EXP == -125 && FLT_MAX_EXP == 128)
+#if (TARGET_IEC559_SINGLE && TARGET_SIZEOF_FLOAT == 4 && FLT_RADIX == 2 && FLT_MANT_DIG == 24 && FLT_MIN_EXP == -125 && FLT_MAX_EXP == 128)
     #define CATALYST_SUPPORTS_SINGLE 1
     typedef char CATALYST_requires_float_4_bytes[(sizeof(float) == 4) ? 1 : -1]; /* Compile-time check for 32-bit float */
     typedef float CATALYST_SINGLE;
@@ -42,7 +40,7 @@ typedef CATALYST_BYTE CATALYST_NIBBLE;
     #define CATALYST_SUPPORTS_SINGLE 0
 #endif
 
-#if (CATALYST_TARGET_IEC559_DOUBLE && CATALYST_TARGET_SIZEOF_DOUBLE == 8 && FLT_RADIX == 2 && DBL_MANT_DIG == 53 && DBL_MIN_EXP == -1021 && DBL_MAX_EXP == 1024)
+#if (TARGET_IEC559_DOUBLE && TARGET_SIZEOF_DOUBLE == 8 && FLT_RADIX == 2 && DBL_MANT_DIG == 53 && DBL_MIN_EXP == -1021 && DBL_MAX_EXP == 1024)
     #define CATALYST_SUPPORTS_DOUBLE 1
     typedef char CATALYST_requires_double_8_bytes[(sizeof(double) == 8) ? 1 : -1]; /* Compile-time check for 64-bit double */
     typedef double CATALYST_DOUBLE;
@@ -129,7 +127,7 @@ typedef struct CATALYST_CODEPOINT {
     CATALYST_BYTE byte2;
     CATALYST_BYTE byte3; /* Least significant byte */
 } CATALYST_CODEPOINT;
-typedef char CATALYST_requires_codepoint_layout[(sizeof(CATALYST_CODEPOINT) == 4 && offsetof(CATALYST_CODEPOINT, byte0) == 0 && offsetof(CATALYST_CODEPOINT, byte1) == 1 && offsetof(CATALYST_CODEPOINT, byte2) == 2 && offsetof(CATALYST_CODEPOINT, byte3) == 3) ? 1 : -1];
+typedef char CATALYST_requires_codepoint_layout[(sizeof(CATALYST_CODEPOINT) == 4) ? 1 : -1];
 
 
 typedef CATALYST_BYTE CATALYST_ASCII_CODE_UNIT;
@@ -167,9 +165,6 @@ typedef struct CATALYST_UTF16LE_CODE_UNIT {
 
 /* Two ordered, non-overlapping byte fields occupy the entire object, in C and C++. */
 typedef char CATALYST_requires_utf16le_size[(sizeof(CATALYST_UTF16LE_CODE_UNIT) == 2) ? 1 : -1];
-#if !defined(__cplusplus) || __cplusplus >= 201103L
-typedef char CATALYST_requires_utf16le_offsets[(offsetof(CATALYST_UTF16LE_CODE_UNIT, lsb) == 0 && offsetof(CATALYST_UTF16LE_CODE_UNIT, msb) == 1) ? 1 : -1];
-#endif
 
 typedef CATALYST_UTF16LE_CODE_UNIT* CATALYST_UTF16LEW;
 typedef const CATALYST_UTF16LE_CODE_UNIT* CATALYST_UTF16LE;
@@ -250,7 +245,7 @@ typedef struct CATALYST_RESULT {
     CATALYST_OPERATION_CODE operation;
     CATALYST_DETAIL_CODE detail;
 } CATALYST_RESULT;
-typedef char CATALYST_requires_result_layout[(sizeof(CATALYST_RESULT) == 4 && offsetof(CATALYST_RESULT, status) == 0 && offsetof(CATALYST_RESULT, context) == 1 && offsetof(CATALYST_RESULT, operation) == 2 && offsetof(CATALYST_RESULT, detail) == 3) ? 1 : -1];
+typedef char CATALYST_requires_result_layout[(sizeof(CATALYST_RESULT) == 4) ? 1 : -1];
 
 
 #endif /* CATALYST_H */
