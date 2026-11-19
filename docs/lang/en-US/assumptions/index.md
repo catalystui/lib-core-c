@@ -9,6 +9,7 @@ These principles apply to public C functions, C++ wrappers, and internal helpers
 - [Numerics and Arithmetic](#numerics-and-arithmetic)
   - [Numeric Representations](#numeric-representations)
   - [Arithmetic](#arithmetic)
+  - [Consumer Requirements](#consumer-requirements)
 - [Validation](#validation)
   - [Contract Validation](#contract-validation)
   - [Operational Validation](#operational-validation)
@@ -18,7 +19,7 @@ These principles apply to public C functions, C++ wrappers, and internal helpers
 
 ## Numerics and Arithmetic
 
-**Core depends on Catalyst's numerical guarantees, not the numerical flexibility of its implementation language. Every fundamental operation must be implementable on an 8-bit system.**
+**Eight-bit arithmetic is Core's minimum compatibility guarantee, not its performance target. Core uses Catalyst's numerical guarantees to remain portable while taking advantage of available representations.**
 
 ### Numeric Representations
 
@@ -53,11 +54,11 @@ The [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/s
 
 The `CATALYST_SUPPORTS_*` definitions indicate whether Catalyst provides an optional representation, not whether the processor executes arithmetic of that width directly. A conforming C implementation may lack an exact Catalyst representation.
 
-Access optional types only under their corresponding `#if` guards. Explicit shifts and masks may access logical bits of supported scalar representations; native memory layout must not be assumed. Preserve defined byte order and the target-specific, pointer-width representation of `NINT` and `NUINT`.
+Optional types require their corresponding `#if` guards. Defined representations may be converted to, packed into, and manipulated using supported Catalyst numeric types, preserving their meaning and logical order without assuming native memory layout. `NINT` and `NUINT` retain their target-specific pointer width.
 
 ### Arithmetic
 
-All arithmetic, including intermediate calculations, uses Catalyst-defined numeric types. Native language types must not substitute for unavailable Catalyst representations.
+All arithmetic, including intermediate calculations, uses Catalyst-defined numeric types. Fundamental operations remain available using bytes; compile-time-selected wider arithmetic should be used when it offers substantial performance or usability benefits.
 
 <div style="box-sizing:border-box;padding:1.2rem;border:1px solid color-mix(in srgb, currentColor 19%, transparent);border-radius:12px;background:color-mix(in srgb, currentColor 3%, transparent);margin:1rem 0;text-align:center;">
 <strong>Example · Adding two 64-bit unsigned values</strong>
@@ -69,25 +70,25 @@ All arithmetic, including intermediate calculations, uses Catalyst-defined numer
 <small style="overflow-wrap:anywhere;opacity:0.8;"><code>#if SUPPORTS_64BIT</code></small>
 <strong>1 × 64-bit</strong>
 <code>ULONG</code>
-<small>Optional optimization</small>
+<small>Wider arithmetic path</small>
 </div>
 <div style="padding:0.75rem 0.4rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:6px;display:flex;flex-direction:column;justify-content:center;gap:0.25rem;">
 <small style="overflow-wrap:anywhere;opacity:0.8;"><code>#elif SUPPORTS_32BIT</code></small>
 <strong>2 × 32-bit</strong>
 <code>UINT</code>
-<small>Optional optimization</small>
+<small>Wider arithmetic path</small>
 </div>
 <div style="padding:0.75rem 0.4rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:6px;display:flex;flex-direction:column;justify-content:center;gap:0.25rem;">
 <small style="overflow-wrap:anywhere;opacity:0.8;"><code>#elif SUPPORTS_16BIT</code></small>
 <strong>4 × 16-bit</strong>
 <code>USHORT</code>
-<small>Optional optimization</small>
+<small>Wider arithmetic path</small>
 </div>
 <div style="padding:0.75rem 0.4rem;border:1px solid color-mix(in srgb, currentColor 40%, transparent);border-radius:6px;display:flex;flex-direction:column;justify-content:center;gap:0.25rem;">
 <small style="overflow-wrap:anywhere;opacity:0.8;"><code>#else</code></small>
 <strong>8 × 8-bit</strong>
 <code>BYTE</code>
-<small>Universal fallback</small>
+<small>Minimum compatibility path</small>
 </div>
 </div>
 <div style="opacity:0.75;padding:0.3rem 0;" aria-hidden="true">↓</div>
@@ -96,9 +97,23 @@ All arithmetic, including intermediate calculations, uses Catalyst-defined numer
 <div style="margin-top:0.65rem;opacity:0.8;"><small>Conceptual compile-time selection; SUPPORTS_* abbreviates CATALYST_SUPPORTS_*.</small></div>
 </div>
 
-Establish the byte-based implementation first. Wider supported Catalyst types may then optimize the same operation conditionally, preserving its mathematical behavior and observable guarantees. Account for carry, overflow, truncation, signedness, and integer promotions without relying on unsupported widths.
+All paths must produce equivalent mathematical results and observable behavior. Select beneficial optimizations using `CATALYST_SUPPORTS_*`, accounting for carry, overflow, truncation, signedness, and promotions. Representational availability alone does not guarantee a performance improvement.
 
-**Why?** A byte-based foundation preserves universality and encourages alternative solutions. Conditional arithmetic lets implementations exploit available representations without changing their contracts.
+**Why?** Compatibility defines the minimum capabilities required to use Core, not a limit on its performance.
+
+### Consumer Requirements
+
+Core supports optional interfaces that let consumers use wider numeric representations directly. A consumer may establish its minimum support requirements once for its codebase rather than guard every individual use.
+
+```cpp
+#include "catalyst.hpp"
+
+#if !CATALYST_SUPPORTS_32BIT
+    #error "This application requires 32-bit support."
+#endif
+```
+
+On such a target, [`RESULT`](../api-reference/catalyst/index.md#result-members) can be constructed from, assigned from, or converted to `UINT` in `0xSSCCOODD` order. Its four fields and by-value C ABI remain unchanged. This permits efficient scalar operations without requiring them on targets lacking 32-bit support.
 
 ## Validation
 

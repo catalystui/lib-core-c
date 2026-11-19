@@ -26,7 +26,7 @@
 
 Core provides portable building blocks based on the [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/specifications/languages/fdefspec/). Its native C ABI allows libraries to share data representations and operations independently of programming language, operating system, or hardware.
 
-Core is designed to be implementable even on 8-bit systems. It is independent of every layer and sensory domain of the CatalystUI model, and exists to support them all.
+Core is designed to be implementable even on 8-bit systems while taking advantage of wider numeric representations where beneficial. It is independent of every layer and sensory domain of the CatalystUI model, and exists to support them all.
 
 > [!NOTE]
 > Core is in early development (1.0.0-alpha.2). Core types and text encoding are implemented. API and ABI stability are not yet guaranteed.

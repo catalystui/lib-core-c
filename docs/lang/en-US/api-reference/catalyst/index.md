@@ -102,23 +102,23 @@ The definitions are based on the [Foundational Definitions Specification (FDEFSP
 | [`CODEPOINT`](#codepoint-members) | [`CODEPOINT(BYTE, BYTE, BYTE, BYTE)`](#codepoint-field-constructor) | Initializes the individual fields. |
 | [`CODEPOINT`](#codepoint-members) | [`CODEPOINT(const CATALYST_CODEPOINT&)`](#codepoint-copy-constructor) | Copies the C representation. |
 | [`CODEPOINT`](#codepoint-members) | [`operator=(const CATALYST_CODEPOINT&)`](#codepoint-copy-assignment) | Assigns the C representation. |
-| [`CODEPOINT`](#codepoint-members) | [`CODEPOINT(UINT)`](#codepoint-numeric-constructor) | Initializes from a native unsigned integer, when supported. |
-| [`CODEPOINT`](#codepoint-members) | [`operator=(UINT)`](#codepoint-numeric-assignment) | Assigns from a native unsigned integer, when supported. |
-| [`CODEPOINT`](#codepoint-members) | [`operator UINT() const`](#codepoint-numeric-conversion) | Converts to a native unsigned integer, when supported. |
+| [`CODEPOINT`](#codepoint-members) | [`CODEPOINT(UINT)`](#codepoint-numeric-constructor) | Initializes from a supported Catalyst unsigned integer. |
+| [`CODEPOINT`](#codepoint-members) | [`operator=(UINT)`](#codepoint-numeric-assignment) | Assigns from a supported Catalyst unsigned integer. |
+| [`CODEPOINT`](#codepoint-members) | [`operator UINT() const`](#codepoint-numeric-conversion) | Converts to a supported Catalyst unsigned integer. |
 | [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`UTF16LE_CODE_UNIT()`](#utf16le_code_unit-default-constructor) | Initializes the default value. |
 | [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`UTF16LE_CODE_UNIT(BYTE, BYTE)`](#utf16le_code_unit-field-constructor) | Initializes the individual fields. |
 | [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`UTF16LE_CODE_UNIT(const CATALYST_UTF16LE_CODE_UNIT&)`](#utf16le_code_unit-copy-constructor) | Copies the C representation. |
 | [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`operator=(const CATALYST_UTF16LE_CODE_UNIT&)`](#utf16le_code_unit-copy-assignment) | Assigns the C representation. |
-| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`UTF16LE_CODE_UNIT(USHORT)`](#utf16le_code_unit-numeric-constructor) | Initializes from a native unsigned integer, when supported. |
-| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`operator=(USHORT)`](#utf16le_code_unit-numeric-assignment) | Assigns from a native unsigned integer, when supported. |
-| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`operator USHORT() const`](#utf16le_code_unit-numeric-conversion) | Converts to a native unsigned integer, when supported. |
+| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`UTF16LE_CODE_UNIT(USHORT)`](#utf16le_code_unit-numeric-constructor) | Initializes from a supported Catalyst unsigned integer. |
+| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`operator=(USHORT)`](#utf16le_code_unit-numeric-assignment) | Assigns from a supported Catalyst unsigned integer. |
+| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`operator USHORT() const`](#utf16le_code_unit-numeric-conversion) | Converts to a supported Catalyst unsigned integer. |
 | [`RESULT`](#result-members) | [`RESULT()`](#result-default-constructor) | Initializes the default value. |
 | [`RESULT`](#result-members) | [`RESULT(STATUS_CODE, CONTEXT_CODE, OPERATION_CODE, DETAIL_CODE)`](#result-field-constructor) | Initializes the individual fields. |
 | [`RESULT`](#result-members) | [`RESULT(const CATALYST_RESULT&)`](#result-copy-constructor) | Copies the C representation. |
 | [`RESULT`](#result-members) | [`operator=(const CATALYST_RESULT&)`](#result-copy-assignment) | Assigns the C representation. |
-| [`RESULT`](#result-members) | [`RESULT(UINT)`](#result-numeric-constructor) | Initializes from a native unsigned integer, when supported. |
-| [`RESULT`](#result-members) | [`operator=(UINT)`](#result-numeric-assignment) | Assigns from a native unsigned integer, when supported. |
-| [`RESULT`](#result-members) | [`operator UINT() const`](#result-numeric-conversion) | Converts to a native unsigned integer, when supported. |
+| [`RESULT`](#result-members) | [`RESULT(UINT)`](#result-numeric-constructor) | Initializes from a supported Catalyst unsigned integer. |
+| [`RESULT`](#result-members) | [`operator=(UINT)`](#result-numeric-assignment) | Assigns from a supported Catalyst unsigned integer. |
+| [`RESULT`](#result-members) | [`operator UINT() const`](#result-numeric-conversion) | Converts to a supported Catalyst unsigned integer. |
 
 ## Type Details
 
@@ -604,7 +604,7 @@ typedef struct CATALYST_RESULT {
 `operation` ([`CATALYST_OPERATION_CODE`](#catalyst_operation_code)) — Distinct operation within that context.  
 `detail` ([`CATALYST_DETAIL_CODE`](#catalyst_detail_code)) — Additional information, when defined.
 
-Results are written in this reference as `0xSSCCOODD`, where `SS`, `CC`, `OO`, and `DD` are the status, context, operation, and detail bytes, respectively. The notation expresses field significance, not a requirement to pack the fields into a native integer.
+Results use `0xSSCCOODD` significance order: status, context, operation, detail. When `CATALYST_SUPPORTS_32BIT` is 1, this is also their logical `UINT` representation, independent of host byte order. Scalar conversion and operations preserve the four-field C representation.
 
 A C aggregate has no automatic default initialization unless initialized by its declaration or storage duration.
 
@@ -880,7 +880,7 @@ Tests whether the given status belongs to the Fatal level.
 
 ## C++ Member Details
 
-Constructors and assignments do not validate codepoint, code-unit, or result semantics. Native integer conveniences are not prerequisites for using the byte representations.
+Constructors and assignments do not validate codepoint, code-unit, or result semantics. Guarded Catalyst scalar conversions permit efficient numeric operations without requiring optional representations for byte-based interfaces.
 
 ### CODEPOINT members
 
@@ -1175,7 +1175,7 @@ A reference to this object.
 operator UINT() const;
 ```
 
-Converts the stored fields to an unsigned integer.
+Converts the stored fields to `UINT` in logical significance order, independently of host byte order. The returned value may be used directly in scalar comparisons and bitwise operations.
 
 <span data-heading-badge="CATALYST_SUPPORTS_32BIT" data-heading-badge-background="#b4232c" data-heading-badge-color="#ffffff" title="Requires CATALYST_SUPPORTS_32BIT to be 1"></span>
 
