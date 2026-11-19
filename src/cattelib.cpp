@@ -171,9 +171,9 @@ CATALYST_NUINT catte_cp1252_length(CATALYST_CP1252 cp1252) {
 }
 
 /* Encode a known Unicode scalar into four writable UTF-8 units. */
-static BYTE encode_utf8_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w) {
 #if CATALYST_SUPPORTS_32BIT
-    UINT value = CODEPOINT(codepoint);
+/* Encode a validated Unicode scalar using its supported numeric representation. */
+static BYTE encode_utf8_value(UINT value, CATALYST_UTF8W utf8w) {
     if (value < (UINT) 0x80u) {
         utf8w[0] = (BYTE) value;
         return 1;
@@ -194,6 +194,12 @@ static BYTE encode_utf8_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8
     utf8w[2] = (BYTE) ((UINT) 0x80u | ((value >> 6) & (UINT) 0x3Fu));
     utf8w[3] = (BYTE) ((UINT) 0x80u | (value & (UINT) 0x3Fu));
     return 4;
+}
+#endif
+
+static BYTE encode_utf8_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w) {
+#if CATALYST_SUPPORTS_32BIT
+    return encode_utf8_value((UINT) CODEPOINT(codepoint), utf8w);
 #else
     // Prepare code units
     BYTE codepoint1 = codepoint.byte1;
@@ -243,13 +249,26 @@ static BYTE encode_utf8_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8
 
 CATALYST_RESULT catte_utf8_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w, CATALYST_NUINT* produced) {
     *produced = 0;
+#if CATALYST_SUPPORTS_32BIT
+    UINT value = CODEPOINT(codepoint);
+    if (value > (UINT) 0x10FFFFu) {
+#else
     if (codepoint.byte0 != 0 || codepoint.byte1 > (BYTE) 0x10u) {
+#endif
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x07, 0x0A, 0);
     }
+#if CATALYST_SUPPORTS_32BIT
+    if (value >= (UINT) 0xD800u && value <= (UINT) 0xDFFFu) {
+#else
     if (codepoint.byte1 == 0 && codepoint.byte2 >= (BYTE) 0xD8u && codepoint.byte2 <= (BYTE) 0xDFu) {
+#endif
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x07, 0x07, 0);
     }
+#if CATALYST_SUPPORTS_32BIT
+    BYTE count = encode_utf8_value(value, utf8w);
+#else
     BYTE count = encode_utf8_scalar(codepoint, utf8w);
+#endif
     *produced = count;
     if (count == 1) return RESULT(STATUS_CODE_SUCCESS, 0x07, 0x03, 0);
     if (count == 2) return RESULT(STATUS_CODE_SUCCESS, 0x07, 0x05, 0);
@@ -426,7 +445,29 @@ CATALYST_RESULT catte_utf8_length(CATALYST_UTF8 utf8, CATALYST_NUINT* length) {
 }
 
 /* Encode a known Unicode scalar into two writable UTF-16LE units. */
+#if CATALYST_SUPPORTS_32BIT
+/* Encode a validated Unicode scalar using its supported numeric representation. */
+static BYTE encode_utf16le_value(UINT value, CATALYST_UTF16LEW utf16lew) {
+    if (value < (UINT) 0x10000u) {
+        utf16lew[0].lsb = (BYTE) value;
+        utf16lew[0].msb = (BYTE) (value >> 8);
+        return 1;
+    }
+    value -= (UINT) 0x10000u;
+    UINT high = (UINT) 0xD800u | (value >> 10);
+    UINT low = (UINT) 0xDC00u | (value & (UINT) 0x03FFu);
+    utf16lew[0].lsb = (BYTE) high;
+    utf16lew[0].msb = (BYTE) (high >> 8);
+    utf16lew[1].lsb = (BYTE) low;
+    utf16lew[1].msb = (BYTE) (low >> 8);
+    return 2;
+}
+#endif
+
 static BYTE encode_utf16le_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW utf16lew) {
+#if CATALYST_SUPPORTS_32BIT
+    return encode_utf16le_value((UINT) CODEPOINT(codepoint), utf16lew);
+#else
     // Prepare code units
     BYTE codepoint1 = codepoint.byte1;
     BYTE codepoint2 = codepoint.byte2;
@@ -440,15 +481,6 @@ static BYTE encode_utf16le_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_U
     }
 
     // Surrogate pair
-#if CATALYST_SUPPORTS_32BIT
-    UINT value = (UINT) CODEPOINT(codepoint) - (UINT) 0x10000u;
-    UINT high = (UINT) 0xD800u | (value >> 10);
-    UINT low = (UINT) 0xDC00u | (value & (UINT) 0x03FFu);
-    utf16lew[0].lsb = (BYTE) high;
-    utf16lew[0].msb = (BYTE) (high >> 8);
-    utf16lew[1].lsb = (BYTE) low;
-    utf16lew[1].msb = (BYTE) (low >> 8);
-#else
     BYTE x2 = (BYTE) (codepoint1 - (BYTE) 0x01u);
     BYTE x1 = codepoint2;
     BYTE x0 = codepoint3;
@@ -465,19 +497,32 @@ static BYTE encode_utf16le_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_U
     utf16lew[0].lsb = hs_lo8;
     utf16lew[1].msb = (BYTE) ((BYTE) 0xDCu | ls_hi2);
     utf16lew[1].lsb = ls_lo8;
-#endif
     return 2;
+#endif
 }
 
 CATALYST_RESULT catte_utf16le_encode(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW utf16lew, CATALYST_NUINT* produced) {
     *produced = 0;
+#if CATALYST_SUPPORTS_32BIT
+    UINT value = CODEPOINT(codepoint);
+    if (value > (UINT) 0x10FFFFu) {
+#else
     if (codepoint.byte0 != 0 || codepoint.byte1 > (BYTE) 0x10u) {
+#endif
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0A, 0x03, 0);
     }
+#if CATALYST_SUPPORTS_32BIT
+    if (value >= (UINT) 0xD800u && value <= (UINT) 0xDFFFu) {
+#else
     if (codepoint.byte1 == 0 && codepoint.byte2 >= (BYTE) 0xD8u && codepoint.byte2 <= (BYTE) 0xDFu) {
+#endif
         return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0A, 0x04, 0);
     }
+#if CATALYST_SUPPORTS_32BIT
+    BYTE count = encode_utf16le_value(value, utf16lew);
+#else
     BYTE count = encode_utf16le_scalar(codepoint, utf16lew);
+#endif
     *produced = count;
     if (count == 1) return RESULT(STATUS_CODE_SUCCESS, 0x0A, 0x05, 0);
     return RESULT(STATUS_CODE_SUCCESS, 0x0A, 0x06, 0);
@@ -687,17 +732,12 @@ CATALYST_RESULT catte_cp1252_to_utf8(CATALYST_CP1252 cp1252, CATALYST_UTF8W utf8
         RESULT decodeResult;
         NUINT i;
 
-        if (cp1252[read] < (BYTE) 0x80u) {
-            output[0] = cp1252[read];
-            produced = 1;
-        } else {
-            decodeResult = catte_cp1252_decode(cp1252 + read, &codepoint);
-            if (status_code_is_warning(decodeResult.status)) {
-                status = STATUS_CODE_WARNING_PARTIAL;
-            }
-
-            produced = encode_utf8_scalar(codepoint, output);
+        decodeResult = catte_cp1252_decode(cp1252 + read, &codepoint);
+        if (status_code_is_warning(decodeResult.status)) {
+            status = STATUS_CODE_WARNING_PARTIAL;
         }
+
+        produced = encode_utf8_scalar(codepoint, output);
 
         if (produced >= (capacity - write)) {
             return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x11, 0x06, 0);
@@ -877,19 +917,12 @@ CATALYST_RESULT catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf1
         RESULT decodeResult;
         NUINT i;
 
-        if (utf8[0] < (BYTE) 0x80u) {
-            consumed = 1;
-            output[0].msb = 0;
-            output[0].lsb = utf8[0];
-            produced = 1;
-        } else {
-            decodeResult = catte_utf8_decode(utf8, &codepoint, &consumed);
-            if (!status_code_is_success(decodeResult.status)) {
-                return RESULT(decodeResult.status, 0x15, 0x04, decodeResult.operation);
-            }
-
-            produced = encode_utf16le_scalar(codepoint, output);
+        decodeResult = catte_utf8_decode(utf8, &codepoint, &consumed);
+        if (!status_code_is_success(decodeResult.status)) {
+            return RESULT(decodeResult.status, 0x15, 0x04, decodeResult.operation);
         }
+
+        produced = encode_utf16le_scalar(codepoint, output);
 
         if (produced >= (capacity - write)) {
             return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x15, 0x06, 0);
@@ -1024,18 +1057,12 @@ CATALYST_RESULT catte_utf16le_to_utf8(CATALYST_UTF16LE utf16le, CATALYST_UTF8W u
         RESULT decodeResult;
         NUINT i;
 
-        if (utf16le[0].msb == 0 && utf16le[0].lsb < (BYTE) 0x80u) {
-            consumed = 1;
-            output[0] = utf16le[0].lsb;
-            produced = 1;
-        } else {
-            decodeResult = catte_utf16le_decode(utf16le, &codepoint, &consumed);
-            if (!status_code_is_success(decodeResult.status)) {
-                return RESULT(decodeResult.status, 0x18, 0x04, decodeResult.operation);
-            }
-
-            produced = encode_utf8_scalar(codepoint, output);
+        decodeResult = catte_utf16le_decode(utf16le, &codepoint, &consumed);
+        if (!status_code_is_success(decodeResult.status)) {
+            return RESULT(decodeResult.status, 0x18, 0x04, decodeResult.operation);
         }
+
+        produced = encode_utf8_scalar(codepoint, output);
 
         if (produced >= (capacity - write)) {
             return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x18, 0x06, 0);

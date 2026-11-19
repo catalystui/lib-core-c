@@ -206,10 +206,11 @@ jobs:
           $dir = 'target/ci/bench'
           New-Item -ItemType Directory -Path $dir -Force | Out-Null
           git show 38253703e9bbde5de337e67349473b7674bcdd88:src/cattelib.cpp | Set-Content "$dir/baseline.cpp"
+          (Get-Content src/cattelib.cpp -Raw).Replace('#if CATALYST_SUPPORTS_32BIT','#if 0') | Set-Content "$dir/byte-path.cpp"
           foreach ($compiler in 'g++','clang++') {
             & $compiler --version
-            foreach ($variant in 'baseline','candidate') {
-              $source = if ($variant -eq 'baseline') { "$dir/baseline.cpp" } else { 'src/cattelib.cpp' }
+            foreach ($variant in 'baseline','byte-path','candidate') {
+              $source = if ($variant -eq 'candidate') { 'src/cattelib.cpp' } else { "$dir/$variant.cpp" }
               & $compiler -O3 -std=c++11 -Iinclude -Itarget/ci/generated $source benchmarks/cattelib.cpp -o "$dir/$variant"
               Write-Host "MEASURE $compiler $variant"
               & "./$dir/$variant"
