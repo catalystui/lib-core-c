@@ -13,14 +13,15 @@ Requirements for CatalystUI Core.
 
 ## Numerics and arithmetic
 
-Every Core library MUST be implementable and usable on an 8-bit system.
+8-bit arithmetic is Core's minimum compatibility guarantee, not its performance target.
 
 - Catalyst Numeric Definitions guarantee exact representations. C/C++ compliance does not guarantee Catalyst compatibility. Native types implement Catalyst types; they are not substitutes for them.
 - Use only Catalyst-defined numeric types for arithmetic, including intermediate values. Never bypass a missing Catalyst representation with native language types or rely on wider implicit promotions.
 - `CATALYST_SUPPORTS_*` indicates representational availability, not processor width or arithmetic performance. Guard access to and arithmetic on optional types with `#if CATALYST_SUPPORTS_*`, not `#ifdef`.
-- No fundamental operation may require an optional numeric representation. Establish a byte-based implementation using `CATALYST_BYTE`/`CATALYST_SBYTE` first; wider supported Catalyst types may then optimize the same operation conditionally. All implementations must preserve identical mathematical behavior and observable guarantees. Consider simpler algorithms before adding arithmetic helpers.
+- Fundamental operations must remain available using `CATALYST_BYTE`/`CATALYST_SBYTE`. Use compile-time-selected wider Catalyst arithmetic when it offers substantial performance or usability benefits. All paths must preserve mathematical behavior and observable guarantees.
+- Optional interfaces may require supported representations; consumers may establish their own minimum support requirements once for their entire codebase.
 - Common arithmetic primitives may be centralized in CATALYST with compiler-gated implementations after owner approval of their contracts and interfaces. Do not scatter equivalent arithmetic or representation conversions across libraries.
-- Preserve defined byte order; do not assume native endianness, alignment, padding, or integer layout. Use supported scalar representations for explicit shifts/masks when accessing their logical bits. Never serialize native objects in place of specified byte representations. Codepoint remains MSB-first (`byte0`–`byte3`); UTF-16LE code units remain `lsb`, then `msb`.
+- Preserve defined byte order; do not assume native endianness, alignment, padding, or integer layout. Convert, pack, and operate on defined representations using supported Catalyst scalars; preserve their meaning and logical order. Never assume native object layout matches specified byte representations. Codepoint remains MSB-first (`byte0`–`byte3`); UTF-16LE code units remain `lsb`, then `msb`.
 - Preserve the pointer-width scalar ABI of `CATALYST_NINT`/`CATALYST_NUINT` for addresses, sizes, counts, and indices, including one-byte pointers. Do not assume a wider minimum or use these types to bypass numeric support guarantees. Obtain approval before defining new ABI conversion helpers.
 - Account for promotions, overflow, truncation, signedness, and shift behavior. Never require native floating-point arithmetic or optional wider instructions. Confine unavoidable native platform API types to platform boundaries.
 
@@ -47,7 +48,7 @@ Every Core library MUST be implementable and usable on an 8-bit system.
 
 ## Operation results
 
-`RESULT` contains four ordered bytes: status, context, operation, detail. Never pack them into a native integer or replace them with exceptions, result output pointers, last-result state, or larger combined return structures.
+`RESULT` represents four ordered bytes: status, context, operation, detail. Guarded `UINT` packing, conversion, and operations in `0xSSCCOODD` order are valid; preserve the four-field C ABI and by-value return. No exceptions, result output pointers, last-result state, or larger combined return structures.
 
 - **Status:** Use the most specific FDEFSPEC code. Undefined codes are reserved.
 - **Context:** Unique per module; fixed method ID on every return, including success and no-op. Zero means unspecified, not success.
@@ -70,7 +71,7 @@ Every Core library MUST be implementable and usable on an 8-bit system.
 - Preserve shared CMake infrastructure, cmakecfg.h, existing presets, and static/shared targets. Initialize cmake submodule recursively; no build/CI/submodule workarounds without approval.
 - Runtime executables, tests, DLLs, versioned shared libraries and ABI aliases belong directly in debug/ or release/. Development archives/import libraries/unversioned linker aliases belong in flat lib/. Unix runtime dependencies resolve relative to binaries; linker aliases point to runtime ABI aliases. Shared build-cmake derives names/versions from metadata; preserve library names and targets (catte).
 - Example v1.5.2: MSVC `libcatte.lib`, `catte.lib`, `catte15.dll` (full resource version); Linux `libcatte.a`, `libcatte.so`, `libcatte.so.1.5`, `libcatte.so.1.5.2`; macOS `libcatte.a`, `libcatte.dylib`, `libcatte.1.5.dylib`, `libcatte.1.5.2.dylib`. Unix aliases are symlinks.
-- Use existing standalone test/test_<library>.cpp programs, no new framework. Test wrappers, normal/boundary/no-op/failure behavior and all four Result bytes; never violate caller preconditions. Compare byte and wider arithmetic implementations independently where implemented.
+- Use existing standalone test/test_<library>.cpp programs, no new framework. Test wrappers, normal/boundary/no-op/failure behavior and all four Result bytes; never violate caller preconditions. Test byte and wider paths for equivalence; verify claimed optimization benefits.
 - Verify C90/C++98 and C99/C++11 builds/headers where possible; review arithmetic and representation assumptions independently. x86/x64 builds do not establish actual 8-bit compatibility. Report tests performed, limitations, and conflicts.
 
 ## Commits
