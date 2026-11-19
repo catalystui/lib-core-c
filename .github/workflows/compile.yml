@@ -60,7 +60,7 @@ jobs:
             -DTARGET_VENDOR=linux -DTARGET_SYSTEM=linux -DTARGET_ARCHITECTURE=${{ matrix.arch }}
 
       - name: Compile libraries
-        run: cmake --build target/ci --parallel --target catmmlib_static catmmlib_shared cattelib_static cattelib_shared catrllib_static catrllib_shared
+        run: cmake --build target/ci --parallel --target cattelib_static cattelib_shared
 
       - name: Verify library artifacts and ABI names
         run: |
@@ -72,7 +72,7 @@ jobs:
           $abi = "$major.$minor"
           $version = "$abi.$patch"
           $output = 'build/linux/linux/${{ matrix.arch }}/release'
-          foreach ($name in 'catmm', 'catte', 'catrl') {
+          foreach ($name in 'catte') {
             $base = "lib$name"
             $linker = "$base.so"
             $soname = "$linker.$abi"
@@ -94,43 +94,39 @@ jobs:
             }
           }
 
-      - name: Run memory tests
+      - name: Run text encoding tests
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          cmake --build target/ci --parallel --target test_catmmlib test_cattelib test_catrllib
+          cmake --build target/ci --parallel --target test_cattelib
           $output = 'build/linux/linux/${{ matrix.arch }}/release'
-          foreach ($name in 'test_catmmlib', 'test_cattelib', 'test_catrllib') {
+          foreach ($name in 'test_cattelib') {
             if (!(Test-Path "$output/$name" -PathType Leaf)) {
               throw "Missing top-level test executable $name"
             }
           }
-          & "$output/test_catmmlib"
+          & "$output/test_cattelib"
 
       - name: Verify relocatable shared-library runtime
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           $output = 'build/linux/linux/${{ matrix.arch }}/release'
-          g++ ${{ matrix.flags }} -std=c++${{ matrix.cpp }} -Iinclude -Itarget/ci/generated test/test_catrllib.cpp "-L$output/lib" -lcatrl -lcatmm '-Wl,-rpath,$ORIGIN' -o "$output/test_catrllib_dynamic"
+          g++ ${{ matrix.flags }} -std=c++${{ matrix.cpp }} -Iinclude -Itarget/ci/generated test/test_cattelib.cpp "-L$output/lib" -lcatte '-Wl,-rpath,$ORIGIN' -o "$output/test_cattelib_dynamic"
           $runtime = 'target/ci/runtime-check'
           New-Item -ItemType Directory -Path $runtime -Force | Out-Null
           Get-ChildItem "$output/lib*.so.*" | ForEach-Object { /bin/cp -P $_.FullName "$runtime/" }
-          Copy-Item "$output/test_catrllib_dynamic" "$runtime/"
-          & "$runtime/test_catrllib_dynamic"
+          Copy-Item "$output/test_cattelib_dynamic" "$runtime/"
+          & "$runtime/test_cattelib_dynamic"
 
       - name: Compile public C headers
         run: |
           @'
           #include "catalyst.h"
-          #include "catmmlib.h"
           #include "cattelib.h"
-          #include "catrllib.h"
           '@ | gcc ${{ matrix.flags }} -std=c${{ matrix.c }} -pedantic-errors -Iinclude -Itarget/ci/generated -x c -c -o target/ci/headers-c.o -
 
       - name: Compile public C++ headers
         run: |
           @'
           #include "catalyst.hpp"
-          #include "catmmlib.hpp"
           #include "cattelib.hpp"
-          #include "catrllib.hpp"
           '@ | g++ ${{ matrix.flags }} -std=c++${{ matrix.cpp }} -pedantic-errors -Iinclude -Itarget/ci/generated -x c++ -c -o target/ci/headers-cpp.o -

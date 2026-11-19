@@ -18,14 +18,14 @@
 
 Core is a set of foundational libraries for CatalystUI, providing native C ABI contracts based on the **Foundational Definitions Specification (FDEFSPEC)**.
 
-These libraries provide consistent, portable data types and shared utilities for representing digital data, reporting operation results, managing memory, and converting between text encodings, without tying applications to a particular programming language or platform.
+These libraries provide consistent, portable data types and shared utilities for representing digital data, reporting operation results, and converting between text encodings, without tying applications to a particular programming language or platform.
 
 Core is independent of any particular layer or sensory domain of the CatalystUI model. Its purpose is to provide a common foundation for other CatalystUI libraries.
 
 ## Development Status
 
 > [!NOTE]
-> Core is in early development (1.0.0-alpha.2). Core types, memory management, and text encoding are implemented. Memory management currently has backends for Windows, macOS, and Linux. API and ABI stability are not yet guaranteed.
+> Core is in early development (1.0.0-alpha.2). Core types and text encoding are implemented. API and ABI stability are not yet guaranteed.
 
 The compile workflow checks C90 and C++98 on x86, and C99 and C++11 on x64, using GCC on Linux.
 
@@ -33,7 +33,6 @@ The compile workflow checks C90 and C++98 on x86, and C99 and C++11 on x64, usin
 
 | Library | Windows | macOS | Linux | Description |
 | --- | --- | --- | --- | --- |
-| [CATMMLIB](include/catmmlib.h) | `catmmlib.dll`, `catmmlib.lib` | `libcatmm.dylib`, `libcatmm.a` | `libcatmm.so`, `libcatmm.a` | Memory allocation, reallocation, and deallocation. |
 | [CATTELIB](include/cattelib.h) | `cattelib.dll`, `cattelib.lib` | `libcatte.dylib`, `libcatte.a` | `libcatte.so`, `libcatte.a` | Text encoding, decoding, length calculation, and conversion. |
 
 The filenames follow the shared build configuration and platform toolchain conventions. Core types are provided through [`catalyst.h`](include/catalyst.h) and [`catalyst.hpp`](include/catalyst.hpp), without a separate binary library.

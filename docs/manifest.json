@@ -23,18 +23,8 @@
                     "alignment": "block"
                 },
                 {
-                    "title": "CATMMLIB",
-                    "path": "/api-reference/catmmlib",
-                    "alignment": "block"
-                },
-                {
                     "title": "CATTELIB",
                     "path": "/api-reference/cattelib",
-                    "alignment": "block"
-                },
-                {
-                    "title": "CATRLLIB",
-                    "path": "/api-reference/catrllib",
                     "alignment": "block"
                 }
             ]

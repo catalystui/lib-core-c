@@ -24,12 +24,12 @@
 </div>
 </div>
 
-Core provides portable building blocks based on the [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/specifications/languages/fdefspec/) and [Foundational Relations Specification (FRELSPEC)](https://catalystui.org/specifications/languages/frelspec/). Its native C ABI allows libraries to share data representations and operations independently of programming language, operating system, or hardware.
+Core provides portable building blocks based on the [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/specifications/languages/fdefspec/). Its native C ABI allows libraries to share data representations and operations independently of programming language, operating system, or hardware.
 
 Core is designed to be implementable even on 8-bit systems. It is independent of every layer and sensory domain of the CatalystUI model, and exists to support them all.
 
 > [!NOTE]
-> Core is in early development (1.0.0-alpha.2). Memory allocation has Windows, macOS, and Linux backends. API and ABI stability are not yet guaranteed.
+> Core is in early development (1.0.0-alpha.2). Core types and text encoding are implemented. API and ABI stability are not yet guaranteed.
 
 ## Libraries
 
@@ -42,14 +42,7 @@ Core is designed to be implementable even on 8-bit systems. It is independent of
 <p style="margin:0 0 0.85rem;max-width:20rem;">Foundational types and operation results.</p>
 <small style="opacity:0.8;margin-top:auto;">Header-only</small>
 </div>
-<div style="flex:1 1 calc(50% - 0.5rem);min-width:min(100%, 15rem);box-sizing:border-box;padding:1.2rem;border:1px solid color-mix(in srgb, currentColor 19%, transparent);border-radius:12px;background:color-mix(in srgb, currentColor 3%, transparent);display:flex;flex-direction:column;align-items:center;text-align:center;">
-<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;width:32px;height:32px;margin:0.15rem auto 0.8rem;opacity:0.9;"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M8 2v3m4-3v3m4-3v3M8 19v3m4-3v3m4-3v3M2 8h3m-3 4h3m-3 4h3m14-8h3m-3 4h3m-3 4h3"/></svg>
 
-**[CATMMLIB](api-reference/catmmlib/index.md)**
-
-<p style="margin:0 0 0.85rem;max-width:20rem;">Allocate, release, resize, and manipulate memory.</p>
-<small style="opacity:0.8;margin-top:auto;">Link: <code>catmm</code></small>
-</div>
 <div style="flex:1 1 calc(50% - 0.5rem);min-width:min(100%, 15rem);box-sizing:border-box;padding:1.2rem;border:1px solid color-mix(in srgb, currentColor 19%, transparent);border-radius:12px;background:color-mix(in srgb, currentColor 3%, transparent);display:flex;flex-direction:column;align-items:center;text-align:center;">
 <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;width:32px;height:32px;margin:0.15rem auto 0.8rem;opacity:0.9;"><path d="M3 19L9 5l6 14M5 14h8M17 7h4m-2 0v12m-2 0h4"/></svg>
 
@@ -58,14 +51,7 @@ Core is designed to be implementable even on 8-bit systems. It is independent of
 <p style="margin:0 0 0.85rem;max-width:20rem;">Encode, decode, measure, and convert text.</p>
 <small style="opacity:0.8;margin-top:auto;">Link: <code>catte</code></small>
 </div>
-<div style="flex:1 1 calc(50% - 0.5rem);min-width:min(100%, 15rem);box-sizing:border-box;padding:1.2rem;border:1px solid color-mix(in srgb, currentColor 19%, transparent);border-radius:12px;background:color-mix(in srgb, currentColor 3%, transparent);display:flex;flex-direction:column;align-items:center;text-align:center;">
-<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;width:32px;height:32px;margin:0.15rem auto 0.8rem;opacity:0.9;"><rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><path d="M12 8v4m-7 4v-4h14v4"/></svg>
 
-**[CATRLLIB](api-reference/catrllib/index.md)**
-
-<p style="margin:0 0 0.85rem;max-width:20rem;">Arrays, sets, maps, files, and streams.</p>
-<small style="opacity:0.8;margin-top:auto;">Link: <code>catrl</code></small>
-</div>
 </div>
 
 ## Getting Started

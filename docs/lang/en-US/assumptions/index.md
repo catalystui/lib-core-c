@@ -91,11 +91,11 @@ Return `CATALYST_RESULT` (`RESULT` in C++) by value on every exit, including suc
 
 | Function | Returns | Why? |
 | --- | --- | --- |
-| [`catmm_alloc`](../api-reference/catmmlib/index.md#catmm_alloc) | `CATALYST_RESULT` | Allocation may fail. |
-| [`catmm_compare`](../api-reference/catmmlib/index.md#catmm_compare) | `CATALYST_SBYTE` | Comparison produces an ordinary value. |
-| [`catmm_copy`](../api-reference/catmmlib/index.md#catmm_copy) | `void` | Writes into existing storage. |
+| [`catte_utf8_decode`](../api-reference/cattelib/index.md#catte_utf8_decode) | `CATALYST_RESULT` | Encoding may be malformed. |
+| [`catte_ascii_length`](../api-reference/cattelib/index.md#catte_ascii_length) | `CATALYST_NUINT` | Length is an ordinary value. |
+| Non-reporting procedure | `void` | Writes outputs or mutates existing storage without a reportable outcome. |
 
-Zero, false, equality, emptiness, absence, and no-ops are not inherently failures. For example, `catrl_map_contains` succeeds by returning whether a key exists; `catrl_map_get` reports an error when it cannot retrieve the requested value. An operation that already requires a Result follows its documented no-op contract.
+Zero, false, equality, emptiness, absence, and no-ops are not inherently failures. For example, an empty ASCII string has length zero; this is an ordinary successful outcome. An operation that already requires a Result follows its documented no-op contract.
 
 ### Reporting Boundaries
 
