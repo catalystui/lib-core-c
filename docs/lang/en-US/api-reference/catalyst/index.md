@@ -530,7 +530,7 @@ typedef struct CATALYST_UTF16LE_CODE_UNIT {
 `lsb` — Least significant byte, stored first.  
 `msb` — Most significant byte, stored second.
 
-**C++:** `catalyst::UTF16LE_CODE_UNIT` publicly derives from this structure and provides scalar constructors and conversions. Arrays passed to `UTF16LE` or `UTF16LEW` must contain `CATALYST_UTF16LE_CODE_UNIT` elements, not derived wrapper objects. See [UTF16LE_CODE_UNIT members](#utf16le_code_unit-members).
+**C++:** `catalyst::UTF16LE_CODE_UNIT` aliases this same structure, with constructors and optional numeric conversions enabled under `__cplusplus`. C and C++ arrays share the same element type. See [UTF16LE_CODE_UNIT members](#utf16le_code_unit-members).
 
 #### CATALYST_UTF16LE
 
@@ -995,7 +995,7 @@ The integer formed from `byte0` through `byte3`, in decreasing significance.
 
 ### UTF16LE_CODE_UNIT members
 
-**Base type:** [`CATALYST_UTF16LE_CODE_UNIT`](#catalyst_utf16le_code_unit).
+**C type:** [`CATALYST_UTF16LE_CODE_UNIT`](#catalyst_utf16le_code_unit).
 
 #### UTF16LE_CODE_UNIT default constructor
 
@@ -1024,7 +1024,7 @@ Initializes each field with its corresponding argument. The argument order is hi
 UTF16LE_CODE_UNIT(const ::CATALYST_UTF16LE_CODE_UNIT& codeunit);
 ```
 
-Copies all fields from the C representation.
+Copies all fields using the implicitly defined copy constructor.
 
 **Parameters:**
 
@@ -1036,7 +1036,7 @@ Copies all fields from the C representation.
 UTF16LE_CODE_UNIT& operator=(const ::CATALYST_UTF16LE_CODE_UNIT& codeunit);
 ```
 
-Copies all fields from the C representation into this object.
+Copies all fields into this object using the implicitly defined copy assignment operator.
 
 **Parameters:**
 

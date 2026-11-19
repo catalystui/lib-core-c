@@ -199,7 +199,7 @@ static BYTE encode_utf8_value(UINT value, CATALYST_UTF8W utf8w) {
 
 /* Encode a validated scalar into four writable bytes. Also avoids packing in string conversions. */
 static BYTE encode_utf8_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_UTF8W utf8w) {
-#if CATALYST_SUPPORTS_16BIT && !CATALYST_SUPPORTS_32BIT
+#if CATALYST_SUPPORTS_16BIT
     USHORT value = (USHORT) (((USHORT) codepoint.byte2 << 8) | (USHORT) codepoint.byte3);
     if (codepoint.byte1 == 0) {
         if (value < (USHORT) 0x80u) {
@@ -499,7 +499,7 @@ static BYTE encode_utf16le_value(UINT value, CATALYST_UTF16LEW utf16lew) {
 #endif
 
 static BYTE encode_utf16le_scalar(const CATALYST_CODEPOINT codepoint, CATALYST_UTF16LEW utf16lew) {
-#if CATALYST_SUPPORTS_16BIT && !CATALYST_SUPPORTS_32BIT
+#if CATALYST_SUPPORTS_16BIT
     USHORT value = (USHORT) (((USHORT) codepoint.byte2 << 8) | (USHORT) codepoint.byte3);
     if (codepoint.byte1 == 0) {
         utf16lew[0].lsb = (BYTE) value;
@@ -965,7 +965,7 @@ CATALYST_RESULT catte_utf8_to_utf16le(CATALYST_UTF8 utf8, CATALYST_UTF16LEW utf1
 
     while (utf8[0] != (BYTE) '\0') {
         CODEPOINT codepoint;
-        CATALYST_UTF16LE_CODE_UNIT output[2];
+        UTF16LE_CODE_UNIT output[2];
         NUINT consumed;
         NUINT produced;
         RESULT decodeResult;

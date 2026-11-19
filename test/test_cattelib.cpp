@@ -700,7 +700,7 @@ int main() {
 
         for (i = 0; i < testCount; ++i) {
             CODEPOINT codepoint;
-            CATALYST_UTF16LE_CODE_UNIT output[2];
+            UTF16LE_CODE_UNIT output[2];
             NUINT produced;
 
             codepoint.byte0 = tests[i].byte0;
@@ -781,7 +781,7 @@ int main() {
         unsigned int i;
 
         for (i = 0; i < testCount; ++i) {
-            CATALYST_UTF16LE_CODE_UNIT input[2];
+            UTF16LE_CODE_UNIT input[2];
             CODEPOINT codepoint;
             NUINT consumed;
 
@@ -843,7 +843,7 @@ int main() {
     // UTF-16LE Length
     // ------------------------------------------------------------
     {
-        CATALYST_UTF16LE_CODE_UNIT input[8];
+        UTF16LE_CODE_UNIT input[8];
         NUINT length = 0;
 
         input[0].msb = 0x00; input[0].lsb = 0x41; // U+0041
@@ -873,7 +873,7 @@ int main() {
     }
 
     {
-        CATALYST_UTF16LE_CODE_UNIT input[5];
+        UTF16LE_CODE_UNIT input[5];
         NUINT length = 0;
 
         input[0].msb = 0xFE; input[0].lsb = 0xFF; // BOM U+FEFF
@@ -900,7 +900,7 @@ int main() {
     }
 
     {
-        CATALYST_UTF16LE_CODE_UNIT input[3];
+        UTF16LE_CODE_UNIT input[3];
         NUINT length = 123;
 
         input[0].msb = 0x00; input[0].lsb = 0x41;
@@ -1061,7 +1061,7 @@ int main() {
     // ------------------------------------------------------------
     {
         BYTE input[] = { 'A', 'B', '\0' };
-        CATALYST_UTF16LE_CODE_UNIT output[3];
+        UTF16LE_CODE_UNIT output[3];
 
         result = ascii_to_utf16le(input, output, 3);
 
@@ -1080,7 +1080,7 @@ int main() {
 
     {
         BYTE input[] = { 'A', (BYTE) 0x80u, '\0' };
-        CATALYST_UTF16LE_CODE_UNIT output[3];
+        UTF16LE_CODE_UNIT output[3];
 
         result = ascii_to_utf16le(input, output, 3);
 
@@ -1099,7 +1099,7 @@ int main() {
 
     {
         BYTE input[] = { 'A', 'B', '\0' };
-        CATALYST_UTF16LE_CODE_UNIT output[2];
+        UTF16LE_CODE_UNIT output[2];
 
         result = ascii_to_utf16le(input, output, 2);
 
@@ -1179,7 +1179,7 @@ int main() {
     // ------------------------------------------------------------
     {
         BYTE input[] = { 'A', (BYTE) 0x80u, (BYTE) 0x81u, '\0' };
-        CATALYST_UTF16LE_CODE_UNIT output[4];
+        UTF16LE_CODE_UNIT output[4];
 
         result = cp1252_to_utf16le(input, output, 4);
 
@@ -1199,7 +1199,7 @@ int main() {
 
     {
         BYTE input[] = { 'A', 'B', '\0' };
-        CATALYST_UTF16LE_CODE_UNIT output[2];
+        UTF16LE_CODE_UNIT output[2];
 
         result = cp1252_to_utf16le(input, output, 2);
 
@@ -1309,7 +1309,7 @@ int main() {
             (BYTE) 0xF0u, (BYTE) 0xA0u, (BYTE) 0x9Cu, (BYTE) 0x8Eu,
             '\0'
         };
-        CATALYST_UTF16LE_CODE_UNIT output[7];
+        UTF16LE_CODE_UNIT output[7];
 
         result = utf8_to_utf16le(input, output, 7);
 
@@ -1335,7 +1335,7 @@ int main() {
             (BYTE) 0xF0u, (BYTE) 0x9Fu, (BYTE) 0x98u, (BYTE) 0x80u,
             '\0'
         };
-        CATALYST_UTF16LE_CODE_UNIT output[2];
+        UTF16LE_CODE_UNIT output[2];
 
         result = utf8_to_utf16le(input, output, 2);
 
@@ -1351,7 +1351,7 @@ int main() {
     // UTF-16LE -> ASCII
     // ------------------------------------------------------------
     {
-        CATALYST_UTF16LE_CODE_UNIT input[6];
+        UTF16LE_CODE_UNIT input[6];
         BYTE output[4];
 
         input[0].msb = 0xFE; input[0].lsb = 0xFF; // BOM
@@ -1378,7 +1378,7 @@ int main() {
     }
 
     {
-        CATALYST_UTF16LE_CODE_UNIT input[3];
+        UTF16LE_CODE_UNIT input[3];
         BYTE output[2];
 
         input[0].msb = 0x00; input[0].lsb = 'A';
@@ -1399,7 +1399,7 @@ int main() {
     // UTF-16LE -> CP1252
     // ------------------------------------------------------------
     {
-        CATALYST_UTF16LE_CODE_UNIT input[6];
+        UTF16LE_CODE_UNIT input[6];
         BYTE output[4];
 
         input[0].msb = 0xFE; input[0].lsb = 0xFF; // BOM
@@ -1426,7 +1426,7 @@ int main() {
     }
 
     {
-        CATALYST_UTF16LE_CODE_UNIT input[3];
+        UTF16LE_CODE_UNIT input[3];
         BYTE output[2];
 
         input[0].msb = 0x00; input[0].lsb = 'A';
@@ -1447,7 +1447,7 @@ int main() {
     // UTF-16LE -> UTF-8
     // ------------------------------------------------------------
     {
-        CATALYST_UTF16LE_CODE_UNIT input[7];
+        UTF16LE_CODE_UNIT input[7];
         BYTE output[13];
 
         input[0].msb = 0xFE; input[0].lsb = 0xFF; // BOM
@@ -1460,7 +1460,7 @@ int main() {
 
         // Need terminator after the CJK pair
         {
-            CATALYST_UTF16LE_CODE_UNIT terminated[8];
+            UTF16LE_CODE_UNIT terminated[8];
             unsigned int i;
 
             for (i = 0; i < 7; ++i) {
@@ -1496,7 +1496,7 @@ int main() {
     }
 
     {
-        CATALYST_UTF16LE_CODE_UNIT input[3];
+        UTF16LE_CODE_UNIT input[3];
         BYTE output[4];
 
         input[0].msb = 0xD8; input[0].lsb = 0x3D;
@@ -1570,7 +1570,7 @@ int main() {
             (BYTE) 0xE0u, (BYTE) 0x80u, (BYTE) 0x80u,
             '\0'
         };
-        CATALYST_UTF16LE_CODE_UNIT output[4];
+        UTF16LE_CODE_UNIT output[4];
 
         result = utf8_to_utf16le(input, output, 4);
 
@@ -1590,7 +1590,7 @@ int main() {
     }
 
     {
-        CATALYST_UTF16LE_CODE_UNIT input[3];
+        UTF16LE_CODE_UNIT input[3];
         BYTE output[4];
 
         input[0].msb = 0xD8; input[0].lsb = 0x3D; // high surrogate
@@ -1615,7 +1615,7 @@ int main() {
     }
 
     {
-        CATALYST_UTF16LE_CODE_UNIT input[3];
+        UTF16LE_CODE_UNIT input[3];
         BYTE output[4];
 
         input[0].msb = 0xD8; input[0].lsb = 0x3D; // high surrogate
@@ -1640,7 +1640,7 @@ int main() {
     }
 
     {
-        CATALYST_UTF16LE_CODE_UNIT input[3];
+        UTF16LE_CODE_UNIT input[3];
         BYTE output[4];
 
         input[0].msb = 0xD8; input[0].lsb = 0x3D; // high surrogate
@@ -1687,7 +1687,7 @@ int main() {
         if (consumed != 0 || result.status != STATUS_CODE_ERROR_MALFORMED_INPUT || result.context != 0x08 || result.operation != 0x0F || result.detail != 1) failed++;
         result = utf8_length(truncated4second, &length);
         if (length != 0 || result.status != STATUS_CODE_ERROR_MALFORMED_INPUT || result.context != 0x09 || result.operation != 0x03 || result.detail != 0x0F) failed++;
-        CATALYST_UTF16LE_CODE_UNIT output[4];
+        UTF16LE_CODE_UNIT output[4];
         result = utf8_to_utf16le(truncated4second, output, 4);
         if (result.status != STATUS_CODE_ERROR_MALFORMED_INPUT || result.context != 0x15 || result.operation != 0x04 || result.detail != 0x0F) failed++;
     }
@@ -1707,7 +1707,7 @@ int main() {
                     CODEPOINT original(0, high, middle, low);
                     CODEPOINT decoded;
                     BYTE utf8[4] = {0xFF, 0xFF, 0xFF, 0xFF};
-                    CATALYST_UTF16LE_CODE_UNIT utf16le[2];
+                    UTF16LE_CODE_UNIT utf16le[2];
                     NUINT produced = 0;
                     NUINT consumed = 0;
                     BYTE expected8 = high != 0 ? 4 : middle >= 8 ? 3 :
@@ -1775,16 +1775,18 @@ int main() {
     }
 #endif
 
-    // Verify the public representations and scalar C++ code-unit conversions.
+    // Verify the public representations, shared C/C++ array type, and scalar conveniences.
     {
         CODEPOINT codepoint(0x00, 0x10, 0xFF, 0xFF);
         RESULT result(0x83, 0x08, 0x0F, 0x02);
-        CATALYST_UTF16LE_CODE_UNIT units[2];
+        UTF16LE_CODE_UNIT units[2];
         CATALYST_UTF16LEW writable = units;
-        writable[0].lsb = 0x34;
-        writable[0].msb = 0x12;
-        writable[1].lsb = 0x78;
-        writable[1].msb = 0x56;
+        UTF16LE_CODE_UNIT zero;
+        if (zero.lsb != 0 || zero.msb != 0) failed++;
+        writable[0] = UTF16LE_CODE_UNIT(0x12, 0x34);
+        writable[1] = UTF16LE_CODE_UNIT(0x56, 0x78);
+        UTF16LE_CODE_UNIT copied(writable[0]);
+        if (copied.lsb != 0x34 || copied.msb != 0x12) failed++;
         const unsigned char* bytes = (const unsigned char*) units;
         if (sizeof(CATALYST_CODEPOINT) != 4 || sizeof(CATALYST_RESULT) != 4 ||
             sizeof(CATALYST_UTF16LE_CODE_UNIT) != 2 || bytes[0] != 0x34 || bytes[1] != 0x12 ||
@@ -1792,7 +1794,11 @@ int main() {
             CATALYST_SBYTE_MIN != -128 || CATALYST_SBYTE_MAX != 127) failed++;
 #if CATALYST_SUPPORTS_16BIT
         if (sizeof(USHORT) != 2 || CATALYST_SHORT_MIN != -32768L ||
-            (USHORT) UTF16LE_CODE_UNIT(units[0]) != (USHORT) 0x1234u) failed++;
+            (USHORT) units[0] != (USHORT) 0x1234u) failed++;
+        UTF16LE_CODE_UNIT numeric((USHORT) 0xABCDu);
+        if (numeric.msb != 0xAB || numeric.lsb != 0xCD) failed++;
+        numeric = (USHORT) 0x5678u;
+        if ((USHORT) numeric != (USHORT) units[1]) failed++;
 #endif
 #if CATALYST_SUPPORTS_32BIT
         if (sizeof(UINT) != 4 || CATALYST_INT_MIN != (-2147483647L - 1L) ||
