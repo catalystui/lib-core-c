@@ -29,7 +29,7 @@ Core provides portable building blocks based on the [Foundational Definitions Sp
 Core is designed to be implementable even on 8-bit systems while taking advantage of wider numeric representations where beneficial. It is independent of every layer and sensory domain of the CatalystUI model, and exists to support them all.
 
 > [!NOTE]
-> Core is in early development (1.0.0-alpha.2). Core types and text encoding are implemented. API and ABI stability are not yet guaranteed.
+> Core is in early development (1.0.0-alpha.2). Core types, native memory operations, and text encoding are implemented. API and ABI stability are not yet guaranteed.
 
 ## Libraries
 
@@ -50,6 +50,15 @@ Core is designed to be implementable even on 8-bit systems while taking advantag
 
 <p style="margin:0 0 0.85rem;max-width:20rem;">Encode, decode, measure, and convert text.</p>
 <small style="opacity:0.8;margin-top:auto;">Link: <code>catte</code></small>
+</div>
+
+<div style="flex:1 1 calc(50% - 0.5rem);min-width:min(100%, 15rem);box-sizing:border-box;padding:1.2rem;border:1px solid color-mix(in srgb, currentColor 19%, transparent);border-radius:12px;background:color-mix(in srgb, currentColor 3%, transparent);display:flex;flex-direction:column;align-items:center;text-align:center;">
+<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;width:32px;height:32px;margin:0.15rem auto 0.8rem;opacity:0.9;"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v3m6-3v3M9 19v3m6-3v3M2 9h3m-3 6h3m14-6h3m-3 6h3"/></svg>
+
+**[CATMMLIB](api-reference/catmmlib/index.md)**
+
+<p style="margin:0 0 0.85rem;max-width:20rem;">Allocate, resize, and operate on memory.</p>
+<small style="opacity:0.8;margin-top:auto;">Link: <code>catmm</code></small>
 </div>
 
 </div>
