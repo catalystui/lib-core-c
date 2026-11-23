@@ -105,7 +105,7 @@ Allocate `size` zero-filled bytes, with native fundamental alignment. Extended a
 - `memory`: Valid writable output slot that does not own a live allocation; receives the allocation on success and null on every failure.  
 - `size`: Nonzero requested extent in bytes.
 
-**C++ equivalent:** `catalyst::alloc` (same parameters).
+**C++ equivalent:** `catalyst::alloc`.
 
 **Context:** `0x01`
 
@@ -137,7 +137,7 @@ the original allocation pointer.
 - `memory`: Valid writable slot outside the allocation; contains null or a live CATMMLIB payload pointer.  
 - `new_size`: Requested byte extent; must be nonzero when the input pointer is null.
 
-**C++ equivalent:** `catalyst::realloc` (same parameters).
+**C++ equivalent:** `catalyst::realloc`.
 
 **Context:** `0x02`
 
@@ -180,7 +180,7 @@ Release an allocation. Success ends its lifetime without clearing the caller’s
 
 - `memory`: Live, non-null payload pointer returned by CATMMLIB; not an interior pointer or an already released allocation.
 
-**C++ equivalent:** `catalyst::free` (same parameters).
+**C++ equivalent:** `catalyst::free`.
 
 **Context:** `0x03`
 
@@ -210,7 +210,7 @@ Copy bytes without allocation. Identical addresses and zero size are no-ops; oth
 - `source`: Valid non-null pointer to at least size readable bytes.  
 - `size`: Byte count; both regions must remain accessible for the operation.
 
-**C++ equivalent:** `catalyst::copy` (same parameters).
+**C++ equivalent:** `catalyst::copy`.
 
 **See Also:** [catmm_move](#catmm_move)
 
@@ -228,7 +228,7 @@ Move bytes as if through temporary storage, including overlapping extents. Ident
 - `source`: Valid non-null pointer to at least size readable bytes.  
 - `size`: Byte count; both regions must remain accessible for the operation.
 
-**C++ equivalent:** `catalyst::move` (same parameters).
+**C++ equivalent:** `catalyst::move`.
 
 **See Also:** [catmm_copy](#catmm_copy)
 
@@ -246,7 +246,7 @@ Compare unsigned bytes lexicographically. Stop at the first difference; equal ad
 - `memory2`: Valid non-null pointer to at least size readable bytes.  
 - `size`: Byte count; both regions must remain accessible for the operation.
 
-**C++ equivalent:** `catalyst::compare` (same parameters).
+**C++ equivalent:** `catalyst::compare`.
 
 **Returns:** `-1` when the first region is less, `0` when equal, `1` when greater.
 
@@ -266,6 +266,6 @@ Fill bytes with `value`. Zero size is a no-op. No alignment beyond byte alignmen
 - `value`: Byte value written to each unit.  
 - `size`: Byte count accessible for the operation.
 
-**C++ equivalent:** `catalyst::set` (same parameters).
+**C++ equivalent:** `catalyst::set`.
 
 **See Also:** [catmm_copy](#catmm_copy)
