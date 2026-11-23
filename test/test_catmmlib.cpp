@@ -309,28 +309,28 @@ int main() {
     }
 
     // ------------------------------------------------------------
-    // Set: full and partial extents with unchanged surrounding bytes
+    // Fill: full and partial extents with unchanged surrounding bytes
     // ------------------------------------------------------------
     {
-        struct SetTest { const char* name; NUINT offset; NUINT size; BYTE value; };
-        SetTest tests[] = {
+        struct FillTest { const char* name; NUINT offset; NUINT size; BYTE value; };
+        FillTest tests[] = {
             { "zero fill", 0, 130, 0 }, { "nonzero fill", 0, 130, 0xA5 },
             { "partial buffer", 3, 61, 0x7F }, { "single byte", 2, 1, 0xFF }, { "zero length", 5, 0, 0x7F }
         };
         for (NUINT test = 0; test < (NUINT) (sizeof(tests) / sizeof(tests[0])); ++test) {
             BYTE bytes[130];
             for (NUINT i = 0; i < (NUINT) 130; ++i) bytes[i] = 0xCC;
-            catmm_set(bytes + tests[test].offset, tests[test].value, tests[test].size);
+            catmm_fill(bytes + tests[test].offset, tests[test].value, tests[test].size);
             BOOL passed = TRUE;
             for (NUINT i = 0; i < (NUINT) 130; ++i) {
                 BYTE expected = i >= tests[test].offset && i < tests[test].offset + tests[test].size ? tests[test].value : (BYTE) 0xCC;
                 if (bytes[i] != expected) passed = FALSE;
             }
             if (!passed) {
-                std::printf("FAIL: catmm_set %s\n", tests[test].name);
+                std::printf("FAIL: catmm_fill %s\n", tests[test].name);
                 ++failed;
             } else {
-                std::printf("PASS: catmm_set %s\n", tests[test].name);
+                std::printf("PASS: catmm_fill %s\n", tests[test].name);
             }
         }
     }
@@ -402,7 +402,7 @@ int main() {
             }
             BYTE expected[16];
             for (NUINT i = 0; i < (NUINT) 16; ++i) expected[i] = (BYTE) (iteration + i + (NUINT) 1);
-            catalyst::set(memory, (BYTE) (iteration + (NUINT) 1), 16);
+            catalyst::fill(memory, (BYTE) (iteration + (NUINT) 1), 16);
             for (NUINT i = 0; i < (NUINT) 16; ++i) {
                 if (bytes[i] != (BYTE) (iteration + (NUINT) 1)) passed = FALSE;
                 bytes[i] = expected[i];

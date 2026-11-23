@@ -47,8 +47,8 @@ inline SBYTE compare(POINTER memory1, POINTER memory2, NUINT size) {
     return ::catmm_compare(memory1, memory2, size);
 }
 
-inline void set(POINTERW memory, WORD value, NUINT size) {
-    ::catmm_set(memory, value, size);
+inline void fill(POINTERW memory, WORD value, NUINT size) {
+    ::catmm_fill(memory, value, size);
 }
 
 } /* namespace catalyst */

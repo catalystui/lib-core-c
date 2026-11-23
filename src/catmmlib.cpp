@@ -91,7 +91,7 @@ CATALYST_RESULT catmm_realloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT new_size
              * later growth, since they may contain the caller's old data.
              */
             if (new_size > header.requested_size) {
-                catmm_set((BYTE*) *memory + header.requested_size, (BYTE) 0, (NUINT) (new_size - header.requested_size));
+                catmm_fill((BYTE*) *memory + header.requested_size, (BYTE) 0, (NUINT) (new_size - header.requested_size));
             }
             header.requested_size = new_size;
             catmm_copy(base, &header, (NUINT) sizeof(header));
@@ -223,7 +223,7 @@ CATALYST_SBYTE catmm_compare(CATMMLIB_POINTER memory1, CATMMLIB_POINTER memory2,
     return (SBYTE) 0;
 }
 
-void catmm_set(CATMMLIB_POINTERW memory, CATMMLIB_WORD value, CATALYST_NUINT size) {
+void catmm_fill(CATMMLIB_POINTERW memory, CATMMLIB_WORD value, CATALYST_NUINT size) {
     BYTE* output = (BYTE*) memory;
     while (size != 0) {
         *output++ = value;

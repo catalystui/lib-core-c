@@ -75,7 +75,7 @@ CATMMLIB_API void catmm_move(CATMMLIB_POINTERW destination, CATMMLIB_POINTER sou
 CATMMLIB_API CATALYST_SBYTE catmm_compare(CATMMLIB_POINTER memory1, CATMMLIB_POINTER memory2, CATALYST_NUINT size);
 
 /** Fill a valid, non-null memory region with the specified word; zero size is a no-op. */
-CATMMLIB_API void catmm_set(CATMMLIB_POINTERW memory, CATMMLIB_WORD value, CATALYST_NUINT size);
+CATMMLIB_API void catmm_fill(CATMMLIB_POINTERW memory, CATMMLIB_WORD value, CATALYST_NUINT size);
 
 #ifdef __cplusplus
 } /* extern C */

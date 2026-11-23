@@ -30,7 +30,7 @@ Provides zero-filled memory allocation and resizing, memory release, and byte-le
 | [catmm_copy](#catmm_copy) | Copy non-overlapping bytes. |
 | [catmm_move](#catmm_move) | Move possibly overlapping bytes. |
 | [catmm_compare](#catmm_compare) | Compare unsigned bytes. |
-| [catmm_set](#catmm_set) | Fill bytes. |
+| [catmm_fill](#catmm_fill) | Fill bytes. |
 
 ## Macros
 
@@ -253,10 +253,10 @@ Compare unsigned bytes lexicographically. Stop at the first difference; equal ad
 
 **See Also:** [catmm_copy](#catmm_copy)
 
-### catmm_set
+### catmm_fill
 
 ```c
-void catmm_set(CATMMLIB_POINTERW memory, CATMMLIB_WORD value, CATALYST_NUINT size);
+void catmm_fill(CATMMLIB_POINTERW memory, CATMMLIB_WORD value, CATALYST_NUINT size);
 ```
 
 Fill bytes with `value`. Zero size is a no-op. No alignment beyond byte alignment is required.
@@ -267,6 +267,6 @@ Fill bytes with `value`. Zero size is a no-op. No alignment beyond byte alignmen
 - `value`: Byte value written to each unit.  
 - `size`: Byte count accessible for the operation.
 
-**C++ equivalent:** `catalyst::set`.
+**C++ equivalent:** `catalyst::fill`.
 
 **See Also:** [catmm_copy](#catmm_copy)
