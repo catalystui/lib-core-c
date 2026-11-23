@@ -97,27 +97,27 @@ Provides the foundational numeric types, text representations, and operation res
 
 | Type | Member | Description |
 | --- | --- | --- |
-| [`CODEPOINT`](#codepoint-members) | [`CODEPOINT()`](#codepoint-default-constructor) | Initializes the default value. |
-| [`CODEPOINT`](#codepoint-members) | [`CODEPOINT(BYTE, BYTE, BYTE, BYTE)`](#codepoint-field-constructor) | Initializes the individual fields. |
-| [`CODEPOINT`](#codepoint-members) | [`CODEPOINT(const CATALYST_CODEPOINT&)`](#codepoint-copy-constructor) | Copies the C representation. |
-| [`CODEPOINT`](#codepoint-members) | [`operator=(const CATALYST_CODEPOINT&)`](#codepoint-copy-assignment) | Assigns the C representation. |
-| [`CODEPOINT`](#codepoint-members) | [`CODEPOINT(UINT)`](#codepoint-numeric-constructor) | Initializes from a supported Catalyst unsigned integer. |
-| [`CODEPOINT`](#codepoint-members) | [`operator=(UINT)`](#codepoint-numeric-assignment) | Assigns from a supported Catalyst unsigned integer. |
-| [`CODEPOINT`](#codepoint-members) | [`operator UINT() const`](#codepoint-numeric-conversion) | Converts to a supported Catalyst unsigned integer. |
-| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`UTF16LE_CODE_UNIT()`](#utf16le_code_unit-default-constructor) | Initializes the default value. |
-| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`UTF16LE_CODE_UNIT(BYTE, BYTE)`](#utf16le_code_unit-field-constructor) | Initializes the individual fields. |
-| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`UTF16LE_CODE_UNIT(const CATALYST_UTF16LE_CODE_UNIT&)`](#utf16le_code_unit-copy-constructor) | Copies the C representation. |
-| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`operator=(const CATALYST_UTF16LE_CODE_UNIT&)`](#utf16le_code_unit-copy-assignment) | Assigns the C representation. |
-| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`UTF16LE_CODE_UNIT(USHORT)`](#utf16le_code_unit-numeric-constructor) | Initializes from a supported Catalyst unsigned integer. |
-| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`operator=(USHORT)`](#utf16le_code_unit-numeric-assignment) | Assigns from a supported Catalyst unsigned integer. |
-| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [`operator USHORT() const`](#utf16le_code_unit-numeric-conversion) | Converts to a supported Catalyst unsigned integer. |
-| [`RESULT`](#result-members) | [`RESULT()`](#result-default-constructor) | Initializes the default value. |
-| [`RESULT`](#result-members) | [`RESULT(STATUS_CODE, CONTEXT_CODE, OPERATION_CODE, DETAIL_CODE)`](#result-field-constructor) | Initializes the individual fields. |
-| [`RESULT`](#result-members) | [`RESULT(const CATALYST_RESULT&)`](#result-copy-constructor) | Copies the C representation. |
-| [`RESULT`](#result-members) | [`operator=(const CATALYST_RESULT&)`](#result-copy-assignment) | Assigns the C representation. |
-| [`RESULT`](#result-members) | [`RESULT(UINT)`](#result-numeric-constructor) | Initializes from a supported Catalyst unsigned integer. |
-| [`RESULT`](#result-members) | [`operator=(UINT)`](#result-numeric-assignment) | Assigns from a supported Catalyst unsigned integer. |
-| [`RESULT`](#result-members) | [`operator UINT() const`](#result-numeric-conversion) | Converts to a supported Catalyst unsigned integer. |
+| [`CODEPOINT`](#codepoint-members) | [Default constructor](#codepoint-default-constructor) | Initializes the default value. |
+| [`CODEPOINT`](#codepoint-members) | [Field constructor](#codepoint-field-constructor) | Initializes the individual fields. |
+| [`CODEPOINT`](#codepoint-members) | [Copy constructor](#codepoint-copy-constructor) | Copies the C representation. |
+| [`CODEPOINT`](#codepoint-members) | [Copy assignment](#codepoint-copy-assignment) | Assigns the C representation. |
+| [`CODEPOINT`](#codepoint-members) | [Numeric constructor](#codepoint-numeric-constructor) | Initializes from a supported Catalyst unsigned integer. |
+| [`CODEPOINT`](#codepoint-members) | [Numeric assignment](#codepoint-numeric-assignment) | Assigns from a supported Catalyst unsigned integer. |
+| [`CODEPOINT`](#codepoint-members) | [Numeric conversion](#codepoint-numeric-conversion) | Converts to a supported Catalyst unsigned integer. |
+| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [Default constructor](#utf16le_code_unit-default-constructor) | Initializes the default value. |
+| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [Field constructor](#utf16le_code_unit-field-constructor) | Initializes the individual fields. |
+| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [Copy constructor](#utf16le_code_unit-copy-constructor) | Copies the C representation. |
+| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [Copy assignment](#utf16le_code_unit-copy-assignment) | Assigns the C representation. |
+| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [Numeric constructor](#utf16le_code_unit-numeric-constructor) | Initializes from a supported Catalyst unsigned integer. |
+| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [Numeric assignment](#utf16le_code_unit-numeric-assignment) | Assigns from a supported Catalyst unsigned integer. |
+| [`UTF16LE_CODE_UNIT`](#utf16le_code_unit-members) | [Numeric conversion](#utf16le_code_unit-numeric-conversion) | Converts to a supported Catalyst unsigned integer. |
+| [`RESULT`](#result-members) | [Default constructor](#result-default-constructor) | Initializes the default value. |
+| [`RESULT`](#result-members) | [Field constructor](#result-field-constructor) | Initializes the individual fields. |
+| [`RESULT`](#result-members) | [Copy constructor](#result-copy-constructor) | Copies the C representation. |
+| [`RESULT`](#result-members) | [Copy assignment](#result-copy-assignment) | Assigns the C representation. |
+| [`RESULT`](#result-members) | [Numeric constructor](#result-numeric-constructor) | Initializes from a supported Catalyst unsigned integer. |
+| [`RESULT`](#result-members) | [Numeric assignment](#result-numeric-assignment) | Assigns from a supported Catalyst unsigned integer. |
+| [`RESULT`](#result-members) | [Numeric conversion](#result-numeric-conversion) | Converts to a supported Catalyst unsigned integer. |
 
 ## Type Details
 
