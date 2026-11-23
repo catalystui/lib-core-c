@@ -1,12 +1,13 @@
 # CATMMLIB
 
-Memory allocation and byte operations. Definitions follow [FRELSPEC](https://catalystui.org/specifications/languages/frelspec/).
+Provides zero-filled memory allocation and resizing, memory release, and byte-level copy, move, compare, and fill operations.
 
 **C Header:** `catmmlib.h`  
 **C++ Header:** `catmmlib.hpp`  
 **Namespace:** `catalyst`  
 **Library:** `catmm`  
-**Dependencies:** [CATALYST](../catalyst/index.md)
+**Dependencies:** [CATALYST](../catalyst/index.md)  
+**Specification:** [FRELSPEC](https://catalystui.org/specifications/languages/frelspec/)
 
 ## Summary
 

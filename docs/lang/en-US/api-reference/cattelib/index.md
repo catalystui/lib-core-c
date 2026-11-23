@@ -6,7 +6,8 @@ Provides encoding, decoding, length, and conversion operations for ASCII, Window
 **C++ Header:** `cattelib.hpp`  
 **Namespace:** `catalyst`  
 **Library:** `catte`  
-**Dependencies:** [CATALYST](../catalyst/index.md)
+**Dependencies:** [CATALYST](../catalyst/index.md)  
+**Specification:** [FDEFSPEC](https://catalystui.org/specifications/languages/fdefspec/)
 
 ## Macro Summary
 

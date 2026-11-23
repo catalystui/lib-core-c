@@ -5,9 +5,8 @@ Provides the foundational numeric types, text representations, and operation res
 **C Header:** `catalyst.h`  
 **C++ Header:** `catalyst.hpp`  
 **Namespace:** `catalyst`  
-**Library:** Header-only
-
-The definitions are based on the [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/specifications/languages/fdefspec/).
+**Library:** Header-only  
+**Specification:** [FDEFSPEC](https://catalystui.org/specifications/languages/fdefspec/)
 
 ## Contents
 
