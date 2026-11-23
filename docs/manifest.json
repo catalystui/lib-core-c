@@ -26,6 +26,11 @@
                     "title": "CATTELIB",
                     "path": "/api-reference/cattelib",
                     "alignment": "block"
+                },
+                {
+                    "title": "CATMMLIB",
+                    "path": "/api-reference/catmmlib",
+                    "alignment": "block"
                 }
             ]
         }
