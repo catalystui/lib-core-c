@@ -1,9 +1,10 @@
 # CATMMLIB
 
-Memory allocation and byte operations. Definitions follow [FDEFSPEC](https://catalystui.org/specifications/languages/fdefspec/).
+Memory allocation and byte operations. Definitions follow [FRELSPEC](https://catalystui.org/specifications/languages/frelspec/).
 
-**Headers:** `catmmlib.h` (C), `catmmlib.hpp` (C++)  
-**Namespace:** `catalyst` (C++)  
+**C Header:** `catmmlib.h`  
+**C++ Header:** `catmmlib.hpp`  
+**Namespace:** `catalyst`  
 **Library:** `catmm`  
 **Dependencies:** [CATALYST](../catalyst/index.md)
 

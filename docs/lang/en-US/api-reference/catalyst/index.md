@@ -5,7 +5,7 @@ Provides the foundational numeric types, text representations, and operation res
 **C Header:** `catalyst.h`  
 **C++ Header:** `catalyst.hpp`  
 **Namespace:** `catalyst`  
-**Library:** Header-only.
+**Library:** Header-only
 
 The definitions are based on the [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/specifications/languages/fdefspec/).
 
@@ -134,7 +134,7 @@ Represents a bit with the values 0 and 1. The underlying byte does not enforce t
 typedef CATALYST_BYTE CATALYST_BIT;
 ```
 
-**C++:** `catalyst::BIT`.
+**C++ equivalent:** `catalyst::BIT`.
 
 **See Also:** [Integer limits](#integer-limits)
 
@@ -146,7 +146,7 @@ Represents four bits with values from 0 through 15. The underlying byte does not
 typedef CATALYST_BYTE CATALYST_NIBBLE;
 ```
 
-**C++:** `catalyst::NIBBLE`.
+**C++ equivalent:** `catalyst::NIBBLE`.
 
 **See Also:** [Integer limits](#integer-limits)
 
@@ -162,7 +162,7 @@ typedef unsigned char CATALYST_BYTE;
 ```c
 typedef uint8_t CATALYST_BYTE;
 ```
-**C++:** `catalyst::BYTE`.
+**C++ equivalent:** `catalyst::BYTE`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
 
@@ -178,7 +178,7 @@ typedef signed char CATALYST_SBYTE;
 ```c
 typedef int8_t CATALYST_SBYTE;
 ```
-**C++:** `catalyst::SBYTE`.
+**C++ equivalent:** `catalyst::SBYTE`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
 
@@ -200,7 +200,7 @@ typedef signed short CATALYST_SHORT;
 typedef int16_t CATALYST_SHORT;
 #endif
 ```
-**C++:** `catalyst::SHORT`.
+**C++ equivalent:** `catalyst::SHORT`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
 
@@ -222,7 +222,7 @@ typedef unsigned short CATALYST_USHORT;
 typedef uint16_t CATALYST_USHORT;
 #endif
 ```
-**C++:** `catalyst::USHORT`.
+**C++ equivalent:** `catalyst::USHORT`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
 
@@ -244,7 +244,7 @@ typedef signed int CATALYST_INT;
 typedef int32_t CATALYST_INT;
 #endif
 ```
-**C++:** `catalyst::INT`.
+**C++ equivalent:** `catalyst::INT`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
 
@@ -266,7 +266,7 @@ typedef unsigned int CATALYST_UINT;
 typedef uint32_t CATALYST_UINT;
 #endif
 ```
-**C++:** `catalyst::UINT`.
+**C++ equivalent:** `catalyst::UINT`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
 
@@ -288,7 +288,7 @@ typedef signed long CATALYST_LONG;
 typedef int64_t CATALYST_LONG;
 #endif
 ```
-**C++:** `catalyst::LONG`.
+**C++ equivalent:** `catalyst::LONG`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
 
@@ -310,7 +310,7 @@ typedef unsigned long CATALYST_ULONG;
 typedef uint64_t CATALYST_ULONG;
 #endif
 ```
-**C++:** `catalyst::ULONG`.
+**C++ equivalent:** `catalyst::ULONG`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
 
@@ -326,7 +326,7 @@ typedef float CATALYST_SINGLE;
 #endif
 ```
 
-**C++:** `catalyst::SINGLE`.
+**C++ equivalent:** `catalyst::SINGLE`.
 
 #### CATALYST_DOUBLE
 
@@ -340,7 +340,7 @@ typedef double CATALYST_DOUBLE;
 #endif
 ```
 
-**C++:** `catalyst::DOUBLE`.
+**C++ equivalent:** `catalyst::DOUBLE`.
 
 #### CATALYST_BOOL
 
@@ -350,7 +350,7 @@ Represents a Boolean value. `CATALYST_FALSE` is 0 and `CATALYST_TRUE` is 1. The 
 typedef CATALYST_BYTE CATALYST_BOOL;
 ```
 
-**C++:** `catalyst::BOOL`.
+**C++ equivalent:** `catalyst::BOOL`.
 
 **See Also:** [Boolean constants](#boolean-constants)
 
@@ -367,7 +367,7 @@ A signed integer matching the configured pointer width. Its underlying type is s
 
 Compilation fails when the configured pointer size is unsupported or its corresponding integer type is unavailable. No pointer-conversion contract is defined.
 
-**C++:** `catalyst::NINT`.
+**C++ equivalent:** `catalyst::NINT`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
 
@@ -384,7 +384,7 @@ An unsigned integer matching the configured pointer width. Its underlying type i
 
 Compilation fails when the configured pointer size is unsupported or its corresponding integer type is unavailable. No pointer-conversion contract is defined.
 
-**C++:** `catalyst::NUINT`.
+**C++ equivalent:** `catalyst::NUINT`.
 
 **See Also:** [Integer limits](#integer-limits), [Target configuration](#target-configuration).
 
@@ -400,7 +400,7 @@ Identifies the encoding of text data. The defined values are listed under [Text 
 typedef CATALYST_BYTE CATALYST_TEXT_ENCODING;
 ```
 
-**C++:** `catalyst::TEXT_ENCODING`.
+**C++ equivalent:** `catalyst::TEXT_ENCODING`.
 
 #### CATALYST_CODEPOINT
 
@@ -422,7 +422,7 @@ typedef struct CATALYST_CODEPOINT {
 `byte2` — Bits 15–8.  
 `byte3` — Bits 7–0 (least significant byte).
 
-**C++:** `catalyst::CODEPOINT` publicly derives from this structure. See [CODEPOINT members](#codepoint-members).
+**C++ equivalent:** `catalyst::CODEPOINT` publicly derives from this structure. See [CODEPOINT members](#codepoint-members).
 
 #### CATALYST_ASCII_CODE_UNIT
 
@@ -432,7 +432,7 @@ Represents a seven-bit ASCII code unit in a byte. Valid ASCII values are 0x00–
 typedef CATALYST_BYTE CATALYST_ASCII_CODE_UNIT;
 ```
 
-**C++:** `catalyst::ASCII_CODE_UNIT`.
+**C++ equivalent:** `catalyst::ASCII_CODE_UNIT`.
 
 #### CATALYST_ASCII
 
@@ -442,7 +442,7 @@ Pointer to read-only ASCII code units.
 typedef const CATALYST_ASCII_CODE_UNIT* CATALYST_ASCII;
 ```
 
-**C++:** `catalyst::ASCII`.
+**C++ equivalent:** `catalyst::ASCII`.
 
 #### CATALYST_ASCIIW
 
@@ -452,7 +452,7 @@ Pointer to writable ASCII code units.
 typedef CATALYST_ASCII_CODE_UNIT* CATALYST_ASCIIW;
 ```
 
-**C++:** `catalyst::ASCIIW`.
+**C++ equivalent:** `catalyst::ASCIIW`.
 
 #### CATALYST_CP1252_CODE_UNIT
 
@@ -462,7 +462,7 @@ Represents one Windows-1252 code unit as a byte. The type does not distinguish a
 typedef CATALYST_BYTE CATALYST_CP1252_CODE_UNIT;
 ```
 
-**C++:** `catalyst::CP1252_CODE_UNIT`.
+**C++ equivalent:** `catalyst::CP1252_CODE_UNIT`.
 
 #### CATALYST_CP1252
 
@@ -472,7 +472,7 @@ Pointer to read-only Windows-1252 code units.
 typedef const CATALYST_CP1252_CODE_UNIT* CATALYST_CP1252;
 ```
 
-**C++:** `catalyst::CP1252`.
+**C++ equivalent:** `catalyst::CP1252`.
 
 #### CATALYST_CP1252W
 
@@ -482,7 +482,7 @@ Pointer to writable Windows-1252 code units.
 typedef CATALYST_CP1252_CODE_UNIT* CATALYST_CP1252W;
 ```
 
-**C++:** `catalyst::CP1252W`.
+**C++ equivalent:** `catalyst::CP1252W`.
 
 #### CATALYST_UTF8_CODE_UNIT
 
@@ -492,7 +492,7 @@ Represents one UTF-8 code unit as a byte. A Unicode scalar may occupy one to fou
 typedef CATALYST_BYTE CATALYST_UTF8_CODE_UNIT;
 ```
 
-**C++:** `catalyst::UTF8_CODE_UNIT`.
+**C++ equivalent:** `catalyst::UTF8_CODE_UNIT`.
 
 #### CATALYST_UTF8
 
@@ -502,7 +502,7 @@ Pointer to read-only UTF-8 code units.
 typedef const CATALYST_UTF8_CODE_UNIT* CATALYST_UTF8;
 ```
 
-**C++:** `catalyst::UTF8`.
+**C++ equivalent:** `catalyst::UTF8`.
 
 #### CATALYST_UTF8W
 
@@ -512,7 +512,7 @@ Pointer to writable UTF-8 code units.
 typedef CATALYST_UTF8_CODE_UNIT* CATALYST_UTF8W;
 ```
 
-**C++:** `catalyst::UTF8W`.
+**C++ equivalent:** `catalyst::UTF8W`.
 
 #### CATALYST_UTF16LE_CODE_UNIT
 
@@ -530,7 +530,7 @@ typedef struct CATALYST_UTF16LE_CODE_UNIT {
 `lsb` — Least significant byte, stored first.  
 `msb` — Most significant byte, stored second.
 
-**C++:** `catalyst::UTF16LE_CODE_UNIT` aliases this same structure, with constructors and optional numeric conversions enabled under `__cplusplus`. C and C++ arrays share the same element type. See [UTF16LE_CODE_UNIT members](#utf16le_code_unit-members).
+**C++ equivalent:** `catalyst::UTF16LE_CODE_UNIT` aliases this same structure, with constructors and optional numeric conversions enabled under `__cplusplus`. C and C++ arrays share the same element type. See [UTF16LE_CODE_UNIT members](#utf16le_code_unit-members).
 
 #### CATALYST_UTF16LE
 
@@ -540,7 +540,7 @@ Pointer to read-only UTF-16LE code units.
 typedef const CATALYST_UTF16LE_CODE_UNIT* CATALYST_UTF16LE;
 ```
 
-**C++:** `catalyst::UTF16LE`.
+**C++ equivalent:** `catalyst::UTF16LE`.
 
 #### CATALYST_UTF16LEW
 
@@ -550,7 +550,7 @@ Pointer to writable UTF-16LE code units.
 typedef CATALYST_UTF16LE_CODE_UNIT* CATALYST_UTF16LEW;
 ```
 
-**C++:** `catalyst::UTF16LEW`.
+**C++ equivalent:** `catalyst::UTF16LEW`.
 
 ### Operation Status
 
@@ -562,7 +562,7 @@ Represents the outcome of a completed operation. Its meaning is independent of t
 typedef CATALYST_BYTE CATALYST_STATUS_CODE;
 ```
 
-**C++:** `catalyst::STATUS_CODE`.
+**C++ equivalent:** `catalyst::STATUS_CODE`.
 
 #### CATALYST_CONTEXT_CODE
 
@@ -572,7 +572,7 @@ Identifies the context in which an operation was performed. Its meaning is uniqu
 typedef CATALYST_BYTE CATALYST_CONTEXT_CODE;
 ```
 
-**C++:** `catalyst::CONTEXT_CODE`.
+**C++ equivalent:** `catalyst::CONTEXT_CODE`.
 
 #### CATALYST_OPERATION_CODE
 
@@ -582,7 +582,7 @@ Identifies a distinct operation within an execution context. Within a Core metho
 typedef CATALYST_BYTE CATALYST_OPERATION_CODE;
 ```
 
-**C++:** `catalyst::OPERATION_CODE`.
+**C++ equivalent:** `catalyst::OPERATION_CODE`.
 
 #### CATALYST_DETAIL_CODE
 
@@ -592,7 +592,7 @@ Represents additional information about a completed operation. Its meaning is sp
 typedef CATALYST_BYTE CATALYST_DETAIL_CODE;
 ```
 
-**C++:** `catalyst::DETAIL_CODE`.
+**C++ equivalent:** `catalyst::DETAIL_CODE`.
 
 #### CATALYST_RESULT
 
@@ -618,7 +618,7 @@ Results use `0xSSCCOODD` significance order: status, context, operation, detail.
 
 A C aggregate has no automatic default initialization unless initialized by its declaration or storage duration.
 
-**C++:** `catalyst::RESULT` publicly derives from this structure. See [RESULT members](#result-members).
+**C++ equivalent:** `catalyst::RESULT` publicly derives from this structure. See [RESULT members](#result-members).
 
 ## Constant Details
 
@@ -724,7 +724,7 @@ Selects the two most significant bits of a status code. Every byte belongs to ex
 | Error | `0x80`–`0xBF` | `0x80` |
 | Fatal | `0xC0`–`0xFF` | `0xC0` |
 
-**C++:** `catalyst::STATUS_CODE_LEVEL_MASK`.
+**C++ equivalent:** `catalyst::STATUS_CODE_LEVEL_MASK`.
 
 ### Result code constants
 
@@ -1231,6 +1231,8 @@ These headers are selected through `catalyst.h`; they are not separate modules. 
 
 ## See Also
 
+- [CATTELIB text encoding operations](../cattelib/index.md)
+- [CATMMLIB memory operations](../catmmlib/index.md)
 - [C header source](https://github.com/catalystui/lib-core-c/blob/main/include/catalyst.h)
 - [C++ header source](https://github.com/catalystui/lib-core-c/blob/main/include/catalyst.hpp)
 - [C90 numeric header](https://github.com/catalystui/lib-core-c/blob/main/include/catalyst.c90.h)
