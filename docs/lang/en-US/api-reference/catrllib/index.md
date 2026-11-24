@@ -2,11 +2,11 @@
 
 Provides Set, Map, Array, File, and Stream operations with managed memory.
 
-**C Header:** `catrllib.h`\
-**C++ Header:** `catrllib.hpp`\
-**Namespace:** `catalyst`\
-**Library:** `catrl`\
-**Dependencies:** [CATALYST](../catalyst/index.md), [CATMMLIB](../catmmlib/index.md)\
+**C Header:** `catrllib.h`  
+**C++ Header:** `catrllib.hpp`  
+**Namespace:** `catalyst`  
+**Library:** `catrl`  
+**Dependencies:** [CATALYST](../catalyst/index.md), [CATMMLIB](../catmmlib/index.md)  
 **Specification:** [FRELSPEC Revision 2.1](https://catalystui.org/specifications/languages/frelspec/)
 
 ## Contents
@@ -68,21 +68,19 @@ Provides Set, Map, Array, File, and Stream operations with managed memory.
 | [catrl_stream_next](#catrl_stream_next) | Produce an exact-sized chunk into managed storage. |
 | [catrl_stream_free](#catrl_stream_free) | Release managed chunks, state, and bookkeeping. |
 
-C++ aliases use the same C structures. Inline wrappers omit `catrl_`, use Catalyst C++ type names, and forward directly. Callback return types remain `CATALYST_RESULT`, including in C++, to match the C function-pointer signatures. The C and C++ APIs have identical ownership and failure behavior.
+The C++ aliases use the corresponding C structures, and the inline functions forward directly to the C API. Their ownership and failure guarantees are identical. Use `CATALYST_RESULT` as the callback return type in both languages to match the declared C function pointers.
 
 ## Macros
 
 ### CATRLLIB_API
 
-Export/import annotation for the C ABI. On Windows/Cygwin, `CATRLLIB_EXPORTS` selects `__declspec(dllexport)` and `CATRLLIB_USE_DLL` selects `__declspec(dllimport)`; otherwise the annotation is empty. Link the static `catrl` archive with `catmm`, or use the shared `catrl` library and its shared `catmm` dependency. CMake's `catrllib_static` and `catrllib_shared` targets propagate the matching dependency.
+Export/import annotation for CATRLLIB's C ABI. On Windows/Cygwin, `CATRLLIB_EXPORTS` selects `__declspec(dllexport)` and `CATRLLIB_USE_DLL` selects `__declspec(dllimport)`; otherwise the macro is empty. The `catrl` library depends on `catmm`. CMake's `catrllib_static` and `catrllib_shared` targets propagate the corresponding dependency.
 
 ## Types
 
 ### CATRLLIB_SET
 
-A finite, unordered collection of distinct fixed-size elements. Equality compares all `size` bytes with `catmm_compare`; padding and other representation bytes participate. Callers must provide stable, initialized representations for their intended equality. No hashing, sorting, typed comparison, or element destructor is imposed.
-
-Initialization establishes empty storage. Capacity is a count of elements, not bytes. CATRLLIB owns the CATMMLIB allocation and copies each inserted element by value. A stored pointer is only a copied pointer representation; its target remains owned by the caller. Do not shallow-copy an owning collection or replace its bookkeeping fields. Direct access must preserve distinctness, extents, and initialized state. Synchronize concurrent access involving mutation externally.
+A finite, unordered collection of distinct elements. All elements occupy the same number of bytes. Two elements are equal when their byte representations match, including any padding. The Set does not interpret element types or assign an order to its members.
 
 ```c
 typedef struct CATRLLIB_SET {
@@ -95,22 +93,22 @@ typedef struct CATRLLIB_SET {
 
 **Fields:**
 
-- `data`: Owned contiguous storage; null before allocation and after successful release. Only the first `cardinality` elements are members.\
-- `size`: Nonzero bytes per individual element, fixed at initialization.\
-- `cardinality`: Number of distinct live elements, from zero through `capacity`.\
-- `capacity`: Number of slots available without allocation. Its byte extent `capacity * size` is representable in `CATALYST_NUINT`; CATMMLIB may impose a smaller allocation limit.
+- `data`: Contiguous element storage, null when unallocated. Only the first `cardinality` slots contain members.  
+- `size`: Nonzero size of each element, in bytes. Fixed at initialization.  
+- `cardinality`: Number of distinct members, from zero through `capacity`.  
+- `capacity`: Number of element slots in the allocation. Its byte extent, `capacity * size`, must be representable in `CATALYST_NUINT`; CATMMLIB may impose a smaller limit.
 
-**C++ equivalent:** `catalyst::SET`, an alias of `CATRLLIB_SET`.
+**C++ equivalent:** `catalyst::SET`.
 
-Use `catrl_set_expand` before adding new elements beyond capacity. Expansion honors an explicit larger request exactly; smaller/equal requests, including zero, are no-ops. There is no implicit expansion in insertion. A caller choosing geometric growth may request double its capacity after checking representability. Shrinking selects `max(cardinality, floor(capacity / 2))`; repeated shrinking of an empty Set eventually releases its allocation. Clear and removal retain capacity. Duplicate add, absent removal, and capacity no-ops preserve existing pointers and contents.
+Initialize a Set with an element size, then reserve storage with [catrl_set_expand](#catrl_set_expand). The Set owns its storage and copies each inserted element by value. Capacity counts elements, not bytes. Adding an existing element leaves the Set unchanged, even when it is full. Removing an element or clearing the Set does not reduce capacity.
 
-Lookup is linear in cardinality. Removal replaces a removed slot with the last member, so iteration order is unspecified. Insertion and removal allocate no memory. Removal ends the removed member's identity and moves the last member when necessary; pointers to either affected slot must not be reused as references to their former members. Clear ends every live membership while retaining storage. Unaffected member slots remain in place until resizing or release. Resize success invalidates all storage aliases, even if the address happens to be unchanged; single-buffer resize failure preserves pointer, contents, cardinality, and capacity. Clear/free do not erase bytes securely or release referenced objects. Successful free retains `size` for reuse.
+Membership is determined by a linear search. Removal moves the last member into the vacated slot when necessary, so pointers to either affected slot no longer identify their former members. Other slots remain in place until the storage is resized or released. Direct access to live elements must preserve their uniqueness.
+
+A successful resize invalidates all pointers into the allocation; a failed resize preserves the Set. Shrinking retains every member and can eventually release all storage when the Set is empty. A successful free retains the element size for reuse.
 
 ### CATRLLIB_MAP
 
-A finite collection of unique fixed-size keys, each associated with one fixed-size value. Keys compare bytewise across `ksize` bytes; duplicate add leaves the existing value unchanged. Values need not be distinct. Key and value sizes are independent, and each buffer's extent is checked separately before allocation.
-
-CATRLLIB owns the key and value allocations and stores copies by value. Referenced objects remain caller-owned. Do not shallow-copy ownership or replace bookkeeping fields. Direct access must preserve key uniqueness, pair alignment by slot, counts, and extents; changing an existing value's bytes is permitted. Synchronize concurrent access involving mutation externally.
+A finite collection that associates each unique key with exactly one value. Keys and values have independently specified byte sizes. Keys are compared byte by byte, including padding; values need not be distinct. Adding an existing key does not replace its value.
 
 ```c
 typedef struct CATRLLIB_MAP {
@@ -125,26 +123,24 @@ typedef struct CATRLLIB_MAP {
 
 **Fields:**
 
-- `keys`: Owned contiguous key storage. Only the first `cardinality` slots are live.\
-- `values`: Independently owned value storage; value slot `i` belongs to key slot `i`.\
-- `ksize`: Nonzero bytes per individual key, fixed at initialization.\
-- `vsize`: Nonzero bytes per individual value, fixed at initialization.\
-- `cardinality`: Number of live key/value pairs, from zero through `capacity`.\
-- `capacity`: Safe slot count in both buffers. Extra physical storage retained after a partial resize is not additional logical capacity.
+- `keys`: Owned contiguous key storage. Only the first `cardinality` slots are live.  
+- `values`: Independently owned value storage; value slot `i` belongs to key slot `i`.  
+- `ksize`: Nonzero size of each key, in bytes. Fixed at initialization.  
+- `vsize`: Nonzero size of each value, in bytes. Fixed at initialization.  
+- `cardinality`: Number of live key/value pairs, from zero through `capacity`.  
+- `capacity`: Number of pairs that both buffers can accommodate. Extra storage retained after a partial resize does not increase this value.
 
-**C++ equivalent:** `catalyst::MAP`, an alias of `CATRLLIB_MAP`.
+**C++ equivalent:** `catalyst::MAP`.
 
-Initialization sets both pointers, cardinality, and capacity to zero without allocation. Expansion requests an exact larger pair capacity; smaller/equal requests are no-ops. Adding a new key requires a spare slot. Shrink selects `max(cardinality, floor(capacity / 2))`. Lookup is linear; removal moves the last pair into a removed slot. Clear/removal retain capacity. No insertion, lookup, replacement, or removal allocates. Duplicate add, absent-key operations, and capacity no-ops preserve existing pointers and contents.
+The Map owns two contiguous allocations: one for keys and one for values. The key at a given slot corresponds to the value at the same slot. Although storage is indexed internally, a Map is accessed by key rather than by position. Direct access must preserve key uniqueness and the correspondence between keys and values.
 
-Removal changes pair identity at the removed and former last slots; pointers to those slots must not be reused as references to their former pairs. Clear ends every live association without releasing storage. Replacement changes the existing value's bytes but leaves key identity and slot addresses intact. Unaffected slots stay in place until resizing or release. Successful resizing invalidates aliases of the resized buffer even if its address is unchanged; the partial outcomes below apply to each buffer separately.
+Reserve capacity before adding a new key. Lookups search the keys linearly, and removal moves the last pair into the vacated slot when necessary. Pointers to either affected slot no longer identify their former pairs. Updating a value leaves the key and slot addresses unchanged. Removing or clearing associations retains capacity.
 
-Key resizing precedes value resizing. If expansion's value resize fails, all pairs and logical capacity are preserved, but key aliases may already be invalidated and a larger key allocation remains owned. If shrinking's value resize fails, all pairs are preserved and the smaller logical capacity remains; values may retain extra storage. A key resize failure leaves the Map unchanged. No rollback allocation or unreachable temporary allocation is introduced.
-
-Free releases keys before values. A key release failure leaves the Map unchanged. Successful key release clears `keys`, cardinality, and capacity; if value release then fails, `values` remains live and owned for retry. This is a valid empty Map with zero capacity. It may be freed again or expanded for reuse without discarding the retained allocation. Both element sizes are retained. At zero logical capacity, either pointer can therefore be non-null after a partial operation; only CATRLLIB manages those allocations.
+Because the buffers are resized separately, one resize may succeed before the other fails. The Map always reports a capacity that both buffers can accommodate. Resizing invalidates aliases of each successfully resized buffer, even when the overall operation fails. At zero capacity, a Map may still own an allocation after a partial resize or release. See [catrl_map_expand](#catrl_map_expand), [catrl_map_shrink](#catrl_map_shrink), and [catrl_map_free](#catrl_map_free) for the resulting ownership and failure guarantees.
 
 ### CATRLLIB_ARRAY
 
-A finite, indexed collection of fixed-size element copies at contiguous zero-based indices. Elements may repeat. CATRLLIB owns the CATMMLIB allocation; stored pointer targets remain caller-owned. Do not shallow-copy ownership or replace bookkeeping fields. Direct element access must stay within the live extent and preserve initialized representations. Synchronize concurrent access involving mutation externally.
+A finite collection of fixed-size elements identified by contiguous, zero-based indices. Unlike a Set, an Array may contain equal elements at different indices. Elements are stored contiguously and copied by value.
 
 ```c
 typedef struct CATRLLIB_ARRAY {
@@ -157,20 +153,22 @@ typedef struct CATRLLIB_ARRAY {
 
 **Fields:**
 
-- `data`: Owned contiguous storage, null when unallocated.\
-- `size`: Nonzero bytes per individual element, fixed at initialization.\
-- `length`: Number of live elements. Valid retrieval/replacement/removal indices are `[0, length)`.\
+- `data`: Owned contiguous storage, null when unallocated.  
+- `size`: Nonzero bytes per individual element, fixed at initialization.  
+- `length`: Number of live elements. Valid retrieval/replacement/removal indices are `[0, length)`.  
 - `capacity`: Number of slots available without allocation; `length <= capacity`. The byte extent `capacity * size` must be representable and allocatable.
 
-**C++ equivalent:** `catalyst::ARRAY`, an alias of `CATRLLIB_ARRAY`.
+**C++ equivalent:** `catalyst::ARRAY`.
 
-Initialize without allocation, then explicitly expand before appending or inserting beyond capacity. Expansion honors an exact larger request and treats smaller/equal requests as no-ops. Shrink selects `max(length, floor(capacity / 2))`, preserving order. Repeated shrinking of an empty Array eventually releases its allocation; clear/removal retain capacity. Successful free retains `size` for reuse. Capacity no-ops preserve existing pointers and contents.
+The Array owns its storage. Reserve capacity before appending or inserting an element. Appending leaves existing elements in place; insertion and removal shift subsequent elements to maintain contiguous indices and preserve their relative order. Pointers into the shifted portion no longer identify their former indexed elements. Earlier slots remain in place. Replacing an element changes only the bytes at its index.
 
-Indexed access and append have constant overhead apart from copying an element. Insert/remove move the trailing byte extent with `catmm_move`; membership uses linear bytewise comparison. Mutating operations do not allocate except expand/shrink. Successful resizing invalidates all storage aliases, even if the address is unchanged; failure preserves pointer, length, capacity, and contents. Insertion/removal change the indexed elements at and after the affected index; pointers into that suffix must not be reused as references to their former indexed elements. Earlier elements remain in place. Append retains existing element slots, while replacement overwrites only the selected element's bytes. Clear ends all live elements without releasing storage. Unused slots are not elements; clear/remove do not securely erase them.
+Indexed access and append require constant work apart from copying the element. Insertion and removal move the affected suffix, while membership is determined by a linear bytewise search. Direct element access must remain within the live extent. Removing elements or clearing the Array retains capacity.
+
+A successful resize invalidates all pointers into the allocation; a failed resize preserves the Array. Shrinking retains every element in order and can eventually release all storage when the Array is empty. A successful free retains the element size for reuse.
 
 ### CATRLLIB_FILE
 
-Owns two publicly accessible Arrays and a caller-supplied resolver. Metadata represents the resolution rules, and the resolver interprets the current metadata and data on every call. CATRLLIB imposes no metadata format, filesystem mapping, or relationship between an index and either Array's length. The resolver establishes the finite contiguous index domain required by FRELSPEC and reports invalid indices or malformed contents according to its contract.
+A collection that resolves data through metadata. A File contains two Arrays, one containing metadata and one containing data, and a resolver that determines how the metadata is used to retrieve an Array from the data. The resolver defines the format and the finite, contiguous domain of valid File indices. A File index need not correspond to an index in either underlying Array, and a File need not represent a filesystem object.
 
 ```c
 typedef struct CATRLLIB_FILE CATRLLIB_FILE;
@@ -187,21 +185,21 @@ struct CATRLLIB_FILE {
 
 **Fields:**
 
-- `metadata`: Owned Array of metadata elements; its `size` is bytes per metadata element.\
-- `data`: Owned Array of data elements; its `size` is bytes per data element and may differ from metadata's size.\
+- `metadata`: Owned Array of metadata elements; its `size` is bytes per metadata element.  
+- `data`: Owned Array of data elements; its `size` is bytes per data element and may differ from metadata's size.  
 - `resolver`: Non-null callable while the File is available for resolution; cleared by successful File release.
 
-**C++ equivalent:** `catalyst::FILE`, an alias of `CATRLLIB_FILE`.
+**C++ equivalent:** `catalyst::FILE`.
 
-`catrl_file_init` moves Array ownership without allocation and leaves the two source Arrays empty and reusable. Use ordinary Array operations on `file.metadata` and `file.data` to change their contents and capacities; the resolver sees those changes without a cached interpretation. Preserve the Array invariants and the resolver's own content requirements. Do not shallow-copy an owning File. Synchronization belongs to the caller.
+Use [catrl_file_init](#catrl_file_init) to transfer ownership of the two Arrays into the File. Their contents can then be read or modified using ordinary Array operations on `file.metadata` and `file.data`. Each resolution uses the current contents; CATRLLIB does not cache an interpretation of the metadata. Changes must satisfy the resolver's content requirements.
 
-The resolver determines output initialization requirements, output element size/count/capacity, whether output owns copies or borrows a view, the borrowed view's lifetime, and output validity for every status. An owned output Array is released with `catrl_array_free`; a borrowed view must not be resized or freed as owned storage. The writable `output` Array object itself must not overlap the File object or either owned allocation. Its `output->data` pointer may reference File storage when the resolver returns a borrowed view; this does not transfer ownership out of the File. Such a view is subject to the resolver's lifetime rules and the underlying Array's pointer invalidation rules. The resolver must preserve File ownership and release or expose every allocation it creates on failure. CATRLLIB does not initialize, allocate, free, or roll back resolver output.
+The resolver determines how the output Array is initialized, what its elements represent, and whether it contains an owned copy or borrows existing File storage. Release an owned output with [catrl_array_free](#catrl_array_free); do not resize or free a borrowed view as an owning Array. Its validity depends on the resolver's contract and the lifetime of the underlying storage. The output Array object itself must be separate from the File and its allocations.
 
-`catrl_file_get` invokes the resolver exactly once and retains its status and detail, with CATRLLIB's context and operation. File release frees metadata before data and leaves any unreleased allocation reachable for retry. Earlier successful release is not rolled back. After complete release, initialize the File again before resolution.
+The resolver also defines output validity on every outcome and is responsible for allocations it creates, including on failure. CATRLLIB does not allocate, initialize, or roll back resolver output. [catrl_file_free](#catrl_file_free) releases the two owned Arrays, retaining any unreleased allocations for a subsequent cleanup attempt.
 
 ### CATRLLIB_STREAM
 
-A finite or infinite producer-defined sequence with CATRLLIB-owned state and chunk storage. FRELSPEC defines sequential generation or retrieval; this API supplies byte extents and bounded chunk retention without imposing an encoding, metadata format, filesystem, or termination sentinel.
+A mechanism for generating or retrieving successive chunks from a finite or infinite sequence. The producer determines the contents and order of the chunks, while the Stream manages the memory used to hold them. The consumer specifies the size of each chunk and, at initialization, how many recent chunks must remain valid.
 
 ```c
 typedef struct CATRLLIB_STREAM CATRLLIB_STREAM;
@@ -218,39 +216,39 @@ struct CATRLLIB_STREAM {
 
 **Fields:**
 
-- `state`: Owned allocation whose first `ssize` bytes are producer state. CATRLLIB appends private bookkeeping in the same allocation. Do not access those trailing bytes, replace this pointer, resize it, or free it independently. The pointer remains stable throughout active production.\
-- `ssize`: Bytes of producer state, excluding bookkeeping; zero is permitted. Fixed by initialization.\
-- `next`: Non-null producer while active. Receives the Stream, a writable managed chunk buffer, and the requested chunk size in bytes. A free attempt clears this field, including when release subsequently fails.
+- `state`: Pointer to the producer's state, stable during active production. CATRLLIB keeps private bookkeeping after the first `ssize` bytes; do not access that bookkeeping or replace, resize, or free the pointer independently.  
+- `ssize`: Size of the producer's state, in bytes, excluding bookkeeping. Fixed at initialization; may be zero.  
+- `next`: Producer function, non-null while active. Receives the Stream, a writable chunk buffer, and its requested size in bytes. A free attempt clears this field even if release fails.
 
-**C++ equivalent:** `catalyst::STREAM`, an alias of `CATRLLIB_STREAM`.
+**C++ equivalent:** `catalyst::STREAM`.
 
-Initialization allocates zero-filled producer state and private bookkeeping for the nonzero `lifetime` count. Chunk buffers are allocated on demand. State and chunk pointers have CATMMLIB fundamental alignment; extended alignment is not guaranteed. Byte zeroing does not invoke constructors or establish every typed representation, including null pointers. The caller initializes typed state as needed and releases any separately owned resources referenced by that state before freeing the Stream. CATRLLIB releases the raw state allocation, not those referenced resources. It also does not invoke chunk-payload destructors or release objects/resources referenced by chunk bytes; their cleanup belongs to the producer/consumer contract. Resources acquired by the producer remain its responsibility on every outcome.
+Initialize a Stream with the number of bytes the producer needs for its state, a nonzero chunk lifetime, and a producer function. State is allocated immediately and zero-filled; chunk buffers are allocated as needed. The state and chunk buffers have CATMMLIB's fundamental alignment, but not extended alignment. Zero-filled bytes do not construct typed objects or necessarily represent null pointers. Initialize typed state as required by the producer.
 
-`lifetime` counts published chunks, not calls, bytes, or elapsed time. A chunk remains valid through the next `lifetime - 1` publications and expires when the `lifetime`th subsequent publication displaces it. Before the first `lifetime` publications, all published chunks remain valid. With `lifetime == 1`, the previous chunk survives failed, warning, and no-op producer calls and expires only when the next chunk is published. Initialization fixes the retention count; it is stored privately.
+Each call to [catrl_stream_next](#catrl_stream_next) supplies the producer with writable memory for the requested number of bytes. The producer writes directly into that memory and returns a Result. Only producer `SUCCESS` guarantees that all requested bytes have been produced. CATRLLIB does not copy the completed chunk or require the consumer to allocate an output buffer. A zero-byte request still receives a non-null buffer and, on success, produces an empty chunk.
 
-CATRLLIB retains at most `lifetime` published buffers and one spare buffer. A producer writes directly into the spare; no output payload copy is added. Only producer `SUCCESS` (`0x00`) asserts completion of exactly `csize` bytes and publishes that buffer. Producer warnings, including `WARNING_PARTIAL` and `WARNING_DEPRECATED`, do not publish or advance retained-chunk lifetimes. Producer errors, fatal outcomes, and `SUCCESS_NOOP` likewise leave the consumer output slot and retained chunks unchanged. Changes to producer state are not rolled back. There is no separate produced-byte-count output; exact completion relies on the producer's `SUCCESS` contract.
+The lifetime counts published chunks, not calls, bytes, or elapsed time. For example, with a lifetime of three, the first chunk remains valid while the second and third chunks are produced. Producing the fourth chunk invalidates the first. Failed, warning, and no-op producer calls do not count toward this limit. With a lifetime of one, only the most recently published chunk remains valid; failed attempts do not invalidate it.
 
-A publication advances retention before optional memory optimization. Only the displaced, expired buffer becomes the new spare. Required growth doubles spare capacity until it accommodates `max(csize, 1)`, falling back to the exact requirement before doubling would overflow. After a publication, an expired spare is halved once when `max(csize, 1) <= floor(spare_capacity / 4)`. The newly published buffer and all retained buffers are never resized. A zero-byte request still supplies a non-null buffer with at least one byte of capacity; `SUCCESS` publishes an empty chunk and counts toward `lifetime`.
+To preserve this guarantee, CATRLLIB keeps up to `lifetime` retained buffers and one spare. The producer writes to the spare, which becomes the newest retained buffer only after successful production. An expired buffer can then be reused or resized. This allows differently sized chunks to be produced without moving any still-valid chunk. See [catrl_stream_next](#catrl_stream_next) for the resizing policy and the distinction between producer and allocation diagnostics.
 
-A recoverable optional-shrink failure returns `WARNING` (category NONE) with the dependency status as detail. The exact-sized chunk is already published and lifetimes have advanced normally. A fatal shrink failure retains fatal status and detail with the same published-output guarantees. Neither outcome loses ownership of the spare allocation. Distinguish these post-publication diagnostics from producer warnings/failures by the Result operation code in [catrl_stream_next](#catrl_stream_next).
+The producer defines how the sequence advances, how its state changes, and how exhaustion is reported. There is no universal end-of-stream status or pointer sentinel, and CATRLLIB does not retry a producer or undo its state changes. The producer must use defined FDEFSPEC statuses, access only its `ssize` state bytes and supplied `csize` chunk bytes, and leave Stream fields, private bookkeeping, retained chunks, and the consumer's output slot unchanged. It must not reenter the Stream.
 
-The producer determines sequencing, state transitions, chunk contents and interpretation, and finite exhaustion. CATRLLIB defines no universal end-of-sequence status or null-pointer sentinel and does not retry callbacks. Producers must return defined FDEFSPEC statuses, remain within their state/chunk extents, and not modify public Stream fields, private bookkeeping, retained chunks, or the consumer's output slot. Do not shallow-copy an owning Stream, reenter it from its producer, or operate on it concurrently without external synchronization. Consumer pointers are borrowed views: never free or resize them independently, and never access a chunk after displacement or a free attempt.
-
-A free attempt ends production and invalidates consumer access to managed storage. Earlier successful releases remain effective if a later release fails. Unreleased allocations stay reachable for `catrl_stream_free` retries; only cleanup is permitted afterward. Complete success clears all public fields. Do not reinitialize a Stream that still owns resources after failed cleanup.
+The Stream owns its raw state and chunk memory, not objects or resources referenced by those bytes. The producer and consumer are responsible for the lifetime and cleanup of such resources, including on failed production; no constructors or destructors are invoked. Returned chunk pointers are borrowed: do not free or resize them independently, or use them after they expire. Calling [catrl_stream_free](#catrl_stream_free) ends production and invalidates all chunks, even if cleanup subsequently fails. If cleanup fails, retry free without reinitializing the Stream.
 
 ## Functions
 
-Valid initialized objects, non-null object/input/output pointers, readable and writable extents, non-overlap, lifetime, synchronization, and direct-access indices are caller preconditions, as described in [Assumptions](../../assumptions/index.md). Initialization functions receive valid unused storage, not a live owning collection. Set, Map, and Array element/key/value sizes are nonzero; Stream `ssize` and `csize` may be zero, but its `lifetime` must be nonzero. These conditions are not checked or converted into sentinel return values. The existing void/Boolean mutation signatures require callers to reserve capacity before inserting a new element or key; duplicate Set/Map add may be called at full capacity because no insertion occurs.
+All collection objects must be initialized before use. Pass writable, unused storage to initialization functions, and release any existing ownership before reinitializing. Do not shallow-copy owning collections or replace their bookkeeping fields. Synchronize access externally when mutation may occur. The pointer, extent, alignment, lifetime, and index requirements in [Assumptions](../../assumptions/index.md) apply throughout this reference.
 
-For operations that copy caller data into a collection (`catrl_set_add`, `catrl_map_add`, `catrl_map_set`, `catrl_array_add`, `catrl_array_insert`, and `catrl_array_set`), the entire input extent being copied must be outside the collection object and its owned allocations. Retrieval output extents for `catrl_map_get` and `catrl_array_get` must likewise be outside the object and its allocations. These rules concern whole readable/writable extents, not just pointer starting addresses; no overlap detection or temporary allocation is performed. Read-only lookup inputs and removal search inputs may identify live stored bytes because searching finishes before mutation. The lookup key of `catrl_map_set` may also identify a live key, as documented below.
+Set, Map, and Array store fixed-size byte representations by value. Their element, key, and value sizes must be nonzero. Initialize representation bytes, including padding, consistently when using bytewise equality. These collections do not provide typed comparisons, invoke destructors, release objects referenced by stored pointers, or securely erase removed data.
 
-All allocation arithmetic uses `CATALYST_NUINT`, including on targets with one-byte pointers. Before expansion, each capacity is checked against `CATALYST_NUINT_MAX / element_size` before multiplication. Existing live counts and indices bound later offset and suffix products by that established extent. A spare slot makes count increments representable; valid direct-access indices make decrements and suffix subtraction nonnegative. Ordinary C/C++ integer promotions may occur, but correctness does not rely on their providing a wider result. No integer representation wider than the target's `CATALYST_NUINT`, packed Result, native byte order, alignment-sensitive element load, OS call, or standard-library routine is required by CATRLLIB. CATMMLIB supplies native allocation, fundamental alignment, and additional prefix/page limits; deployment on a target requires a CATMMLIB backend for that target. This does not imply that all targets already have one.
+Capacity is the number of elements or pairs that can be stored without allocating additional memory. Use the corresponding expand function before inserting beyond capacity; insertion never expands storage automatically. Duplicate Set or Map insertion is valid at full capacity because it does not add an entry. Expansion honors the requested total capacity exactly, and smaller or equal requests are no-ops. Shrinking halves capacity, rounded down, without dropping live entries. Repeated shrinking of an empty collection can release its storage entirely. Clear and removal retain capacity; unused slots are not live elements. Successful release retains element sizes for reuse.
 
-An empty Set or Array reaches zero capacity by shrinking from capacity one; CATMMLIB resizes the live pointer to zero, releasing it and clearing it only on success. An already zero-capacity collection is a no-op, so shrinking never calls `catmm_realloc` with both a null pointer and zero size, which is outside CATMMLIB's preconditions. Map uses the same rule for its two buffers, publishing zero capacity after successful key release and retaining any values whose release fails. Residual Map allocations at zero capacity remain owned and are released with `catrl_map_free`, even if another shrink is a no-op.
+Successful resizing invalidates pointers into the resized allocation, even if the numeric address is unchanged. A failed resize preserves that allocation and its bytes. A Map may therefore retain a resized key buffer after a value-buffer failure; its logical capacity remains safe for both. At zero capacity, a Map may still own a buffer after a partial operation. Release any remaining storage through the Map API.
 
-Reporting methods use fixed contexts from declaration order and distinct operations per reporting site. Dependency failures keep applicable status, fatal severity, and useful detail. In the resize tables, current CATMMLIB dual-cleanup failures can report `ERROR_INVALID_STATE` with detail `84`, or `ERROR_ACCESS_DENIED` with detail `82`; these are the other cleanup failure's status. Other listed dependency details are unused. Dependency diagnostics retain applicable status, fatal severity, and useful detail; optional Stream shrinking instead reports a recoverable optimization failure as `WARNING` with the dependency status in detail. Results use logical `0xSSCCOODD` order, independent of native byte order. Undefined status codes remain reserved. `ERROR_INVALID_ARGUMENT` detail identifies an argument in the full reporting signature. File resolver argument positions match `catrl_file_get`; Stream producer indices are mapped as documented in `catrl_stream_next`.
+Inputs copied into a collection and outputs copied out of it must lie entirely outside that collection object and all its allocations. Lookup and removal search inputs may identify live stored elements or keys, since the search completes before mutation. The key supplied to Map replacement may likewise identify a stored key. Valid non-null pointers and extents are required even for empty lookups. These are caller preconditions, not conditions checked by the functions. Stream state and chunk sizes may be zero; its lifetime must be nonzero.
 
-File resolvers validate their data-resolution conditions; Stream producers report their production outcomes while CATRLLIB manages allocation and retention. Callback context and operation are replaced with fixed CATRLLIB reporting codes. [FDEFSPEC](https://catalystui.org/specifications/languages/fdefspec/) permits detail meanings to depend on context or operation, so callback-specific diagnostic provenance can be lost. The original callback context and operation cannot be recovered from the returned Result.
+Allocation extents and arithmetic use the target's pointer-width Catalyst types. Capacity is checked against `CATALYST_NUINT_MAX / element_size` before multiplication, and valid counts and indices keep subsequent offsets within that extent. CATMMLIB may impose additional allocation limits and supplies fundamental alignment. CATRLLIB does not depend on wider numeric representations, native byte order, typed element access, or platform-specific operations. Ordinary language promotions may occur without affecting the arithmetic guarantees. Running on a particular target requires a working CATMMLIB backend.
+
+Results use the logical `0xSSCCOODD` representation defined by [FDEFSPEC Revision 1](https://catalystui.org/specifications/languages/fdefspec/). Each reporting function has a fixed context and each reporting site has its own operation code. Dependency diagnostics retain applicable status and detail, including fatal severity. For CATMMLIB resize failures involving two cleanup operations, detail `84` or `82` identifies the other failure's status; otherwise the listed dependency details are unused. Optional Stream shrinking has a separate warning contract. Callback status and detail are retained where applicable, but the callback's original context and operation are replaced. Callback-specific diagnostic provenance may therefore be lost. Invalid-argument details refer to the reporting signature, with Stream producer arguments translated as described in [catrl_stream_next](#catrl_stream_next). Undefined status codes remain reserved.
 
 ### catrl_set_init
 
@@ -258,11 +256,11 @@ File resolvers validate their data-resolution conditions; Stream producers repor
 void catrl_set_init(CATRLLIB_SET* set, CATALYST_NUINT size);
 ```
 
-Initialize an empty Set without allocation. Set `data`, `cardinality`, and `capacity` to zero and retain the supplied element size. Release existing ownership before reinitializing.
+Initialize an empty Set with the given element size. No storage is allocated until expansion; `data`, `cardinality`, and `capacity` are zero. Release existing ownership before reinitializing.
 
 **Parameters:**
 
-- `set`: Valid writable unused `CATRLLIB_SET` storage.\
+- `set`: Valid writable unused `CATRLLIB_SET` storage.  
 - `size`: Nonzero size in bytes of each individual element.
 
 **C++ equivalent:** `catalyst::set_init`.
@@ -273,16 +271,16 @@ Initialize an empty Set without allocation. Set `data`, `cardinality`, and `capa
 CATALYST_BOOL catrl_set_add(CATRLLIB_SET* set, CATMMLIB_POINTER element);
 ```
 
-Search by byte equality; if absent, append a copy of `size` bytes and increment cardinality. An existing member is unchanged. No allocation or capacity change occurs.
+Add a copy of an element if it is not already present. The Set compares the supplied bytes with its existing elements. A duplicate leaves the Set unchanged; adding a new member increases cardinality by one without allocating memory.
 
 **Parameters:**
 
-- `set`: Valid initialized Set; a new distinct element requires `cardinality < capacity`.\
+- `set`: Valid initialized Set; a new distinct element requires `cardinality < capacity`.  
 - `element`: Non-null pointer to `set->size` readable bytes outside the Set object and its owned allocation.
 
 **C++ equivalent:** `catalyst::set_add`.
 
-**Returns:** `CATALYST_TRUE` if inserted; `CATALYST_FALSE` if already present, with no mutation. These are ordinary outcomes, not allocation diagnostics.
+**Returns:** `CATALYST_TRUE` if inserted; `CATALYST_FALSE` if already present, with no mutation. 
 
 ### catrl_set_remove
 
@@ -290,11 +288,11 @@ Search by byte equality; if absent, append a copy of `size` bytes and increment 
 CATALYST_BOOL catrl_set_remove(CATRLLIB_SET* set, CATMMLIB_POINTER element);
 ```
 
-Search by byte equality. On membership, replace the removed slot with the last member if necessary, then reduce cardinality. Order is unspecified; capacity is retained. No allocation or referenced-object release occurs.
+Remove an element if present. If it is not the last stored member, move the last member into its place. Decrease cardinality without changing capacity. No referenced objects are released.
 
 **Parameters:**
 
-- `set`: Valid initialized Set.\
+- `set`: Valid initialized Set.  
 - `element`: Non-null pointer to `set->size` readable bytes; may identify a live stored element because lookup completes before mutation.
 
 **C++ equivalent:** `catalyst::set_remove`.
@@ -307,11 +305,11 @@ Search by byte equality. On membership, replace the removed slot with the last m
 CATALYST_BOOL catrl_set_contains(const CATRLLIB_SET* set, CATMMLIB_POINTER element);
 ```
 
-Search the live elements by byte equality without mutation or allocation.
+Determine whether the Set contains an element with the same byte representation.
 
 **Parameters:**
 
-- `set`: Valid initialized Set.\
+- `set`: Valid initialized Set.  
 - `element`: Non-null pointer to `set->size` readable bytes, including when the Set is empty.
 
 **C++ equivalent:** `catalyst::set_contains`.
@@ -324,7 +322,7 @@ Search the live elements by byte equality without mutation or allocation.
 void catrl_set_clear(CATRLLIB_SET* set);
 ```
 
-Set `cardinality` to zero, retaining allocation, element size, and capacity. No allocation, release, or pointee cleanup occurs; old bytes remain outside the live extent.
+Remove all members by setting cardinality to zero. Keep the allocated storage, element size, and capacity available for reuse. The former elements' bytes are not erased or treated as live members.
 
 **Parameters:**
 
@@ -338,11 +336,11 @@ Set `cardinality` to zero, retaining allocation, element size, and capacity. No 
 CATALYST_RESULT catrl_set_expand(CATRLLIB_SET* set, CATALYST_NUINT capacity);
 ```
 
-Request exactly `capacity` element slots. A larger request resizes with CATMMLIB and preserves all live elements. Smaller/equal requests are no-ops. No automatic doubling overrides this explicit request. The element byte size is unchanged. On failure, pointer, contents, count, and logical capacity are unchanged. Successful resizing invalidates previous storage aliases. Newly available slots are not live elements.
+Increase capacity to the requested number of elements. All members are preserved. A request no greater than the current capacity is a no-op. Failure leaves the Set unchanged; successful resizing invalidates previous storage aliases. Newly available slots are not members until inserted.
 
 **Parameters:**
 
-- `set`: Valid initialized Set.\
+- `set`: Valid initialized Set.  
 - `capacity`: Requested number of elements, not a byte count; zero is a no-op.
 
 **C++ equivalent:** `catalyst::set_expand`.
@@ -372,7 +370,7 @@ Request exactly `capacity` element slots. A larger request resizes with CATMMLIB
 CATALYST_RESULT catrl_set_shrink(CATRLLIB_SET* set);
 ```
 
-Reduce capacity to `max(cardinality, floor(capacity / 2))`, preserving all live elements. If unchanged, return a no-op. The zero target releases storage and clears `data`; for an empty collection with capacity greater than one, a single call retains half the slots. Failure leaves the collection unchanged. Success invalidates storage aliases; element size remains available for reuse.
+Reduce capacity to half its current value, rounded down, or to cardinality if that is greater. If capacity would not change, return a no-op. Reaching zero capacity releases storage and clears `data`. Failure leaves the Set unchanged; successful resizing invalidates previous storage aliases.
 
 **Parameters:**
 
@@ -404,7 +402,7 @@ Reduce capacity to `max(cardinality, floor(capacity / 2))`, preserving all live 
 CATALYST_RESULT catrl_set_free(CATRLLIB_SET* set);
 ```
 
-Release owned storage and set `data`, `cardinality`, and `capacity` to zero. Preserve `size` so the Set can be expanded and reused. An unallocated Set is a no-op. Failure leaves pointer, elements, and metadata unchanged, with ownership retained for retry. Stored pointer targets are never released.
+Release the Set's storage and clear `data`, cardinality, and capacity. Retain the element size so the Set can be reused. An unallocated Set is a no-op; failure leaves the Set unchanged and may be retried. Objects referenced by stored pointers are not released.
 
 **Parameters:**
 
@@ -431,12 +429,12 @@ Release owned storage and set `data`, `cardinality`, and `capacity` to zero. Pre
 void catrl_map_init(CATRLLIB_MAP* map, CATALYST_NUINT ksize, CATALYST_NUINT vsize);
 ```
 
-Initialize an empty Map without allocation. Set both storage pointers, cardinality, and capacity to zero. Release existing ownership before reinitializing.
+Initialize an empty Map with the specified key and value sizes. Both storage pointers, cardinality, and capacity are initially zero; no memory is allocated. Release existing ownership before reinitializing.
 
 **Parameters:**
 
-- `map`: Valid writable unused Map storage.\
-- `ksize`: Nonzero bytes per individual key.\
+- `map`: Valid writable unused Map storage.  
+- `ksize`: Nonzero bytes per individual key.  
 - `vsize`: Nonzero bytes per individual value; need not equal `ksize`.
 
 **C++ equivalent:** `catalyst::map_init`.
@@ -447,12 +445,12 @@ Initialize an empty Map without allocation. Set both storage pointers, cardinali
 CATALYST_BOOL catrl_map_add(CATRLLIB_MAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTER value);
 ```
 
-Search keys by byte equality. Copy a new key and its value into matching slots, then increment cardinality. A duplicate key leaves its previous value unchanged; use `catrl_map_set` to replace it. No allocation or capacity change occurs.
+Add a copy of a key and its associated value if the key does not already exist. A duplicate leaves the existing association unchanged; use [catrl_map_set](#catrl_map_set) to replace its value. A new association increases cardinality without allocating memory.
 
 **Parameters:**
 
-- `map`: Valid initialized Map; a new key requires `cardinality < capacity`.\
-- `key`: Non-null pointer to `ksize` readable bytes outside the Map object and both owned allocations.\
+- `map`: Valid initialized Map; a new key requires `cardinality < capacity`.  
+- `key`: Non-null pointer to `ksize` readable bytes outside the Map object and both owned allocations.  
 - `value`: Non-null pointer to `vsize` readable bytes outside the Map object and both owned allocations.
 
 **C++ equivalent:** `catalyst::map_add`.
@@ -467,11 +465,11 @@ Search keys by byte equality. Copy a new key and its value into matching slots, 
 CATALYST_BOOL catrl_map_remove(CATRLLIB_MAP* map, CATMMLIB_POINTER key);
 ```
 
-Remove the matching key and value. Move the last pair into the removed slot if necessary and decrement cardinality. Capacity is retained; no allocation or referenced-object release occurs.
+Remove a key and its associated value if present. Move the last pair into the vacated slot when necessary and decrease cardinality without changing capacity. No referenced objects are released.
 
 **Parameters:**
 
-- `map`: Valid initialized Map.\
+- `map`: Valid initialized Map.  
 - `key`: Non-null pointer to `ksize` readable bytes; may identify a live key because lookup precedes mutation.
 
 **C++ equivalent:** `catalyst::map_remove`.
@@ -484,11 +482,11 @@ Remove the matching key and value. Move the last pair into the removed slot if n
 CATALYST_BOOL catrl_map_contains(const CATRLLIB_MAP* map, CATMMLIB_POINTER key);
 ```
 
-Search the live keys by byte equality without mutation or allocation.
+Determine whether the Map contains a key with the same byte representation.
 
 **Parameters:**
 
-- `map`: Valid initialized Map.\
+- `map`: Valid initialized Map.  
 - `key`: Non-null pointer to `ksize` readable bytes, including when the Map is empty.
 
 **C++ equivalent:** `catalyst::map_contains`.
@@ -501,12 +499,12 @@ Search the live keys by byte equality without mutation or allocation.
 CATALYST_BOOL catrl_map_get(const CATRLLIB_MAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTERW value);
 ```
 
-Search for a key, then copy its associated value into caller output. No allocation occurs. Absence is an ordinary Boolean outcome and leaves every output byte unchanged.
+Find the key and copy its associated value into the supplied output buffer. If the key is absent, the output remains unchanged.
 
 **Parameters:**
 
-- `map`: Valid initialized Map.\
-- `key`: Non-null pointer to `ksize` readable bytes.\
+- `map`: Valid initialized Map.  
+- `key`: Non-null pointer to `ksize` readable bytes.  
 - `value`: Non-null writable output of at least `vsize` bytes outside the Map object and its owned allocations.
 
 **C++ equivalent:** `catalyst::map_get`.
@@ -519,12 +517,12 @@ Search for a key, then copy its associated value into caller output. No allocati
 CATALYST_BOOL catrl_map_set(CATRLLIB_MAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTER value);
 ```
 
-Search for a key, then copy `vsize` bytes over its existing value. Do not insert absent keys or change cardinality/capacity; no allocation occurs.
+Replace the value associated with an existing key. If the key is absent, no association is added. Cardinality and capacity remain unchanged, and no memory is allocated.
 
 **Parameters:**
 
-- `map`: Valid initialized Map.\
-- `key`: Non-null pointer to `ksize` readable bytes; may identify a live stored key.\
+- `map`: Valid initialized Map.  
+- `key`: Non-null pointer to `ksize` readable bytes; may identify a live stored key.  
 - `value`: Non-null pointer to `vsize` readable bytes outside the Map object and both owned allocations.
 
 **C++ equivalent:** `catalyst::map_set`.
@@ -537,7 +535,7 @@ Search for a key, then copy `vsize` bytes over its existing value. Do not insert
 void catrl_map_clear(CATRLLIB_MAP* map);
 ```
 
-Set cardinality to zero, retaining both allocations, sizes, and logical capacity. No allocation, release, or pointee cleanup occurs; old bytes are outside the live extent.
+Remove all associations by setting cardinality to zero. Keep both storage allocations, their element sizes, and capacity available for reuse. The former entries' bytes are not erased or treated as live associations.
 
 **Parameters:**
 
@@ -551,11 +549,13 @@ Set cardinality to zero, retaining both allocations, sizes, and logical capacity
 CATALYST_RESULT catrl_map_expand(CATRLLIB_MAP* map, CATALYST_NUINT capacity);
 ```
 
-Request exactly `capacity` pairs. Validate both byte extents before resizing keys, then values. Successful completion preserves every pair and establishes the requested logical capacity. Smaller/equal requests are no-ops. On key failure the Map is unchanged; on value failure all pairs and logical capacity remain unchanged, while key aliases may have been invalidated and the larger key allocation remains owned. Use the current public pointers after any attempted resize. This supports retry without leaking or requiring rollback allocation.
+Increase capacity to the requested number of pairs. Check both byte extents before resizing either allocation. A request no greater than the current capacity is a no-op.
+
+Keys are resized first, followed by values. If the key resize fails, the Map is unchanged. If the value resize fails, all associations and the original logical capacity are preserved, but the resized key allocation remains owned and previous key aliases are invalid. Use the current pointers after an attempted resize.
 
 **Parameters:**
 
-- `map`: Valid initialized Map, including an empty Map retaining storage after a partial operation.\
+- `map`: Valid initialized Map, including an empty Map retaining storage after a partial operation.  
 - `capacity`: Requested number of pairs, not bytes. The operation validates the independent key/value extents and reports overflow or allocation failure; representability and allocatability are not caller preconditions.
 
 **C++ equivalent:** `catalyst::map_expand`.
@@ -593,7 +593,9 @@ Request exactly `capacity` pairs. Validate both byte extents before resizing key
 CATALYST_RESULT catrl_map_shrink(CATRLLIB_MAP* map);
 ```
 
-Choose `max(cardinality, floor(capacity / 2))` slots. Preserve every live pair. An unchanged target is a no-op. Resize keys first and immediately publish the smaller safe logical capacity, then resize values. On key failure nothing changes; on value failure the smaller capacity and updated key pointer remain, and the original value allocation stays owned. A zero target releases buffers in the same order, with any unreleased values retained. Use current pointers after any attempted resize. Zero-capacity residual storage is released by `catrl_map_free`.
+Reduce capacity to half its current value, rounded down, or to cardinality if that is greater. Preserve all associations; an unchanged capacity is a no-op.
+
+Keys are resized first. If that fails, the Map is unchanged. Once keys are resized, the smaller capacity takes effect even if resizing values fails. The original value allocation remains owned in that case. Use the current pointers after an attempted resize. Reaching zero capacity releases both buffers in the same order; use [catrl_map_free](#catrl_map_free) to release any remaining allocation if the second release fails.
 
 **Parameters:**
 
@@ -632,7 +634,7 @@ Choose `max(cardinality, floor(capacity / 2))` slots. Preserve every live pair. 
 CATALYST_RESULT catrl_map_free(CATRLLIB_MAP* map);
 ```
 
-Release keys, then values, skipping null pointers. If key release fails, nothing changes. On successful key release, clear keys, cardinality, and capacity before attempting value release. A value failure retains the live value allocation for a later free or expansion; the Map is empty with zero logical capacity. Complete success clears both pointers. Preserve `ksize` and `vsize` for reuse. No referenced objects are released, and no live allocation becomes unreachable.
+Release the key allocation, then the value allocation, skipping null pointers. If releasing keys fails, the Map remains unchanged. Once keys are released, the Map is empty with zero capacity. If releasing values then fails, that allocation remains owned and may be released by retrying this function or resized by expanding the Map again. Complete success clears both pointers. If both pointers are already null, the operation is a no-op. Key and value sizes are retained for reuse; referenced objects are not released.
 
 **Parameters:**
 
@@ -661,11 +663,11 @@ Release keys, then values, skipping null pointers. If key release fails, nothing
 void catrl_array_init(CATRLLIB_ARRAY* array, CATALYST_NUINT size);
 ```
 
-Initialize an empty Array without allocation. Set `data`, `length`, and `capacity` to zero and retain the supplied element size. Release existing ownership before reinitializing.
+Initialize an empty Array with the given element size. No storage is allocated until expansion; `data`, `length`, and `capacity` are zero. Release existing ownership before reinitializing.
 
 **Parameters:**
 
-- `array`: Valid writable unused `CATRLLIB_ARRAY` storage.\
+- `array`: Valid writable unused `CATRLLIB_ARRAY` storage.  
 - `size`: Nonzero size in bytes of each individual element.
 
 **C++ equivalent:** `catalyst::array_init`.
@@ -676,11 +678,11 @@ Initialize an empty Array without allocation. Set `data`, `length`, and `capacit
 void catrl_array_add(CATRLLIB_ARRAY* array, CATMMLIB_POINTER element);
 ```
 
-Copy one element to index `length`, then increment length. Capacity and all previous elements are retained; no allocation occurs.
+Append a copy of an element at index `length`, increasing length by one. Existing elements remain in place and capacity is unchanged. No memory is allocated.
 
 **Parameters:**
 
-- `array`: Valid initialized Array with `length < capacity`.\
+- `array`: Valid initialized Array with `length < capacity`.  
 - `element`: Non-null pointer to `size` readable bytes outside the Array object and its owned allocation.
 
 **C++ equivalent:** `catalyst::array_add`.
@@ -691,12 +693,12 @@ Copy one element to index `length`, then increment length. Capacity and all prev
 void catrl_array_insert(CATRLLIB_ARRAY* array, CATALYST_NUINT index, CATMMLIB_POINTER element);
 ```
 
-Move the suffix starting at `index` right by one element with `catmm_move`, copy the new element, then increment length. Inserting at `length` appends. Preserve relative order of existing elements and retain capacity; no allocation occurs. An input pointing into the shifted suffix can be overwritten before the final copy reads it; internal aliasing is unsupported even when a particular self-copy would happen to work. The complete input extent must be outside both the Array object and its allocation.
+Insert a copy of an element at the specified index, shifting subsequent elements one position to the right. Inserting at `length` appends the element. Capacity is unchanged and no memory is allocated. The input must not reference Array storage, since shifting elements may overwrite the source before it is copied.
 
 **Parameters:**
 
-- `array`: Valid initialized Array with `length < capacity`.\
-- `index`: Insertion position from zero through `length`, inclusive.\
+- `array`: Valid initialized Array with `length < capacity`.  
+- `index`: Insertion position from zero through `length`, inclusive.  
 - `element`: Non-null pointer to `size` readable bytes outside the Array object and its owned allocation; must remain valid during the suffix move.
 
 **C++ equivalent:** `catalyst::array_insert`.
@@ -707,11 +709,11 @@ Move the suffix starting at `index` right by one element with `catmm_move`, copy
 void catrl_array_remove(CATRLLIB_ARRAY* array, CATALYST_NUINT index);
 ```
 
-Remove one element, shift its trailing elements left with `catmm_move`, and decrement length. Preserve their relative order and retain capacity. No allocation, shrinking, or pointee release occurs.
+Remove the element at the specified index and shift subsequent elements one position to the left. Decrease length while preserving their order and retaining capacity. No referenced objects are released.
 
 **Parameters:**
 
-- `array`: Valid initialized non-empty Array.\
+- `array`: Valid initialized non-empty Array.  
 - `index`: Valid direct-access index, strictly less than `length`.
 
 **C++ equivalent:** `catalyst::array_remove`.
@@ -722,11 +724,11 @@ Remove one element, shift its trailing elements left with `catmm_move`, and decr
 CATALYST_BOOL catrl_array_contains(const CATRLLIB_ARRAY* array, CATMMLIB_POINTER element);
 ```
 
-Search live elements by byte equality across `size` bytes, without mutation or allocation.
+Determine whether any element in the Array has the same byte representation as the supplied element.
 
 **Parameters:**
 
-- `array`: Valid initialized Array.\
+- `array`: Valid initialized Array.  
 - `element`: Non-null pointer to `size` readable bytes, including when the Array is empty.
 
 **C++ equivalent:** `catalyst::array_contains`.
@@ -739,12 +741,12 @@ Search live elements by byte equality across `size` bytes, without mutation or a
 void catrl_array_get(const CATRLLIB_ARRAY* array, CATALYST_NUINT index, CATMMLIB_POINTERW element);
 ```
 
-Copy exactly `size` bytes from a live indexed element. No allocation or metadata change occurs.
+Copy the element at the specified index into the supplied output buffer. Exactly `size` bytes are written without modifying the Array.
 
 **Parameters:**
 
-- `array`: Valid initialized Array.\
-- `index`: Valid direct-access index, strictly less than `length`.\
+- `array`: Valid initialized Array.  
+- `index`: Valid direct-access index, strictly less than `length`.  
 - `element`: Non-null writable output of at least `size` bytes outside the Array object and its owned allocation.
 
 **C++ equivalent:** `catalyst::array_get`.
@@ -755,12 +757,12 @@ Copy exactly `size` bytes from a live indexed element. No allocation or metadata
 void catrl_array_set(CATRLLIB_ARRAY* array, CATALYST_NUINT index, CATMMLIB_POINTER element);
 ```
 
-Replace exactly one live element with a copy of `size` bytes. Length, capacity, and other elements remain unchanged; no allocation occurs.
+Replace the element at the specified index with a copy of the supplied element. Length, capacity, and all other elements remain unchanged.
 
 **Parameters:**
 
-- `array`: Valid initialized Array.\
-- `index`: Valid direct-access index, strictly less than `length`.\
+- `array`: Valid initialized Array.  
+- `index`: Valid direct-access index, strictly less than `length`.  
 - `element`: Non-null pointer to `size` readable bytes outside the Array object and its owned allocation.
 
 **C++ equivalent:** `catalyst::array_set`.
@@ -771,7 +773,7 @@ Replace exactly one live element with a copy of `size` bytes. Length, capacity, 
 void catrl_array_clear(CATRLLIB_ARRAY* array);
 ```
 
-Set `length` to zero, retaining allocation, element size, and capacity. No allocation, release, or pointee cleanup occurs; old bytes remain outside the live extent.
+Remove all elements by setting length to zero. Keep the allocated storage, element size, and capacity available for reuse. The former elements' bytes are not erased or treated as live elements.
 
 **Parameters:**
 
@@ -785,11 +787,11 @@ Set `length` to zero, retaining allocation, element size, and capacity. No alloc
 CATALYST_RESULT catrl_array_expand(CATRLLIB_ARRAY* array, CATALYST_NUINT capacity);
 ```
 
-Request exactly `capacity` element slots. A larger request resizes with CATMMLIB and preserves all live elements and order. Smaller/equal requests are no-ops. No automatic doubling overrides this explicit request. The element byte size is unchanged. On failure, pointer, contents, count, and logical capacity are unchanged. Successful resizing invalidates previous storage aliases. Newly available slots are not live elements.
+Increase capacity to the requested number of elements. Preserve all elements and their order. A request no greater than the current capacity is a no-op. Failure leaves the Array unchanged; successful resizing invalidates previous storage aliases. Newly available slots are not elements until inserted.
 
 **Parameters:**
 
-- `array`: Valid initialized Array.\
+- `array`: Valid initialized Array.  
 - `capacity`: Requested number of elements, not a byte count; zero is a no-op.
 
 **C++ equivalent:** `catalyst::array_expand`.
@@ -819,7 +821,7 @@ Request exactly `capacity` element slots. A larger request resizes with CATMMLIB
 CATALYST_RESULT catrl_array_shrink(CATRLLIB_ARRAY* array);
 ```
 
-Reduce capacity to `max(length, floor(capacity / 2))`, preserving all live elements and order. If unchanged, return a no-op. The zero target releases storage and clears `data`; for an empty collection with capacity greater than one, a single call retains half the slots. Failure leaves the collection unchanged. Success invalidates storage aliases; element size remains available for reuse.
+Reduce capacity to half its current value, rounded down, or to length if that is greater. Preserve all elements and their order. An unchanged capacity is a no-op. Reaching zero capacity releases storage and clears `data`. Failure leaves the Array unchanged; successful resizing invalidates previous storage aliases.
 
 **Parameters:**
 
@@ -851,7 +853,7 @@ Reduce capacity to `max(length, floor(capacity / 2))`, preserving all live eleme
 CATALYST_RESULT catrl_array_free(CATRLLIB_ARRAY* array);
 ```
 
-Release owned storage and set `data`, `length`, and `capacity` to zero. Preserve `size` so the Array can be expanded and reused. An unallocated Array is a no-op. Failure leaves pointer, elements, and metadata unchanged, with ownership retained for retry. Stored pointer targets are never released.
+Release the Array's storage and clear `data`, length, and capacity. Retain the element size so the Array can be reused. An unallocated Array is a no-op; failure leaves the Array unchanged and may be retried. Objects referenced by stored pointers are not released.
 
 **Parameters:**
 
@@ -878,13 +880,13 @@ Release owned storage and set `data`, `length`, and `capacity` to zero. Preserve
 void catrl_file_init(CATRLLIB_FILE* file, CATRLLIB_ARRAY* metadata, CATRLLIB_ARRAY* data, CATALYST_RESULT (*resolver)(const CATRLLIB_FILE*, CATALYST_NUINT, CATRLLIB_ARRAY*));
 ```
 
-Move the metadata and data Arrays into the File by value, including their allocations, sizes, lengths, and capacities; bind the resolver. Empty both source Arrays with their element sizes retained, so they are immediately reusable. No allocation, byte-buffer copy, or failure-producing operation occurs. The File now owns both original allocations; do not free them through previous aliases. The buffers do not move during ownership transfer, so existing element pointers retain their addresses but become subject to the File's storage lifetime and subsequent Array operations.
+Initialize a File by taking ownership of the metadata and data Arrays and associating them with a resolver. The original Arrays become empty, retaining their element sizes for reuse. No allocation or element copying takes place. Existing element addresses are unchanged, but their storage is now owned by the File and must not be released through previous aliases.
 
 **Parameters:**
 
-- `file`: Valid writable unused File storage, separate from both source Array objects and all their allocations.\
-- `metadata`: Valid initialized owning Array, distinct from `data`, with independently owned storage.\
-- `data`: Valid initialized owning Array, distinct from `metadata`, with independently owned storage.\
+- `file`: Valid writable unused File storage, separate from both source Array objects and all their allocations.  
+- `metadata`: Valid initialized owning Array, distinct from `data`, with independently owned storage.  
+- `data`: Valid initialized owning Array, distinct from `metadata`, with independently owned storage.  
 - `resolver`: Non-null callable with the declared C return/parameter types; it establishes metadata interpretation, valid index domain, and output/failure contracts.
 
 **C++ equivalent:** `catalyst::file_init`.
@@ -897,12 +899,14 @@ Move the metadata and data Arrays into the File by value, including their alloca
 CATALYST_RESULT catrl_file_get(const CATRLLIB_FILE* file, CATALYST_NUINT index, CATRLLIB_ARRAY* output);
 ```
 
-Invoke `file->resolver(file, index, output)` exactly once on current public metadata and data. No generic index bound, metadata decoding, output initialization, allocation, or copying is added. The resolver validates operational conditions such as unsupported indices or malformed metadata. All output fields, ownership, lifetime, and output validity on success/warning/error/fatal/no-op follow the resolver contract; CATRLLIB neither initializes nor rolls back output. Return the callback status/detail with the fixed context and call-site operation below.
+Resolve an Array from the File by calling its resolver once with the supplied index. The resolver interprets the current metadata and data, checks the index against its own domain, and determines the output's contents, ownership, and validity on every outcome. CATRLLIB imposes no additional index bound, does not initialize or allocate the output, and does not undo changes made by the resolver.
+
+The returned Result uses the resolver's status and detail with this function's context and operation.
 
 **Parameters:**
 
-- `file`: Valid initialized File with a non-null resolver and valid owned Arrays; satisfy resolver-specific preconditions.\
-- `index`: Index presented unchanged to the resolver; CATRLLIB does not compare it with metadata/data length.\
+- `file`: Valid initialized File with a non-null resolver and valid owned Arrays; satisfy resolver-specific preconditions.  
+- `index`: Index presented unchanged to the resolver; CATRLLIB does not compare it with metadata/data length.  
 - `output`: Valid writable Array object outside the File object and both owned allocations, initialized as required by the resolver. Any ownership already in it must be handled according to that resolver contract. The resolver may set `output->data` to a borrowed view of File storage, with ownership and lifetime as specified by that resolver.
 
 **C++ equivalent:** `catalyst::file_get`.
@@ -926,7 +930,9 @@ Invoke `file->resolver(file, index, output)` exactly once on current public meta
 CATALYST_RESULT catrl_file_free(CATRLLIB_FILE* file);
 ```
 
-Free the metadata Array, then the data Array, and finally clear the resolver. Array element sizes are retained. Metadata release failure leaves both Arrays and resolver unchanged. If data release fails, metadata is already empty but the data allocation and resolver remain for retry; previous metadata aliases are invalid. No earlier successful release is rolled back. All unreleased resources remain reachable. No referenced objects or separate resolver output are released. Resolve again only after restoring the resolver-specific content requirements; after complete release, initialize the File again before calling `catrl_file_get`.
+Release the metadata Array, then the data Array. If releasing metadata fails, both Arrays and the resolver remain unchanged. If releasing data fails, metadata is already empty and its old aliases are invalid, but data and the resolver remain available for cleanup or reuse. Restore the resolver's content requirements before resolving again.
+
+Complete success clears the resolver and retains both Array element sizes. Separate resolver outputs and referenced objects are not released. An already released File is a no-op. Initialize the File again before resolving after complete release.
 
 **Parameters:**
 
@@ -955,15 +961,15 @@ Free the metadata Array, then the data Array, and finally clear the resolver. Ar
 CATALYST_RESULT catrl_stream_init(CATRLLIB_STREAM* stream, CATALYST_NUINT ssize, CATALYST_NUINT lifetime, CATALYST_RESULT (*next)(CATRLLIB_STREAM*, CATMMLIB_POINTERW, CATALYST_NUINT));
 ```
 
-Allocate `ssize` zero-filled state bytes and private chunk-management bookkeeping in one CATMMLIB allocation. Preserve fundamental alignment of the state pointer; private metadata is accessed through copies without requiring alignment after the state extent. Check private representation sizes, state-plus-bookkeeping addition, and lifetime-dependent extent multiplication before allocation. Additional CATMMLIB prefix/native limits are reported through the allocation Result. No chunk is produced, and no chunk buffer is allocated yet.
+Initialize a Stream with zero-filled producer state and private bookkeeping in a single allocation. No chunks are allocated until requested. The state pointer retains CATMMLIB's fundamental alignment; private bookkeeping does not require the producer's state size to satisfy any additional alignment restriction.
 
-On success, `state` identifies the owned allocation, `ssize` records only producer bytes, and `next` stores the callback. On every failure, all three public fields are zero/null and there is no owned allocation; `catrl_stream_free` is then a no-op, or initialization may be retried. Initializing live owning storage is outside the preconditions.
+The function checks that the combined state and bookkeeping extent is representable before allocation. CATMMLIB may impose further limits. On success, the Stream owns the allocation and stores the supplied state size and producer. On failure, all public fields are zero or null, no allocation is owned, and initialization may be retried or the Stream freed as a no-op.
 
 **Parameters:**
 
-- `stream`: Valid writable unused Stream object, separate from other live owned storage.\
-- `ssize`: Requested producer-state bytes; zero is allowed. Bookkeeping is additional and remains private. Any overflow or allocation limit is reported by the function.\
-- `lifetime`: Nonzero number of most recently published chunks to retain. Bookkeeping extent overflow is an operational failure, not a caller precondition.\
+- `stream`: Valid writable unused Stream object, separate from other live owned storage.  
+- `ssize`: Requested producer-state bytes; zero is allowed. Bookkeeping is additional and remains private. Any overflow or allocation limit is reported by the function.  
+- `lifetime`: Nonzero number of most recently published chunks to retain. Bookkeeping extent overflow is an operational failure, not a caller precondition.  
 - `next`: Non-null callable with the exact declared return and parameter types. It receives `(stream, chunk, csize)` and may write only `ssize` state bytes and `csize` chunk bytes. A `SUCCESS` result guarantees all requested bytes were produced. It must not change Stream fields, access bookkeeping or retained chunks, or reenter the Stream.
 
 **C++ equivalent:** `catalyst::stream_init`.
@@ -991,20 +997,20 @@ On success, `state` identifies the owned allocation, `ssize` records only produc
 CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize, CATMMLIB_POINTERW* output);
 ```
 
-Prepare a writable spare with at least `max(csize, 1)` bytes, then call `stream->next(stream, spare, csize)` once. Required growth uses doubling while representable, otherwise the exact requirement. A growth failure returns before calling the producer and preserves output, producer state, and all retained chunks. CATMMLIB retains ownership of any internally pending cleanup through the existing spare allocation.
+Request the next chunk of exactly `csize` bytes. CATRLLIB prepares a spare buffer of at least `max(csize, 1)` bytes and calls the producer once. If more memory is needed, the spare grows by doubling its capacity, or to the exact requirement when doubling would overflow. Failure to allocate the required memory leaves the output, producer state, and retained chunks unchanged and does not call the producer. Any pending allocation cleanup remains owned through CATMMLIB.
 
-Only producer `SUCCESS` publishes. It promises exactly `csize` output bytes, including an empty chunk when `csize == 0`. Set `*output` to the supplied managed buffer, retain it among the newest `lifetime` chunks, and expire the oldest chunk if the retention window was full. Producer warnings, `SUCCESS_NOOP`, errors, and fatal outcomes do not publish or advance retention; `*output` and every previously valid chunk remain unchanged. Producer state changes are not rolled back, including on non-publication. Storage allocated or grown for an unsuccessful attempt remains owned as reusable spare storage.
+Only producer `SUCCESS` publishes a chunk. The function writes the managed pointer to `*output`, retains the new chunk, and expires the oldest if the lifetime limit has been reached. A producer warning, no-op, error, or fatal result leaves `*output` and all retained chunks unchanged. Producer state changes are not rolled back, and the spare remains owned for reuse.
 
-After publication, optionally halve only the expired spare when `max(csize, 1) <= floor(spare_capacity / 4)`. The new and retained chunks are not resized. Successful shrinking records the replacement allocation. A recoverable shrink failure leaves the spare unchanged and returns `WARNING` (NONE): `0x402204SS`, where `SS` is the failed shrink status. The exact-sized chunk is already published, `*output` is valid, and lifetimes have advanced normally. A fatal shrink failure retains its original fatal status/detail at operation `05`, with the same published-output guarantees. Unreleased or pending storage remains reachable for reuse or cleanup; this does not turn an optimization failure into an unpublished producer result.
+After publishing, the function may halve the expired buffer's capacity if the current request uses at most one quarter of it (using a minimum request of one byte). It never resizes the newly published chunk or a still-valid chunk. A recoverable shrink failure retains the spare and reports `WARNING` with the shrink status in detail. A fatal shrink failure retains its original fatal status and detail. In both cases the completed chunk remains published and lifetimes have advanced normally.
 
-The consumer must distinguish producer warnings at operation `03` (no publication) from optimization warnings at operation `04` (publication completed). Neither warning severity alone nor an unchanged numeric pointer address establishes whether a new chunk was published. No status is assigned a universal exhaustion meaning; the producer defines the finite-end convention and whether calls after it are valid.
+Check the Result operation as well as its status when determining whether a chunk was published. A producer warning at operation `03` does not publish, whereas an optimization warning at operation `04` does. A fatal optimization diagnostic at operation `05` also accompanies an already published chunk. Neither pointer equality nor status level alone identifies every publication outcome. The producer defines whether the sequence has ended and whether another call is valid.
 
-Callback context/operation are replaced. For `ERROR_INVALID_ARGUMENT`, producer index `0` maps to public index `0` (`stream`), and producer index `2` maps to public index `1` (`csize`). Producer rejection of its managed chunk argument at index `1` becomes `ERROR_INVALID_STATE` at operation `02` with unused detail; no caller-supplied chunk pointer exists in this signature. Other callback status/detail bytes are retained.
+The callback's context and operation are replaced. For `ERROR_INVALID_ARGUMENT`, callback argument `0` (`stream`) remains index `0`, and callback argument `2` (`csize`) becomes public index `1`. Rejection of callback argument `1` (the managed buffer) is reported as `ERROR_INVALID_STATE` instead, with unused detail. Other callback status and detail bytes are retained.
 
 **Parameters:**
 
-- `stream`: Active initialized Stream with valid producer state and non-null callback. A Stream whose cleanup has been attempted is not active. Synchronize externally; do not reenter from its producer.\
-- `csize`: Bytes requested for this individual chunk, not total Stream length or buffer capacity. May be zero; the producer still receives a non-null buffer. Required allocation failure/overflow is reported before production.\
+- `stream`: Active initialized Stream with valid producer state and non-null callback. A Stream whose cleanup has been attempted is not active. Synchronize externally; do not reenter from its producer.  
+- `csize`: Bytes requested for this individual chunk, not total Stream length or buffer capacity. May be zero; the producer still receives a non-null buffer. Required allocation failure/overflow is reported before production.  
 - `output`: Valid non-null writable `CATMMLIB_POINTERW` slot outside the Stream object, its complete state/bookkeeping allocation, and every chunk allocation. On publication it receives a borrowed managed pointer valid until displacement by later publications or a free attempt. Do not independently resize or release it. Every non-publication outcome leaves the slot unchanged; an initially uninitialized slot remains uninitialized.
 
 **C++ equivalent:** `catalyst::stream_next`.
@@ -1060,11 +1066,9 @@ Callback context/operation are replaced. For `ERROR_INVALID_ARGUMENT`, producer 
 CATALYST_RESULT catrl_stream_free(CATRLLIB_STREAM* stream);
 ```
 
-Release every retained chunk, the spare chunk, then the combined state/bookkeeping allocation. Skip null chunk pointers, and record each successful release before attempting another fallible operation. CATMMLIB also releases any internally retained cleanup allocations through their owning payload pointers; no separate pointer to such internal allocations is required.
+End production and release all retained chunks, the spare buffer, and finally the state and bookkeeping allocation. Skip null pointers; a failed initialization or already freed Stream is a no-op. Any pending CATMMLIB cleanup is released through the allocation that owns it.
 
-A valid failed-initialization or already freed Stream has null state and returns a no-op. Otherwise, the first free attempt clears `next` and ends production, even if an allocation release subsequently fails. Successfully released buffers stay released; every unreleased allocation remains reachable from the Stream. Preserve the Stream object and call `catrl_stream_free` again to complete cleanup. Do not call `catrl_stream_next`, access former consumer chunks, independently release remaining allocations, or initialize over remaining ownership.
-
-After complete success, `state` and `next` are null and `ssize` is zero. If a release fails, `state` still identifies the bookkeeping allocation, `ssize` is retained, and `next` is null; cleanup is the only permitted operation. A state-release failure can therefore leave the allocation live even after all chunks have been released. CATRLLIB frees raw producer bytes, not separately owned objects or resources referenced by them.
+The first free attempt clears `next` and invalidates all consumer chunks, even if cleanup fails. Each successful release is recorded before the next is attempted. If a release fails, keep the Stream and retry this function; do not resume production, access former chunks, free allocations independently, or reinitialize it. All unreleased memory remains reachable, with `state` and `ssize` retained until the final allocation is released. On complete success, `state` and `next` are null and `ssize` is zero. Clean up any producer-owned referenced resources before the first free attempt.
 
 **Parameters:**
 
