@@ -7,7 +7,7 @@ Provides encoding, decoding, length, and conversion operations for ASCII, Window
 **Namespace:** `catalyst`  
 **Library:** `catte`  
 **Dependencies:** [CATALYST](../catalyst/index.md)  
-**Specification:** [FDEFSPEC](https://catalystui.org/specifications/languages/fdefspec/)
+**Specification:** [FDEFSPEC Revision 1](https://catalystui.org/specifications/languages/fdefspec/)
 
 ## Macro Summary
 

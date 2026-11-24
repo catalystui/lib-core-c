@@ -7,7 +7,7 @@ Provides zero-filled memory allocation and resizing, memory release, and byte-le
 **Namespace:** `catalyst`  
 **Library:** `catmm`  
 **Dependencies:** [CATALYST](../catalyst/index.md)  
-**Specification:** [FRELSPEC](https://catalystui.org/specifications/languages/frelspec/)
+**Specification:** [FRELSPEC Revision 2.1](https://catalystui.org/specifications/languages/frelspec/)
 
 ## Summary
 

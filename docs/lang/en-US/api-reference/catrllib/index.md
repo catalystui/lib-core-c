@@ -1,6 +1,6 @@
 # CATRLLIB
 
-Provides Set, Map, and Array storage and the File and Stream relationships defined by FRELSPEC Revision 2.1. Collections build on words stored in memory through [CATMMLIB](../catmmlib/index.md). Set, Map, and Array entries have fixed byte sizes; each Stream call requests its own chunk byte size. Caller-supplied callbacks resolve File data and produce Stream chunks; CATRLLIB manages the owned collection storage.
+Provides Set, Map, Array, File, and Stream operations with managed memory.
 
 **C Header:** `catrllib.h`\
 **C++ Header:** `catrllib.hpp`\
