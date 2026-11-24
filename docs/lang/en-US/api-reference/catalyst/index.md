@@ -10,6 +10,7 @@ Provides the foundational numeric types, text representations, and operation res
 
 ## Contents
 
+- [Usage Notes](#usage-notes)
 - [Type Summary](#type-summary)
 - [Constant Summary](#constant-summary)
 - [Function Summary](#function-summary)
@@ -18,6 +19,14 @@ Provides the foundational numeric types, text representations, and operation res
 - [Function Details](#function-details)
 - [C++ Member Details](#c-member-details)
 - [Target Configuration](#target-configuration)
+
+## Usage Notes
+
+The `CATALYST_SUPPORTS_*` macros indicate which optional representations are available; use the corresponding `#if` guards. `NINT` and `NUINT` retain the target's pointer width.
+
+The status predicates classify status levels, including reserved values, rather than individual named status codes. C predicates are comparison-expression macros; C++ predicates return `catalyst::BOOL`.
+
+For Core-wide requirements, see [Assumptions](../../assumptions/index.md).
 
 ## Type Summary
 

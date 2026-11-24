@@ -9,6 +9,14 @@ Provides zero-filled memory allocation and resizing, memory release, and byte-le
 **Dependencies:** [CATALYST](../catalyst/index.md)  
 **Specification:** [FRELSPEC Revision 2.1](https://catalystui.org/specifications/languages/frelspec/)
 
+## Usage Notes
+
+Allocation extents use `CATALYST_NUINT`. Allocations have native fundamental alignment, not extended alignment; private metadata may reduce the maximum payload.
+
+Successful resizing invalidates prior aliases even if the address is unchanged. Failure preserves the original allocation and its ownership. The caller is responsible for releasing live allocations through CATMMLIB.
+
+For Core-wide requirements, see [Assumptions](../../assumptions/index.md).
+
 ## Summary
 
 | Type | Meaning |

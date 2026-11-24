@@ -1,6 +1,6 @@
 # CATRLLIB
 
-Provides Set, Map, Array, File, and Stream operations with managed memory. See [Memory and Ownership](../../assumptions/index.md#memory-and-ownership) for shared collection contracts.
+Provides Set, Map, Array, File, and Stream operations with managed memory.
 
 **C Header:** `catrllib.h`  
 **C++ Header:** `catrllib.hpp`  
@@ -11,10 +11,27 @@ Provides Set, Map, Array, File, and Stream operations with managed memory. See [
 
 ## Contents
 
+- [Usage Notes](#usage-notes)
 - [Summary](#summary)
 - [Macros](#macros)
 - [Types](#types)
 - [Functions](#functions)
+
+## Usage Notes
+
+CATRLLIB uses [CATMMLIB](../catmmlib/index.md) for internal storage and lifecycle. It requires no wider numeric representation or platform-specific operation of its own.
+
+Initialize unused collection storage only; do not shallow-copy owning collections or modify bookkeeping directly. Synchronize access externally.
+
+Set, Map, and Array own copies of fixed-size byte representations. Initialize representation bytes consistently, including padding. Collections do not perform typed comparisons, construct or destroy objects, release referenced objects, or securely erase removed data.
+
+Capacity counts slots, not bytes. Reserve space before insertion; insertion never allocates. Only live slots represent elements. Use current pointers after Map resizing, including partial failure. Allocation extents use `CATALYST_NUINT` and follow CATMMLIB's allocation and resizing guarantees.
+
+Copy inputs and outputs must lie outside the collection object and its allocations. Search inputs may identify live elements or keys, including Map replacement keys.
+
+File resolvers define metadata interpretation and resolved-output ownership. Stream producers define chunk contents, sequencing, and exhaustion; CATRLLIB owns the raw Stream state and chunk storage, not resources referenced by those bytes.
+
+For Core-wide requirements, see [Assumptions](../../assumptions/index.md).
 
 ## Summary
 

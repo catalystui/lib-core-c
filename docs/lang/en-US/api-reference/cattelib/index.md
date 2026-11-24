@@ -1,6 +1,6 @@
 # CATTELIB
 
-Provides encoding, decoding, length, and conversion operations for ASCII, Windows-1252, UTF-8, and UTF-16LE. See [Text Encoding](../../assumptions/index.md#text-encoding) for shared encoding contracts.
+Provides encoding, decoding, length, and conversion operations for ASCII, Windows-1252, UTF-8, and UTF-16LE.
 
 **C Header:** `cattelib.h`  
 **C++ Header:** `cattelib.hpp`  
@@ -8,6 +8,16 @@ Provides encoding, decoding, length, and conversion operations for ASCII, Window
 **Library:** `catte`  
 **Dependencies:** [CATALYST](../catalyst/index.md)  
 **Specification:** [FDEFSPEC Revision 1](https://catalystui.org/specifications/languages/fdefspec/)
+
+## Usage Notes
+
+Single-codepoint encoders and decoders treat U+0000 as data. They neither append a separate terminator nor skip a byte order mark (BOM). Input and output storage, including distinct output arguments, must not overlap.
+
+Conversions write a zero code-unit terminator on success or warning; no destination BOM is added. On failure a written prefix may remain unterminated. There is no rollback or produced-length output. A zero supplied capacity is rejected before writing.
+
+UTF-8 and UTF-16LE source strings skip an initial BOM (EF BB BF or FF FE, respectively), not internal U+FEFF. Malformed terminated input requires no padding after the terminator.
+
+For Core-wide requirements, see [Assumptions](../../assumptions/index.md).
 
 ## Macro Summary
 
