@@ -37,9 +37,22 @@ configure_target(
         ${CATMMLIB_PLATFORM_SOURCE}
 )
 
+# catrllib
+add_library(catrllib_shared SHARED)
+add_library(catrllib_static STATIC)
+configure_target(
+    NAME catrl
+    TARGETS catrllib_shared catrllib_static
+    SOURCES
+        src/catrllib.cpp
+)
+target_link_libraries(catrllib_shared PUBLIC catmmlib_shared)
+target_link_libraries(catrllib_static PUBLIC catmmlib_static)
+
 # Export each shared library's C ABI and propagate its import definition.
 target_compile_definitions(cattelib_shared PRIVATE CATTELIB_EXPORTS INTERFACE CATTELIB_USE_DLL)
 target_compile_definitions(catmmlib_shared PRIVATE CATMMLIB_EXPORTS INTERFACE CATMMLIB_USE_DLL)
+target_compile_definitions(catrllib_shared PRIVATE CATRLLIB_EXPORTS INTERFACE CATRLLIB_USE_DLL)
 
 # Define test executables
 define_test_executables(
