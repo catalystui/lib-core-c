@@ -4,6 +4,10 @@
 
 These principles apply to public C functions, C++ wrappers, and internal helpers alike.
 
+[FDEFSPEC](https://catalystui.org/specifications/languages/fdefspec/) defines representations; [FRELSPEC Revision 2.1](https://catalystui.org/specifications/languages/frelspec/) defines memory before collections of stored words. Core follows that dependency: CATRLLIB uses CATMMLIB for its internal storage and lifecycle. By-value collections own their stored copies; copied references do not transfer ownership of the referenced objects. The caller controls collection operations and capacity requests, while the library manages its own allocations.
+
+File resolvers and Stream producers specialize interpretation and behavior through explicit callback contracts. Their formats, output ownership and lifetime, and failure guarantees belong to those contracts. The [CATRLLIB reference](../api-reference/catrllib/index.md) distinguishes these responsibilities from the library's storage and reporting guarantees.
+
 ## Contents
 
 - [Numerics and Arithmetic](#numerics-and-arithmetic)

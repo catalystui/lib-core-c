@@ -29,7 +29,7 @@ Core provides portable building blocks based on the [Foundational Definitions Sp
 Core is designed to be implementable even on 8-bit systems while taking advantage of wider numeric representations where beneficial. It is independent of every layer and sensory domain of the CatalystUI model, and exists to support them all.
 
 > [!NOTE]
-> Core is in early development (1.0.0-alpha.2). Core types, native memory operations, and text encoding are implemented. API and ABI stability are not yet guaranteed.
+> Core is in early development (1.0.0-alpha.2). Core types, native memory operations, text encoding, and collections are implemented. API and ABI stability are not yet guaranteed.
 
 ## Libraries
 
@@ -59,6 +59,15 @@ Core is designed to be implementable even on 8-bit systems while taking advantag
 
 <p style="margin:0 0 0.85rem;max-width:20rem;">Allocate, resize, and operate on memory.</p>
 <small style="opacity:0.8;margin-top:auto;">Link: <code>catmm</code></small>
+</div>
+
+<div style="flex:1 1 calc(50% - 0.5rem);min-width:min(100%, 15rem);box-sizing:border-box;padding:1.2rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:12px;background:color-mix(in srgb, currentColor 4%, transparent);display:flex;flex-direction:column;align-items:center;text-align:center;">
+<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;width:32px;height:32px;margin:0.15rem auto 0.8rem;opacity:0.9;"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11m6-11v11"/></svg>
+
+**[CATRLLIB](api-reference/catrllib/index.md)**
+
+<p style="margin:0 0 0.85rem;max-width:20rem;">Store collections, resolve Files, and produce Streams.</p>
+<small style="opacity:0.8;margin-top:auto;">Link: <code>catrl</code></small>
 </div>
 
 </div>
