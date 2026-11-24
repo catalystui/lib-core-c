@@ -62,5 +62,6 @@ define_test_executables(
         cattelib_shared
 )
 
-# Test sources are discovered above; add the memory module for its companion test.
+# Test sources are discovered above; add the corresponding modules for their companion tests.
 target_link_libraries(test_catmmlib PRIVATE catmmlib_static)
+target_link_libraries(test_catrllib PRIVATE catrllib_static)
