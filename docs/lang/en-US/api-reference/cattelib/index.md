@@ -1,6 +1,6 @@
 # CATTELIB
 
-Provides encoding, decoding, length, and conversion operations for ASCII, Windows-1252, UTF-8, and UTF-16LE.
+Provides encoding, decoding, length, and conversion operations for ASCII, Windows-1252, UTF-8, and UTF-16LE. See [Text Encoding](../../assumptions/index.md#text-encoding) for shared encoding contracts.
 
 **C Header:** `cattelib.h`  
 **C++ Header:** `cattelib.hpp`  
@@ -73,8 +73,6 @@ Provides encoding, decoding, length, and conversion operations for ASCII, Window
 On Windows/Cygwin, expands to `__declspec(dllexport)` with `CATTELIB_EXPORTS`, or `__declspec(dllimport)` with `CATTELIB_USE_DLL`. Otherwise empty.
 
 ## Function Details
-
-Single-codepoint encoders and decoders treat U+0000 as data. They neither append a separate terminator nor skip a byte order mark (BOM). Input and output storage, including distinct output arguments, must not overlap.
 
 ### ASCII
 
@@ -482,10 +480,6 @@ Counts Unicode scalars in a null-terminated UTF-16LE string, excluding the termi
 | `0x830C0307` | `ERROR_MALFORMED_INPUT` | Decode next codepoint | `catte_utf16le_decode` operation `0x07`: Reject missing low surrogate |
 
 ### String conversions
-
-Conversions write a zero code-unit terminator on success or warning; no destination BOM is added. On failure a written prefix may remain unterminated. There is no rollback or produced-length output. A zero supplied capacity is rejected before writing.
-
-UTF-8 and UTF-16LE source strings skip an initial BOM (EF BB BF or FF FE, respectively), not internal U+FEFF. Malformed terminated input requires no padding after the terminator.
 
 #### catte_ascii_to_cp1252
 

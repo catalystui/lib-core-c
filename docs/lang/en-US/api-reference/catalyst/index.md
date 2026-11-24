@@ -737,8 +737,6 @@ These C++ constants have no corresponding named C constants.
 
 ## Function Details
 
-The status predicates classify status levels, not individual named status values. The C forms are comparison-expression macros; the C++ functions return a `catalyst::BOOL`.
-
 ### CATALYST_STATUS_CODE_IS_SUCCESS
 
 ```c

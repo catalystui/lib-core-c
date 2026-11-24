@@ -4,9 +4,7 @@
 
 These principles apply to public C functions, C++ wrappers, and internal helpers alike.
 
-[FDEFSPEC](https://catalystui.org/specifications/languages/fdefspec/) defines representations; [FRELSPEC Revision 2.1](https://catalystui.org/specifications/languages/frelspec/) defines memory before collections of stored words. Core follows that dependency: CATRLLIB uses CATMMLIB for its internal storage and lifecycle. By-value collections own their stored copies; copied references do not transfer ownership of the referenced objects. The caller controls collection operations and capacity requests, while the library manages its own allocations.
-
-File resolvers define metadata interpretation and resolved-output ownership. Stream producers define chunk contents, sequencing, and exhaustion; CATRLLIB owns Stream state and chunk allocations and manages publication and retained-chunk lifetimes. The [CATRLLIB reference](../api-reference/catrllib/index.md) defines the callback preconditions, failure outputs, and storage and reporting guarantees.
+The C++ aliases of C types preserve their representations. The compiled libraries' inline C++ wrappers forward to the C API and preserve its ownership and failure guarantees.
 
 ## Contents
 
@@ -14,6 +12,9 @@ File resolvers define metadata interpretation and resolved-output ownership. Str
   - [Numeric Representations](#numeric-representations)
   - [Arithmetic](#arithmetic)
   - [Consumer Requirements](#consumer-requirements)
+- [Memory and Ownership](#memory-and-ownership)
+  - [Collections](#collections)
+- [Text Encoding](#text-encoding)
 - [Validation](#validation)
   - [Contract Validation](#contract-validation)
   - [Operational Validation](#operational-validation)
@@ -119,6 +120,36 @@ Core supports optional interfaces that let consumers use wider numeric represent
 
 On such a target, [`RESULT`](../api-reference/catalyst/index.md#result-members) can be constructed from, assigned from, or converted to `UINT` in `0xSSCCOODD` order. Its four fields and by-value C ABI remain unchanged. This permits efficient scalar operations without requiring them on targets lacking 32-bit support.
 
+## Memory and Ownership
+
+[FDEFSPEC](https://catalystui.org/specifications/languages/fdefspec/) defines representations; [FRELSPEC Revision 2.1](https://catalystui.org/specifications/languages/frelspec/) defines memory before collections of stored words. Core follows that dependency: [CATRLLIB](../api-reference/catrllib/index.md) uses [CATMMLIB](../api-reference/catmmlib/index.md) for internal storage and lifecycle.
+
+Allocation extents use `CATALYST_NUINT`. CATMMLIB provides fundamental alignment and may impose smaller allocation limits. Successful resizing invalidates previous aliases even if the address is unchanged; failure preserves the allocation. CATRLLIB requires no wider numeric representation or platform-specific operation of its own.
+
+### Collections
+
+Initialize unused collection storage only. Do not shallow-copy owning collections or modify bookkeeping directly. Synchronize access externally.
+
+Set, Map, and Array own copies of fixed-size byte representations. Initialize representation bytes consistently, including padding. Collections do not perform typed comparisons, construct or destroy objects, release referenced objects, or securely erase removed data.
+
+Capacity counts slots, not bytes. Reserve space before insertion; insertion never allocates. Only live slots represent elements. Use current pointers after Map resizing, including partial failure.
+
+Copy inputs and outputs must lie outside the collection object and its allocations. Search inputs may identify live elements or keys, including Map replacement keys.
+
+File resolvers define metadata interpretation and resolved-output ownership. Stream producers define chunk contents, sequencing, and exhaustion; CATRLLIB owns the raw Stream state and chunk storage, not resources referenced by those bytes. The caller controls capacity requests and collection operations; the library manages its own allocations.
+
+See [CATRLLIB](../api-reference/catrllib/index.md) for collection-specific preconditions, failure outputs, and lifetime guarantees.
+
+## Text Encoding
+
+[CATTELIB](../api-reference/cattelib/index.md) distinguishes individual codepoints from null-terminated strings.
+
+Single-codepoint encoders and decoders treat U+0000 as data. They neither append a separate terminator nor skip a byte order mark (BOM). Input and output storage, including distinct output arguments, must not overlap.
+
+Conversions write a zero code-unit terminator on success or warning; no destination BOM is added. On failure a written prefix may remain unterminated. There is no rollback or produced-length output. A zero supplied capacity is rejected before writing.
+
+UTF-8 and UTF-16LE source strings skip an initial BOM (EF BB BF or FF FE, respectively), not internal U+FEFF. Malformed terminated input requires no padding after the terminator.
+
 ## Validation
 
 **A function performs validation if, and only if, that validation is necessary to determine or safely produce the outcome of its operation when all caller preconditions are satisfied.**
@@ -208,3 +239,5 @@ Zero, false, equality, emptiness, absence, and no-ops are not inherently failure
 Report at the outermost boundary responsible for operational validation and failure handling. Use non-reporting primitives once their preconditions have been established. An internal step that can still produce a reportable outcome must report it; performance is not a reason to suppress required diagnostics.
 
 Document output validity for each outcome. Non-reporting functions do not construct or propagate Results.
+
+Result tables use the logical `0xSSCCOODD` order defined by [FDEFSPEC](https://catalystui.org/specifications/languages/fdefspec/). Dependency status and detail are retained where applicable, except as documented by the reporting operation. Undefined status codes remain reserved.

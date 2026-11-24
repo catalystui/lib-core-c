@@ -1,6 +1,6 @@
 # CATRLLIB
 
-Provides Set, Map, Array, File, and Stream operations with managed memory.
+Provides Set, Map, Array, File, and Stream operations with managed memory. See [Memory and Ownership](../../assumptions/index.md#memory-and-ownership) for shared collection contracts.
 
 **C Header:** `catrllib.h`  
 **C++ Header:** `catrllib.hpp`  
@@ -67,8 +67,6 @@ Provides Set, Map, Array, File, and Stream operations with managed memory.
 | [catrl_stream_init](#catrl_stream_init) | Allocate managed state and chunk-lifetime bookkeeping. |
 | [catrl_stream_next](#catrl_stream_next) | Produce an exact-sized chunk into managed storage. |
 | [catrl_stream_free](#catrl_stream_free) | Release managed chunks, state, and bookkeeping. |
-
-The C++ aliases use the corresponding C structures, and the inline functions forward directly to the C API. Their ownership and failure guarantees are identical. Use `CATALYST_RESULT` as the callback return type in both languages to match the declared C function pointers.
 
 ## Macros
 
@@ -217,16 +215,6 @@ A lifetime of three retains the three most recently published chunks; publishing
 There is no universal end-of-stream status or pointer sentinel. The producer defines whether further calls are valid.
 
 ## Functions
-
-The preconditions in [Assumptions](../../assumptions/index.md) apply throughout. Initialize unused storage only; do not shallow-copy owning collections or modify bookkeeping. Synchronize access externally.
-
-Set, Map, and Array copy fixed-size representations by value. Initialize representation bytes consistently, including padding. No typed comparison, construction, destruction, pointee release, or secure erasure is performed. Stream likewise owns raw storage, not referenced resources.
-
-Capacity counts slots, not bytes. Reserve space before insertion; insertion never allocates. Only live slots represent elements. Successful resizing invalidates aliases even at the same address; failed resizing preserves that allocation. Use current pointers after Map resizing, including partial failure.
-
-Copy inputs and outputs must be separate from the collection object and its allocations; search inputs may identify live elements or keys, including Map replacement keys. Allocation extents use `CATALYST_NUINT`; CATMMLIB supplies fundamental alignment and may impose smaller allocation limits. No wider numeric representation or platform-specific operation is required by CATRLLIB.
-
-Result tables use logical `0xSSCCOODD` order ([FDEFSPEC](https://catalystui.org/specifications/languages/fdefspec/)). Dependency status and detail are retained except as specified; undefined status codes are reserved.
 
 ### catrl_set_init
 
@@ -867,7 +855,7 @@ Transfer both Arrays into the File without allocation or copying elements. The s
 - `file`: Writable unused File, separate from both source Arrays and their allocations.  
 - `metadata`: Initialized owning metadata Array, distinct from `data`, with independent storage.  
 - `data`: Initialized owning data Array, distinct from `metadata`, with independent storage.  
-- `resolver`: Non-null callable with the declared signature; defines interpretation, valid indices, and output contract.
+- `resolver`: Non-null callable with the declared signature, returning C `CATALYST_RESULT` in both languages; defines interpretation, valid indices, and output contract.
 
 **C++ equivalent:** `catalyst::file_init`.
 
@@ -950,7 +938,7 @@ Failure clears all public fields and leaves no owned allocation; initialization 
 - `stream`: Writable unused Stream, separate from other live owned storage.  
 - `ssize`: Producer-state size in bytes; may be zero. Private bookkeeping is additional.  
 - `lifetime`: Nonzero number of published chunks to retain. Extent overflow is reported.  
-- `next`: Non-null callable with the declared signature. May access only `ssize` state bytes and `csize` chunk bytes; must not alter Stream fields, access retained chunks or bookkeeping, change the consumer output slot, or reenter the Stream. `SUCCESS` guarantees all requested bytes were produced.
+- `next`: Non-null callable with the declared signature, returning C `CATALYST_RESULT` in both languages. May access only `ssize` state bytes and `csize` chunk bytes; must not alter Stream fields, access retained chunks or bookkeeping, change the consumer output slot, or reenter the Stream. `SUCCESS` guarantees all requested bytes were produced.
 
 **C++ equivalent:** `catalyst::stream_init`.
 
