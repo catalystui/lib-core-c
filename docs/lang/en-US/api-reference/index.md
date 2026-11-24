@@ -7,4 +7,4 @@ Reference documentation for the public APIs of CatalystUI Core.
 | [CATALYST](catalyst/index.md) | Foundational numeric types, text representations, and operation results. |
 | [CATTELIB](cattelib/index.md) | Text encoding, decoding, string length, and conversion. |
 | [CATMMLIB](catmmlib/index.md) | Memory allocation, resizing, and byte operations. |
-| [CATRLLIB](catrllib/index.md) | Set, Map, Array, File resolution, and Stream production. |
+| [CATRLLIB](catrllib/index.md) | Set, Map, Array, resolver-based Files, and managed Streams. |

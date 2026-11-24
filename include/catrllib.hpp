@@ -200,14 +200,20 @@ inline RESULT file_free(FILE* file) {
  * C++ API :: STREAM OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Bind stream state and producer without allocation or ownership transfer. Requires a non-null producer, which defines state ownership, lifetime, and cleanup; state may be null if the producer permits it. */
-inline void stream_init(STREAM* stream, POINTERW state, ::CATALYST_RESULT (*next)(STREAM*, POINTERW*)) {
-    ::catrl_stream_init(stream, state, next);
+/** Allocate ssize zero-filled state bytes and private bookkeeping. Requires unused storage, nonzero lifetime, and a callable producer; ssize may be zero. Producer access is limited to ssize state bytes and csize supplied chunk bytes, without altering Stream fields or reentering it. Failure leaves a freed Stream. State/chunks have CATMMLIB fundamental alignment. */
+inline RESULT stream_init(STREAM* stream, NUINT ssize, NUINT lifetime, ::CATALYST_RESULT (*next)(STREAM*, POINTERW, NUINT)) {
+    return ::catrl_stream_init(stream, ssize, lifetime, next);
 }
 
-/** Call the initialized producer once, passing a valid output pointer slot. Output points to a producer-defined chunk; all output, state, termination, and failure behavior belongs to the producer. */
-inline RESULT stream_next(STREAM* stream, POINTERW* output) {
-    return ::catrl_stream_next(stream, output);
+/** Produce csize bytes into managed storage; only producer SUCCESS guarantees the exact requested size and publishes. Producer warnings (including WARNING_PARTIAL), SUCCESS_NOOP, and failures leave output and retained chunk lifetimes unchanged; state changes are not rolled back. Requires an active Stream and output slot outside all Stream storage; zero csize supplies a non-null buffer. Retain the lifetime most recent published chunks until displacement or free. Grow spare storage geometrically; halve an expired spare only at quarter utilization, after publication, without resizing the new or retained chunks.
+ * Results use context 0x22. Operation 0x03 retains producer status/detail, mapping invalid-argument detail 2 to public csize index 1; rejecting the managed chunk reports ERROR_INVALID_STATE at operation 0x02. Required growth failure (0x01) preserves dependency status/detail and leaves output/lifetimes unchanged. Optional shrink failure returns WARNING/NONE (STATUS_CODE_WARNING, Result 0x402204SS), where SS is the failed shrink's status code: output is the completed csize-byte chunk and lifetimes advance normally. Fatal shrink failure (0x05) retains fatal status/detail with the same published-output guarantees. Failed shrinking retains the spare allocation for reuse or cleanup. */
+inline RESULT stream_next(STREAM* stream, NUINT csize, POINTERW* output) {
+    return ::catrl_stream_next(stream, csize, output);
+}
+
+/** Release all owned chunks and state/bookkeeping; freed or failed-init Streams are no-ops. Synchronize externally, do not shallow-copy ownership or alter fields, and clean up producer-owned references before free. Free ends production; failure retains unreleased allocations for retry with stream_free only. */
+inline RESULT stream_free(STREAM* stream) {
+    return ::catrl_stream_free(stream);
 }
 
 } /* namespace catalyst */

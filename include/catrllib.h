@@ -61,13 +61,15 @@ struct CATRLLIB_FILE {
     );
 };
 
-/** A finite or infinite sequence of chunks produced through a function. */
+/** Stream representation with managed producer state and chunk storage. */
 typedef struct CATRLLIB_STREAM CATRLLIB_STREAM;
 struct CATRLLIB_STREAM {
     CATMMLIB_POINTERW state;
+    CATALYST_NUINT ssize;
     CATALYST_RESULT (*next)(
         CATRLLIB_STREAM* stream,
-        CATMMLIB_POINTERW* output
+        CATMMLIB_POINTERW chunk,
+        CATALYST_NUINT csize
     );
 };
 
@@ -187,11 +189,14 @@ CATRLLIB_API CATALYST_RESULT catrl_file_free(CATRLLIB_FILE* file);
  * C API :: STREAM OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Initialize a stream with its state and producer function. */
-CATRLLIB_API void catrl_stream_init(CATRLLIB_STREAM* stream, CATMMLIB_POINTERW state, CATALYST_RESULT (*next)(CATRLLIB_STREAM*, CATMMLIB_POINTERW*));
+/** Initialize a stream with ssize bytes of state and a nonzero chunk lifetime. */
+CATRLLIB_API CATALYST_RESULT catrl_stream_init(CATRLLIB_STREAM* stream, CATALYST_NUINT ssize, CATALYST_NUINT lifetime, CATALYST_RESULT (*next)(CATRLLIB_STREAM*, CATMMLIB_POINTERW, CATALYST_NUINT));
 
-/** Retrieve the next chunk from the stream. */
-CATRLLIB_API CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATMMLIB_POINTERW* output);
+/** Produce csize bytes into managed storage, retaining the lifetime most recent chunks. */
+CATRLLIB_API CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize, CATMMLIB_POINTERW* output);
+
+/** Release all managed state and chunk allocations. */
+CATRLLIB_API CATALYST_RESULT catrl_stream_free(CATRLLIB_STREAM* stream);
 
 #ifdef __cplusplus
 } /* extern C */

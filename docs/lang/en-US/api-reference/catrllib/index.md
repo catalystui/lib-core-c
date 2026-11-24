@@ -1,6 +1,6 @@
 # CATRLLIB
 
-Provides Set, Map, and Array storage and the File and Stream relationships defined by FRELSPEC Revision 2.1. Collections store words through [CATMMLIB](../catmmlib/index.md); this implementation stores fixed-size elements as byte sequences. File resolution and Stream production are supplied by the caller.
+Provides Set, Map, and Array storage and the File and Stream relationships defined by FRELSPEC Revision 2.1. Collections build on words stored in memory through [CATMMLIB](../catmmlib/index.md). Set, Map, and Array entries have fixed byte sizes; each Stream call requests its own chunk byte size. Caller-supplied callbacks resolve File data and produce Stream chunks; CATRLLIB manages the owned collection storage.
 
 **C Header:** `catrllib.h`\
 **C++ Header:** `catrllib.hpp`\
@@ -8,6 +8,13 @@ Provides Set, Map, and Array storage and the File and Stream relationships defin
 **Library:** `catrl`\
 **Dependencies:** [CATALYST](../catalyst/index.md), [CATMMLIB](../catmmlib/index.md)\
 **Specification:** [FRELSPEC Revision 2.1](https://catalystui.org/specifications/languages/frelspec/)
+
+## Contents
+
+- [Summary](#summary)
+- [Macros](#macros)
+- [Types](#types)
+- [Functions](#functions)
 
 ## Summary
 
@@ -17,7 +24,7 @@ Provides Set, Map, and Array storage and the File and Stream relationships defin
 | [CATRLLIB_MAP](#catrllib_map) | Finite collection of unique keys and their values. |
 | [CATRLLIB_ARRAY](#catrllib_array) | Finite collection with contiguous indices. |
 | [CATRLLIB_FILE](#catrllib_file) | Public metadata/data Arrays interpreted by a resolver. |
-| [CATRLLIB_STREAM](#catrllib_stream) | Producer-defined finite or infinite sequence of chunks. |
+| [CATRLLIB_STREAM](#catrllib_stream) | Managed state and chunk storage for a finite or infinite producer-defined sequence. |
 
 | Macro | Meaning |
 | --- | --- |
@@ -57,8 +64,9 @@ Provides Set, Map, and Array storage and the File and Stream relationships defin
 | [catrl_file_init](#catrl_file_init) | Transfer metadata/data Array ownership into a File. |
 | [catrl_file_get](#catrl_file_get) | Invoke the resolver on the current File contents. |
 | [catrl_file_free](#catrl_file_free) | Release metadata and data Arrays. |
-| [catrl_stream_init](#catrl_stream_init) | Bind borrowed state and a producer. |
-| [catrl_stream_next](#catrl_stream_next) | Ask the producer for its next chunk pointer. |
+| [catrl_stream_init](#catrl_stream_init) | Allocate managed state and chunk-lifetime bookkeeping. |
+| [catrl_stream_next](#catrl_stream_next) | Produce an exact-sized chunk into managed storage. |
+| [catrl_stream_free](#catrl_stream_free) | Release managed chunks, state, and bookkeeping. |
 
 C++ aliases use the same C structures. Inline wrappers omit `catrl_`, use Catalyst C++ type names, and forward directly. Callback return types remain `CATALYST_RESULT`, including in C++, to match the C function-pointer signatures. The C and C++ APIs have identical ownership and failure behavior.
 
@@ -66,7 +74,7 @@ C++ aliases use the same C structures. Inline wrappers omit `catrl_`, use Cataly
 
 ### CATRLLIB_API
 
-Export/import annotation for the C ABI. On Windows, `CATRLLIB_EXPORTS` selects `__declspec(dllexport)` and `CATRLLIB_USE_DLL` selects `__declspec(dllimport)`; otherwise the annotation is empty. Link the static `catrl` archive with `catmm`, or use the shared `catrl` library and its shared `catmm` dependency. CMake's `catrllib_static` and `catrllib_shared` targets propagate the matching dependency.
+Export/import annotation for the C ABI. On Windows/Cygwin, `CATRLLIB_EXPORTS` selects `__declspec(dllexport)` and `CATRLLIB_USE_DLL` selects `__declspec(dllimport)`; otherwise the annotation is empty. Link the static `catrl` archive with `catmm`, or use the shared `catrl` library and its shared `catmm` dependency. CMake's `catrllib_static` and `catrllib_shared` targets propagate the matching dependency.
 
 ## Types
 
@@ -94,7 +102,7 @@ typedef struct CATRLLIB_SET {
 
 **C++ equivalent:** `catalyst::SET`, an alias of `CATRLLIB_SET`.
 
-Use `catrl_set_expand` before adding new elements beyond capacity. Expansion honors an explicit larger request exactly; smaller/equal requests, including zero, are no-ops. There is no implicit expansion in insertion. A caller choosing geometric growth may request double its capacity after checking representability. Shrinking selects `max(cardinality, floor(capacity / 2))`; repeated shrinking of an empty Set eventually releases its allocation. Clear and removal retain capacity.
+Use `catrl_set_expand` before adding new elements beyond capacity. Expansion honors an explicit larger request exactly; smaller/equal requests, including zero, are no-ops. There is no implicit expansion in insertion. A caller choosing geometric growth may request double its capacity after checking representability. Shrinking selects `max(cardinality, floor(capacity / 2))`; repeated shrinking of an empty Set eventually releases its allocation. Clear and removal retain capacity. Duplicate add, absent removal, and capacity no-ops preserve existing pointers and contents.
 
 Lookup is linear in cardinality. Removal replaces a removed slot with the last member, so iteration order is unspecified. Insertion and removal allocate no memory. Removal ends the removed member's identity and moves the last member when necessary; pointers to either affected slot must not be reused as references to their former members. Clear ends every live membership while retaining storage. Unaffected member slots remain in place until resizing or release. Resize success invalidates all storage aliases, even if the address happens to be unchanged; single-buffer resize failure preserves pointer, contents, cardinality, and capacity. Clear/free do not erase bytes securely or release referenced objects. Successful free retains `size` for reuse.
 
@@ -126,7 +134,7 @@ typedef struct CATRLLIB_MAP {
 
 **C++ equivalent:** `catalyst::MAP`, an alias of `CATRLLIB_MAP`.
 
-Initialization sets both pointers, cardinality, and capacity to zero without allocation. Expansion requests an exact larger pair capacity; smaller/equal requests are no-ops. Adding a new key requires a spare slot. Shrink selects `max(cardinality, floor(capacity / 2))`. Lookup is linear; removal moves the last pair into a removed slot. Clear/removal retain capacity. No insertion, lookup, replacement, or removal allocates.
+Initialization sets both pointers, cardinality, and capacity to zero without allocation. Expansion requests an exact larger pair capacity; smaller/equal requests are no-ops. Adding a new key requires a spare slot. Shrink selects `max(cardinality, floor(capacity / 2))`. Lookup is linear; removal moves the last pair into a removed slot. Clear/removal retain capacity. No insertion, lookup, replacement, or removal allocates. Duplicate add, absent-key operations, and capacity no-ops preserve existing pointers and contents.
 
 Removal changes pair identity at the removed and former last slots; pointers to those slots must not be reused as references to their former pairs. Clear ends every live association without releasing storage. Replacement changes the existing value's bytes but leaves key identity and slot addresses intact. Unaffected slots stay in place until resizing or release. Successful resizing invalidates aliases of the resized buffer even if its address is unchanged; the partial outcomes below apply to each buffer separately.
 
@@ -156,7 +164,7 @@ typedef struct CATRLLIB_ARRAY {
 
 **C++ equivalent:** `catalyst::ARRAY`, an alias of `CATRLLIB_ARRAY`.
 
-Initialize without allocation, then explicitly expand before appending or inserting beyond capacity. Expansion honors an exact larger request and treats smaller/equal requests as no-ops. Shrink selects `max(length, floor(capacity / 2))`, preserving order. Repeated shrinking of an empty Array eventually releases its allocation; clear/removal retain capacity. Successful free retains `size` for reuse.
+Initialize without allocation, then explicitly expand before appending or inserting beyond capacity. Expansion honors an exact larger request and treats smaller/equal requests as no-ops. Shrink selects `max(length, floor(capacity / 2))`, preserving order. Repeated shrinking of an empty Array eventually releases its allocation; clear/removal retain capacity. Successful free retains `size` for reuse. Capacity no-ops preserve existing pointers and contents.
 
 Indexed access and append have constant overhead apart from copying an element. Insert/remove move the trailing byte extent with `catmm_move`; membership uses linear bytewise comparison. Mutating operations do not allocate except expand/shrink. Successful resizing invalidates all storage aliases, even if the address is unchanged; failure preserves pointer, length, capacity, and contents. Insertion/removal change the indexed elements at and after the affected index; pointers into that suffix must not be reused as references to their former indexed elements. Earlier elements remain in place. Append retains existing element slots, while replacement overwrites only the selected element's bytes. Clear ends all live elements without releasing storage. Unused slots are not elements; clear/remove do not securely erase them.
 
@@ -193,33 +201,46 @@ The resolver determines output initialization requirements, output element size/
 
 ### CATRLLIB_STREAM
 
-A producer and its state, representing a finite or infinite sequence of arbitrary chunks. CATRLLIB imposes no element encoding, fixed chunk size, internal buffering, numeric sequence counter, or end-of-sequence sentinel.
+A finite or infinite producer-defined sequence with CATRLLIB-owned state and chunk storage. FRELSPEC defines sequential generation or retrieval; this API supplies byte extents and bounded chunk retention without imposing an encoding, metadata format, filesystem, or termination sentinel.
 
 ```c
 typedef struct CATRLLIB_STREAM CATRLLIB_STREAM;
 struct CATRLLIB_STREAM {
     CATMMLIB_POINTERW state;
+    CATALYST_NUINT ssize;
     CATALYST_RESULT (*next)(
         CATRLLIB_STREAM* stream,
-        CATMMLIB_POINTERW* output
+        CATMMLIB_POINTERW chunk,
+        CATALYST_NUINT csize
     );
 };
 ```
 
 **Fields:**
 
-- `state`: Borrowed producer-defined state; may be null if the producer permits it. The producer specifies ownership, lifetime, and cleanup; CATRLLIB never allocates or releases this state.\
-- `next`: Non-null producer receiving this Stream and an output pointer slot.
+- `state`: Owned allocation whose first `ssize` bytes are producer state. CATRLLIB appends private bookkeeping in the same allocation. Do not access those trailing bytes, replace this pointer, resize it, or free it independently. The pointer remains stable throughout active production.\
+- `ssize`: Bytes of producer state, excluding bookkeeping; zero is permitted. Fixed by initialization.\
+- `next`: Non-null producer while active. Receives the Stream, a writable managed chunk buffer, and the requested chunk size in bytes. A free attempt clears this field, including when release subsequently fails.
 
 **C++ equivalent:** `catalyst::STREAM`, an alias of `CATRLLIB_STREAM`.
 
-Initialize by binding state and producer. `catrl_stream_next` calls the producer exactly once with the same Stream and output slot. The pointer written to that slot identifies a producer-defined chunk; it is not necessarily an Array or a byte buffer. The producer determines its type, byte size, ownership, lifetime, initialization, output validity on every status, and whether later calls invalidate previous chunks. Any producer parameter or field named `size` denotes bytes per individual chunk, never total stream length.
+Initialization allocates zero-filled producer state and private bookkeeping for the nonzero `lifetime` count. Chunk buffers are allocated on demand. State and chunk pointers have CATMMLIB fundamental alignment; extended alignment is not guaranteed. Byte zeroing does not invoke constructors or establish every typed representation, including null pointers. The caller initializes typed state as needed and releases any separately owned resources referenced by that state before freeing the Stream. CATRLLIB releases the raw state allocation, not those referenced resources. It also does not invoke chunk-payload destructors or release objects/resources referenced by chunk bytes; their cleanup belongs to the producer/consumer contract. Resources acquired by the producer remain its responsibility on every outcome.
 
-The producer owns sequencing, progress on success/warning/failure, buffering, synchronization requirements, finite termination, and infinite behavior. Neither null output nor a particular status is assigned a universal termination meaning by CATRLLIB. Status and detail are retained at the CATRLLIB reporting boundary. CATRLLIB does not clear output before or after the call, retry the producer, or roll back producer state. There is no Stream release operation: the caller follows the producer's cleanup contract before disposing of or rebinding state.
+`lifetime` counts published chunks, not calls, bytes, or elapsed time. A chunk remains valid through the next `lifetime - 1` publications and expires when the `lifetime`th subsequent publication displaces it. Before the first `lifetime` publications, all published chunks remain valid. With `lifetime == 1`, the previous chunk survives failed, warning, and no-op producer calls and expires only when the next chunk is published. Initialization fixes the retention count; it is stored privately.
+
+CATRLLIB retains at most `lifetime` published buffers and one spare buffer. A producer writes directly into the spare; no output payload copy is added. Only producer `SUCCESS` (`0x00`) asserts completion of exactly `csize` bytes and publishes that buffer. Producer warnings, including `WARNING_PARTIAL` and `WARNING_DEPRECATED`, do not publish or advance retained-chunk lifetimes. Producer errors, fatal outcomes, and `SUCCESS_NOOP` likewise leave the consumer output slot and retained chunks unchanged. Changes to producer state are not rolled back. There is no separate produced-byte-count output; exact completion relies on the producer's `SUCCESS` contract.
+
+A publication advances retention before optional memory optimization. Only the displaced, expired buffer becomes the new spare. Required growth doubles spare capacity until it accommodates `max(csize, 1)`, falling back to the exact requirement before doubling would overflow. After a publication, an expired spare is halved once when `max(csize, 1) <= floor(spare_capacity / 4)`. The newly published buffer and all retained buffers are never resized. A zero-byte request still supplies a non-null buffer with at least one byte of capacity; `SUCCESS` publishes an empty chunk and counts toward `lifetime`.
+
+A recoverable optional-shrink failure returns `WARNING` (category NONE) with the dependency status as detail. The exact-sized chunk is already published and lifetimes have advanced normally. A fatal shrink failure retains fatal status and detail with the same published-output guarantees. Neither outcome loses ownership of the spare allocation. Distinguish these post-publication diagnostics from producer warnings/failures by the Result operation code in [catrl_stream_next](#catrl_stream_next).
+
+The producer determines sequencing, state transitions, chunk contents and interpretation, and finite exhaustion. CATRLLIB defines no universal end-of-sequence status or null-pointer sentinel and does not retry callbacks. Producers must return defined FDEFSPEC statuses, remain within their state/chunk extents, and not modify public Stream fields, private bookkeeping, retained chunks, or the consumer's output slot. Do not shallow-copy an owning Stream, reenter it from its producer, or operate on it concurrently without external synchronization. Consumer pointers are borrowed views: never free or resize them independently, and never access a chunk after displacement or a free attempt.
+
+A free attempt ends production and invalidates consumer access to managed storage. Earlier successful releases remain effective if a later release fails. Unreleased allocations stay reachable for `catrl_stream_free` retries; only cleanup is permitted afterward. Complete success clears all public fields. Do not reinitialize a Stream that still owns resources after failed cleanup.
 
 ## Functions
 
-Valid initialized objects, non-null object/input/output pointers, readable and writable extents, non-overlap, lifetime, synchronization, and direct-access indices are caller preconditions, as described in [Assumptions](../../assumptions/index.md). Initialization functions receive valid unused storage, not a live owning collection. Element sizes are nonzero. These conditions are not checked or converted into sentinel return values. The existing void/Boolean mutation signatures require callers to reserve capacity before inserting a new element or key; duplicate Set/Map add may be called at full capacity because no insertion occurs.
+Valid initialized objects, non-null object/input/output pointers, readable and writable extents, non-overlap, lifetime, synchronization, and direct-access indices are caller preconditions, as described in [Assumptions](../../assumptions/index.md). Initialization functions receive valid unused storage, not a live owning collection. Set, Map, and Array element/key/value sizes are nonzero; Stream `ssize` and `csize` may be zero, but its `lifetime` must be nonzero. These conditions are not checked or converted into sentinel return values. The existing void/Boolean mutation signatures require callers to reserve capacity before inserting a new element or key; duplicate Set/Map add may be called at full capacity because no insertion occurs.
 
 For operations that copy caller data into a collection (`catrl_set_add`, `catrl_map_add`, `catrl_map_set`, `catrl_array_add`, `catrl_array_insert`, and `catrl_array_set`), the entire input extent being copied must be outside the collection object and its owned allocations. Retrieval output extents for `catrl_map_get` and `catrl_array_get` must likewise be outside the object and its allocations. These rules concern whole readable/writable extents, not just pointer starting addresses; no overlap detection or temporary allocation is performed. Read-only lookup inputs and removal search inputs may identify live stored bytes because searching finishes before mutation. The lookup key of `catrl_map_set` may also identify a live key, as documented below.
 
@@ -227,9 +248,9 @@ All allocation arithmetic uses `CATALYST_NUINT`, including on targets with one-b
 
 An empty Set or Array reaches zero capacity by shrinking from capacity one; CATMMLIB resizes the live pointer to zero, releasing it and clearing it only on success. An already zero-capacity collection is a no-op, so shrinking never calls `catmm_realloc` with both a null pointer and zero size, which is outside CATMMLIB's preconditions. Map uses the same rule for its two buffers, publishing zero capacity after successful key release and retaining any values whose release fails. Residual Map allocations at zero capacity remain owned and are released with `catrl_map_free`, even if another shrink is a no-op.
 
-Reporting methods use fixed contexts from declaration order and distinct operations per reporting site. Dependency failures keep applicable status, fatal severity, and useful detail. In the resize tables, current CATMMLIB dual-cleanup failures can report `ERROR_INVALID_STATE` with detail `84`, or `ERROR_ACCESS_DENIED` with detail `82`; these are the other cleanup failure's status. Other listed dependency details are unused. A future dependency's error/fatal status and useful detail are likewise retained. `ERROR_INVALID_ARGUMENT` detail is always an argument index in the full reporting signature; resolver/producer signatures have the same argument positions as their CATRLLIB boundary.
+Reporting methods use fixed contexts from declaration order and distinct operations per reporting site. Dependency failures keep applicable status, fatal severity, and useful detail. In the resize tables, current CATMMLIB dual-cleanup failures can report `ERROR_INVALID_STATE` with detail `84`, or `ERROR_ACCESS_DENIED` with detail `82`; these are the other cleanup failure's status. Other listed dependency details are unused. Dependency diagnostics retain applicable status, fatal severity, and useful detail; optional Stream shrinking instead reports a recoverable optimization failure as `WARNING` with the dependency status in detail. Results use logical `0xSSCCOODD` order, independent of native byte order. Undefined status codes remain reserved. `ERROR_INVALID_ARGUMENT` detail identifies an argument in the full reporting signature. File resolver argument positions match `catrl_file_get`; Stream producer indices are mapped as documented in `catrl_stream_next`.
 
-File resolution and Stream production delegate operational validation to the callback. Their current reporting boundary replaces callback context and operation with fixed CATRLLIB codes, retaining only status and detail. [FDEFSPEC](https://catalystui.org/specifications/languages/fdefspec/) permits detail to depend on its original context or operation; that diagnostic provenance is therefore lost and can make a callback-specific detail ambiguous. The original callback context and operation cannot be recovered from the returned Result.
+File resolvers validate their data-resolution conditions; Stream producers report their production outcomes while CATRLLIB manages allocation and retention. Callback context and operation are replaced with fixed CATRLLIB reporting codes. [FDEFSPEC](https://catalystui.org/specifications/languages/fdefspec/) permits detail meanings to depend on context or operation, so callback-specific diagnostic provenance can be lost. The original callback context and operation cannot be recovered from the returned Result.
 
 ### catrl_set_init
 
@@ -365,7 +386,7 @@ Reduce capacity to `max(cardinality, floor(capacity / 2))`, preserving all live 
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x01070100` | `SUCCESS_NOOP`: capacity cannot be reduced without dropping live elements | Keep storage | — |
+| `0x01070100` | `SUCCESS_NOOP`: target capacity equals the current capacity | Keep storage | — |
 | `0x82070200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize storage | — |
 | `0x84070200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize storage | — |
 | `0x86070200` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize storage | — |
@@ -399,7 +420,7 @@ Release owned storage and set `data`, `cardinality`, and `capacity` to zero. Pre
 | --- | --- | --- | --- |
 | `0x01080100` | `SUCCESS_NOOP`: no owned allocation | Keep empty collection | — |
 | `0x82080200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release storage | — |
-| `0x84080200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Release storage | — |
+| `0x84080200` | `ERROR_ACCESS_DENIED`: release or cleanup denied | Release storage | — |
 | `0x00080300` | `SUCCESS` | Clear ownership and count | — |
 
 **See Also:** [catmm_free](../catmmlib/index.md#catmm_free)
@@ -535,7 +556,7 @@ Request exactly `capacity` pairs. Validate both byte extents before resizing key
 **Parameters:**
 
 - `map`: Valid initialized Map, including an empty Map retaining storage after a partial operation.\
-- `capacity`: Requested number of pairs, not bytes. Each independent product with `ksize` and `vsize` must be representable and allocatable.
+- `capacity`: Requested number of pairs, not bytes. The operation validates the independent key/value extents and reports overflow or allocation failure; representability and allocatability are not caller preconditions.
 
 **C++ equivalent:** `catalyst::map_expand`.
 
@@ -586,7 +607,7 @@ Choose `max(cardinality, floor(capacity / 2))` slots. Preserve every live pair. 
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x01110100` | `SUCCESS_NOOP`: capacity cannot be reduced | Keep storage | — |
+| `0x01110100` | `SUCCESS_NOOP`: target capacity equals the current capacity | Keep storage | — |
 | `0x82110200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize keys | — |
 | `0x84110200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize keys | — |
 | `0x86110200` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize keys | — |
@@ -626,9 +647,9 @@ Release keys, then values, skipping null pointers. If key release fails, nothing
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
 | `0x82120100` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release keys | — |
-| `0x84120100` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Release keys | — |
+| `0x84120100` | `ERROR_ACCESS_DENIED`: release or cleanup denied | Release keys | — |
 | `0x82120200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release values | — |
-| `0x84120200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Release values | — |
+| `0x84120200` | `ERROR_ACCESS_DENIED`: release or cleanup denied | Release values | — |
 | `0x01120300` | `SUCCESS_NOOP`: both pointers are null | Keep empty Map | — |
 | `0x00120400` | `SUCCESS` | All owned storage released | — |
 
@@ -812,7 +833,7 @@ Reduce capacity to `max(length, floor(capacity / 2))`, preserving all live eleme
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0x011C0100` | `SUCCESS_NOOP`: capacity cannot be reduced without dropping live elements | Keep storage | — |
+| `0x011C0100` | `SUCCESS_NOOP`: target capacity equals the current capacity | Keep storage | — |
 | `0x821C0200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize storage | — |
 | `0x841C0200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize storage | — |
 | `0x861C0200` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize storage | — |
@@ -846,7 +867,7 @@ Release owned storage and set `data`, `length`, and `capacity` to zero. Preserve
 | --- | --- | --- | --- |
 | `0x011D0100` | `SUCCESS_NOOP`: no owned allocation | Keep empty collection | — |
 | `0x821D0200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release storage | — |
-| `0x841D0200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Release storage | — |
+| `0x841D0200` | `ERROR_ACCESS_DENIED`: release or cleanup denied | Release storage | — |
 | `0x001D0300` | `SUCCESS` | Clear ownership and count | — |
 
 **See Also:** [catmm_free](../catmmlib/index.md#catmm_free)
@@ -892,7 +913,10 @@ Invoke `file->resolver(file, index, output)` exactly once on current public meta
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0xSS1F01DD` | Resolver status `SS` retained, including success, warning, error, fatal, and no-op | Invoke resolver once | Resolver detail `DD`; invalid-argument indices are unchanged |
+| `0xSS1F01DD` | Defined resolver status `SS` retained, other than `ERROR_INVALID_ARGUMENT` | Invoke resolver once | Resolver detail `DD`, subject to status-defined meaning |
+| `0x811F0100` | `ERROR_INVALID_ARGUMENT`: resolver rejected the File | Invoke resolver once | Full-signature argument index `0` (`file`) |
+| `0x811F0101` | `ERROR_INVALID_ARGUMENT`: resolver rejected the requested index | Invoke resolver once | Full-signature argument index `1` (`index`) |
+| `0x811F0102` | `ERROR_INVALID_ARGUMENT`: resolver rejected the output argument | Invoke resolver once | Full-signature argument index `2` (`output`) |
 
 **See Also:** [CATRLLIB_FILE](#catrllib_file)
 
@@ -918,9 +942,9 @@ Free the metadata Array, then the data Array, and finally clear the resolver. Ar
 | --- | --- | --- | --- |
 | `0x01200100` | `SUCCESS_NOOP`: no allocations and resolver already null | Keep released File | — |
 | `0x82200200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release metadata Array | — |
-| `0x84200200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Release metadata Array | — |
+| `0x84200200` | `ERROR_ACCESS_DENIED`: release or cleanup denied | Release metadata Array | — |
 | `0x82200300` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release data Array | — |
-| `0x84200300` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Release data Array | — |
+| `0x84200300` | `ERROR_ACCESS_DENIED`: release or cleanup denied | Release data Array | — |
 | `0x00200400` | `SUCCESS` | Clear resolver after releases | — |
 
 **See Also:** [catrl_array_free](#catrl_array_free)
@@ -928,33 +952,60 @@ Free the metadata Array, then the data Array, and finally clear the resolver. Ar
 ### catrl_stream_init
 
 ```c
-void catrl_stream_init(CATRLLIB_STREAM* stream, CATMMLIB_POINTERW state, CATALYST_RESULT (*next)(CATRLLIB_STREAM*, CATMMLIB_POINTERW*));
+CATALYST_RESULT catrl_stream_init(CATRLLIB_STREAM* stream, CATALYST_NUINT ssize, CATALYST_NUINT lifetime, CATALYST_RESULT (*next)(CATRLLIB_STREAM*, CATMMLIB_POINTERW, CATALYST_NUINT));
 ```
 
-Bind the provided state and producer without allocation or taking ownership. Initialization does not invoke the producer. State ownership, lifetime, and cleanup are producer-defined. The caller must complete producer-specific cleanup before replacing any earlier binding.
+Allocate `ssize` zero-filled state bytes and private chunk-management bookkeeping in one CATMMLIB allocation. Preserve fundamental alignment of the state pointer; private metadata is accessed through copies without requiring alignment after the state extent. Check private representation sizes, state-plus-bookkeeping addition, and lifetime-dependent extent multiplication before allocation. Additional CATMMLIB prefix/native limits are reported through the allocation Result. No chunk is produced, and no chunk buffer is allocated yet.
+
+On success, `state` identifies the owned allocation, `ssize` records only producer bytes, and `next` stores the callback. On every failure, all three public fields are zero/null and there is no owned allocation; `catrl_stream_free` is then a no-op, or initialization may be retried. Initializing live owning storage is outside the preconditions.
 
 **Parameters:**
 
-- `stream`: Valid writable Stream storage separate from the borrowed state.\
-- `state`: Borrowed producer-defined pointer; null is allowed when supported by the producer. Its lifetime must cover calls that use it.\
-- `next`: Non-null producer with the declared C return/parameter types; defines sequence progress, termination, chunk contracts, and cleanup.
+- `stream`: Valid writable unused Stream object, separate from other live owned storage.\
+- `ssize`: Requested producer-state bytes; zero is allowed. Bookkeeping is additional and remains private. Any overflow or allocation limit is reported by the function.\
+- `lifetime`: Nonzero number of most recently published chunks to retain. Bookkeeping extent overflow is an operational failure, not a caller precondition.\
+- `next`: Non-null callable with the exact declared return and parameter types. It receives `(stream, chunk, csize)` and may write only `ssize` state bytes and `csize` chunk bytes. A `SUCCESS` result guarantees all requested bytes were produced. It must not change Stream fields, access bookkeeping or retained chunks, or reenter the Stream.
 
 **C++ equivalent:** `catalyst::stream_init`.
 
-**See Also:** [CATRLLIB_STREAM](#catrllib_stream)
+**Context:** `0x21`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x90210100` | `ERROR_BUFFER_OVERFLOW`: private bookkeeping representations cannot fit the size type | Reject bookkeeping extent | — |
+| `0x90210200` | `ERROR_BUFFER_OVERFLOW`: state plus fixed bookkeeping is unrepresentable | Reject state extent | — |
+| `0x90210300` | `ERROR_BUFFER_OVERFLOW`: lifetime-dependent bookkeeping extent is unrepresentable | Reject retention extent | — |
+| `0x84210400` | `ERROR_ACCESS_DENIED`: native allocation denied | Allocate state and bookkeeping | — |
+| `0x86210400` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Allocate state and bookkeeping | — |
+| `0x90210400` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB prefix or native allocation extent unrepresentable | Allocate state and bookkeeping | — |
+| `0x91210400` | `ERROR_ALLOCATION_FAILED`: allocation failed | Allocate state and bookkeeping | — |
+| `0x00210500` | `SUCCESS` | Managed Stream initialized | — |
+
+**See Also:** [CATRLLIB_STREAM](#catrllib_stream), [catrl_stream_free](#catrl_stream_free), [catmm_alloc](../catmmlib/index.md#catmm_alloc)
 
 ### catrl_stream_next
 
 ```c
-CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATMMLIB_POINTERW* output);
+CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize, CATMMLIB_POINTERW* output);
 ```
 
-Invoke `stream->next(stream, output)` exactly once. Pass the same output pointer slot unchanged. The pointer written by the producer identifies an arbitrary chunk whose type, byte size, ownership, and lifetime belong to the producer. The producer defines output validity and state progression for every status, including failure and termination. CATRLLIB does not allocate, buffer, advance a separate counter, clear output, infer termination, retry, or undo producer state. Retain callback status/detail with the reporting metadata below.
+Prepare a writable spare with at least `max(csize, 1)` bytes, then call `stream->next(stream, spare, csize)` once. Required growth uses doubling while representable, otherwise the exact requirement. A growth failure returns before calling the producer and preserves output, producer state, and all retained chunks. CATMMLIB retains ownership of any internally pending cleanup through the existing spare allocation.
+
+Only producer `SUCCESS` publishes. It promises exactly `csize` output bytes, including an empty chunk when `csize == 0`. Set `*output` to the supplied managed buffer, retain it among the newest `lifetime` chunks, and expire the oldest chunk if the retention window was full. Producer warnings, `SUCCESS_NOOP`, errors, and fatal outcomes do not publish or advance retention; `*output` and every previously valid chunk remain unchanged. Producer state changes are not rolled back, including on non-publication. Storage allocated or grown for an unsuccessful attempt remains owned as reusable spare storage.
+
+After publication, optionally halve only the expired spare when `max(csize, 1) <= floor(spare_capacity / 4)`. The new and retained chunks are not resized. Successful shrinking records the replacement allocation. A recoverable shrink failure leaves the spare unchanged and returns `WARNING` (NONE): `0x402204SS`, where `SS` is the failed shrink status. The exact-sized chunk is already published, `*output` is valid, and lifetimes have advanced normally. A fatal shrink failure retains its original fatal status/detail at operation `05`, with the same published-output guarantees. Unreleased or pending storage remains reachable for reuse or cleanup; this does not turn an optimization failure into an unpublished producer result.
+
+The consumer must distinguish producer warnings at operation `03` (no publication) from optimization warnings at operation `04` (publication completed). Neither warning severity alone nor an unchanged numeric pointer address establishes whether a new chunk was published. No status is assigned a universal exhaustion meaning; the producer defines the finite-end convention and whether calls after it are valid.
+
+Callback context/operation are replaced. For `ERROR_INVALID_ARGUMENT`, producer index `0` maps to public index `0` (`stream`), and producer index `2` maps to public index `1` (`csize`). Producer rejection of its managed chunk argument at index `1` becomes `ERROR_INVALID_STATE` at operation `02` with unused detail; no caller-supplied chunk pointer exists in this signature. Other callback status/detail bytes are retained.
 
 **Parameters:**
 
-- `stream`: Valid initialized Stream with a non-null producer and state satisfying that producer contract.\
-- `output`: Valid non-null writable `CATMMLIB_POINTERW` slot, separate from the Stream and state; the producer defines initial-value requirements and the returned pointer contract.
+- `stream`: Active initialized Stream with valid producer state and non-null callback. A Stream whose cleanup has been attempted is not active. Synchronize externally; do not reenter from its producer.\
+- `csize`: Bytes requested for this individual chunk, not total Stream length or buffer capacity. May be zero; the producer still receives a non-null buffer. Required allocation failure/overflow is reported before production.\
+- `output`: Valid non-null writable `CATMMLIB_POINTERW` slot outside the Stream object, its complete state/bookkeeping allocation, and every chunk allocation. On publication it receives a borrowed managed pointer valid until displacement by later publications or a free attempt. Do not independently resize or release it. Every non-publication outcome leaves the slot unchanged; an initially uninitialized slot remains uninitialized.
 
 **C++ equivalent:** `catalyst::stream_next`.
 
@@ -964,6 +1015,76 @@ Invoke `stream->next(stream, output)` exactly once. Pass the same output pointer
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0xSS2201DD` | Producer status `SS` retained, including success, warning, error, fatal, and no-op | Invoke producer once | Producer detail `DD`; invalid-argument indices are unchanged |
+| `0x82220100` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Grow spare storage | — |
+| `0x84220100` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Grow spare storage | — |
+| `0x86220100` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Grow spare storage | — |
+| `0x90220100` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB allocation extent unrepresentable | Grow spare storage | — |
+| `0x91220100` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Grow spare storage | — |
+| `0x82220184` | `ERROR_INVALID_STATE`: dual cleanup failure | Grow spare storage | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x84220182` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Grow spare storage | Other failure is `ERROR_INVALID_STATE` |
+| `0x82220200` | `ERROR_INVALID_STATE`: producer rejected the managed chunk argument | Reject managed-buffer diagnostic | — |
+| `0x002203DD` | `SUCCESS`: exactly the requested bytes produced | Publish chunk; advance retention | Producer detail `DD`, zero when unused |
+| `0x012203DD` | `SUCCESS_NOOP` | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0x402203DD` | `WARNING`: producer warning | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0x412203DD` | `WARNING_PARTIAL`: producer warning | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0x422203DD` | `WARNING_DEPRECATED`: producer warning | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0x81220300` | `ERROR_INVALID_ARGUMENT`: producer rejected the Stream | Return producer argument diagnostic; no publication | Public argument index `0` (`stream`) |
+| `0x81220301` | `ERROR_INVALID_ARGUMENT`: producer rejected the chunk size | Return producer argument diagnostic; no publication | Public argument index `1` (`csize`) |
+| `0x802203DD` | `ERROR`: producer outcome | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0x822203DD` | `ERROR_INVALID_STATE`: producer outcome | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0x832203DD` | `ERROR_MALFORMED_INPUT`: producer outcome | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0x842203DD` | `ERROR_ACCESS_DENIED`: producer outcome | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0x852203DD` | `ERROR_NOT_IMPLEMENTED`: producer outcome | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0x862203DD` | `ERROR_SYSTEM_NOT_SUPPORTED`: producer outcome | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0x872203DD` | `ERROR_TIMEOUT`: producer outcome | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0x882203DD` | `ERROR_NOT_FOUND`: producer outcome | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0x892203DD` | `ERROR_INTERRUPTED`: producer outcome | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0x8A2203DD` | `ERROR_DEPENDENCY_FAILURE`: producer outcome | Return producer outcome; no publication | Producer dependency status `DD` |
+| `0x902203DD` | `ERROR_BUFFER_OVERFLOW`: producer outcome | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0x912203DD` | `ERROR_ALLOCATION_FAILED`: producer outcome | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0xA02203DD` | `ERROR_IO_ERROR`: producer outcome | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0xC02203DD` | `FATAL`: producer outcome | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0xC12203DD` | `FATAL_INVARIANT_VIOLATION`: producer outcome | Return producer outcome; no publication | Producer detail `DD`, zero when unused |
+| `0x40220482` | `WARNING` (NONE): optional shrink failed after exact production | Keep published chunk; retain spare allocation | Shrink status `ERROR_INVALID_STATE` |
+| `0x40220484` | `WARNING` (NONE): optional shrink failed after exact production | Keep published chunk; retain spare allocation | Shrink status `ERROR_ACCESS_DENIED` |
+| `0x40220486` | `WARNING` (NONE): optional shrink failed after exact production | Keep published chunk; retain spare allocation | Shrink status `ERROR_SYSTEM_NOT_SUPPORTED` |
+| `0x40220490` | `WARNING` (NONE): optional shrink failed after exact production | Keep published chunk; retain spare allocation | Shrink status `ERROR_BUFFER_OVERFLOW` |
+| `0x40220491` | `WARNING` (NONE): optional shrink failed after exact production | Keep published chunk; retain spare allocation | Shrink status `ERROR_ALLOCATION_FAILED` |
+| `0xSS2205DD` | Fatal shrink status `SS` retained (`C0` or `C1`), if returned by CATMMLIB | Keep published chunk; report fatal optimization outcome | Original shrink detail `DD` |
 
-**See Also:** [CATRLLIB_STREAM](#catrllib_stream)
+**See Also:** [CATRLLIB_STREAM](#catrllib_stream), [catrl_stream_init](#catrl_stream_init), [catrl_stream_free](#catrl_stream_free), [catmm_realloc](../catmmlib/index.md#catmm_realloc)
+
+### catrl_stream_free
+
+```c
+CATALYST_RESULT catrl_stream_free(CATRLLIB_STREAM* stream);
+```
+
+Release every retained chunk, the spare chunk, then the combined state/bookkeeping allocation. Skip null chunk pointers, and record each successful release before attempting another fallible operation. CATMMLIB also releases any internally retained cleanup allocations through their owning payload pointers; no separate pointer to such internal allocations is required.
+
+A valid failed-initialization or already freed Stream has null state and returns a no-op. Otherwise, the first free attempt clears `next` and ends production, even if an allocation release subsequently fails. Successfully released buffers stay released; every unreleased allocation remains reachable from the Stream. Preserve the Stream object and call `catrl_stream_free` again to complete cleanup. Do not call `catrl_stream_next`, access former consumer chunks, independently release remaining allocations, or initialize over remaining ownership.
+
+After complete success, `state` and `next` are null and `ssize` is zero. If a release fails, `state` still identifies the bookkeeping allocation, `ssize` is retained, and `next` is null; cleanup is the only permitted operation. A state-release failure can therefore leave the allocation live even after all chunks have been released. CATRLLIB frees raw producer bytes, not separately owned objects or resources referenced by them.
+
+**Parameters:**
+
+- `stream`: Valid initialized Stream, one left by failed initialization or partial cleanup, or an already freed Stream. Clean up producer-owned referenced resources before the first free attempt. Synchronize externally; keep the object alive until cleanup succeeds.
+
+**C++ equivalent:** `catalyst::stream_free`.
+
+**Context:** `0x23`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x01230100` | `SUCCESS_NOOP`: state is already null | Keep freed Stream | — |
+| `0x82230200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release retained chunk | — |
+| `0x84230200` | `ERROR_ACCESS_DENIED`: release or cleanup denied | Release retained chunk | — |
+| `0x82230300` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release spare chunk | — |
+| `0x84230300` | `ERROR_ACCESS_DENIED`: release or cleanup denied | Release spare chunk | — |
+| `0x82230400` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release state and bookkeeping | — |
+| `0x84230400` | `ERROR_ACCESS_DENIED`: release or cleanup denied | Release state and bookkeeping | — |
+| `0x00230500` | `SUCCESS` | All owned storage released; public fields cleared | — |
+
+**See Also:** [catrl_stream_init](#catrl_stream_init), [catmm_free](../catmmlib/index.md#catmm_free)
