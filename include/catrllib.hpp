@@ -29,17 +29,17 @@ inline void set_init(SET* set, NUINT size) {
     ::catrl_set_init(set, size);
 }
 
-/** Copy size readable bytes if absent; return TRUE on insertion, FALSE on duplicate. Requires an initialized set, spare capacity for a new element, and input outside owned storage. */
+/** Copy size readable bytes if absent; return TRUE on insertion, FALSE on duplicate. Requires an initialized set and spare capacity for a new element; the entire input extent must be outside the set object and its allocation. */
 inline BOOL set_add(SET* set, POINTER element) {
     return ::catrl_set_add(set, element);
 }
 
-/** Return TRUE if removed, FALSE if absent; may replace the removed element with the last. Requires an initialized set and size readable bytes; capacity is retained. */
+/** Return TRUE if removed, FALSE if absent; may move the last member into its place. Requires an initialized set and size readable bytes, which may identify a live member; lookup precedes mutation. Capacity is retained. */
 inline BOOL set_remove(SET* set, POINTER element) {
     return ::catrl_set_remove(set, element);
 }
 
-/** Compare size readable bytes against an initialized set; return TRUE on membership, FALSE otherwise. */
+/** Compare size readable bytes against an initialized set; input may identify a live member. Return TRUE on membership, FALSE otherwise. */
 inline BOOL set_contains(const SET* set, POINTER element) {
     return ::catrl_set_contains(set, element);
 }
@@ -73,27 +73,27 @@ inline void map_init(MAP* map, NUINT ksize, NUINT vsize) {
     ::catrl_map_init(map, ksize, vsize);
 }
 
-/** Copy a new key/value pair; return TRUE if inserted, FALSE on duplicate without replacing its value. Requires an initialized map, readable key/value extents outside its storage, and spare capacity for a new key. */
+/** Copy a new key/value pair; return TRUE if inserted, FALSE on duplicate without replacing its value. Requires an initialized map and spare capacity for a new key; the entire readable key/value extents must be outside the map object and both allocations. */
 inline BOOL map_add(MAP* map, POINTER key, POINTER value) {
     return ::catrl_map_add(map, key, value);
 }
 
-/** Return TRUE if removed, FALSE if absent; may move the last pair into its place. Requires an initialized map and ksize readable key bytes; capacity is retained. */
+/** Return TRUE if removed, FALSE if absent; may move the last pair into its place. Requires an initialized map and ksize readable bytes, which may identify a live key; lookup precedes mutation. Capacity is retained. */
 inline BOOL map_remove(MAP* map, POINTER key) {
     return ::catrl_map_remove(map, key);
 }
 
-/** Compare ksize readable key bytes against an initialized map; return TRUE on membership, FALSE otherwise. */
+/** Compare ksize readable key bytes against an initialized map; key may identify a live stored key. Return TRUE on membership, FALSE otherwise. */
 inline BOOL map_contains(const MAP* map, POINTER key) {
     return ::catrl_map_contains(map, key);
 }
 
-/** Copy vsize bytes to value when key is present; return TRUE, or FALSE leaving output unchanged. Requires an initialized map, readable key, and writable output outside its owned storage. */
+/** Copy vsize bytes to value when key is present; return TRUE, or FALSE leaving output unchanged. Requires an initialized map and readable key; the entire writable output extent must be outside the map object and both allocations. */
 inline BOOL map_get(const MAP* map, POINTER key, POINTERW value) {
     return ::catrl_map_get(map, key, value);
 }
 
-/** Replace an existing value; return TRUE, or FALSE without mutation for an absent key. Requires an initialized map and readable key/value extents; value must be outside owned storage. */
+/** Replace an existing value; return TRUE, or FALSE without mutation for an absent key. Requires an initialized map and readable key; the entire vsize-byte input extent must be outside the map object and both allocations. */
 inline BOOL map_set(MAP* map, POINTER key, POINTER value) {
     return ::catrl_map_set(map, key, value);
 }
@@ -127,12 +127,12 @@ inline void array_init(ARRAY* array, NUINT size) {
     ::catrl_array_init(array, size);
 }
 
-/** Append a copy of size readable bytes. Requires an initialized array, length < capacity, and input outside owned storage; no allocation occurs. */
+/** Append a copy of size readable bytes without allocation. Requires an initialized array and length < capacity; the entire input extent must be outside the array object and its allocation. */
 inline void array_add(ARRAY* array, POINTER element) {
     ::catrl_array_add(array, element);
 }
 
-/** Insert a copy and shift the suffix right. Requires an initialized array, index <= length, length < capacity, and size readable bytes outside owned storage. */
+/** Insert a copy after shifting the suffix right. Requires an initialized array, index <= length, and length < capacity; the entire size-byte input extent must be outside the array object and its allocation, since the shift may overwrite an aliased source. */
 inline void array_insert(ARRAY* array, NUINT index, POINTER element) {
     ::catrl_array_insert(array, index, element);
 }
@@ -142,17 +142,17 @@ inline void array_remove(ARRAY* array, NUINT index) {
     ::catrl_array_remove(array, index);
 }
 
-/** Compare size readable bytes against an initialized array; return TRUE on membership, FALSE otherwise. */
+/** Compare size readable bytes against an initialized array; input may identify a live stored element. Return TRUE on membership, FALSE otherwise. */
 inline BOOL array_contains(const ARRAY* array, POINTER element) {
     return ::catrl_array_contains(array, element);
 }
 
-/** Copy size bytes to writable output outside owned storage. Requires an initialized array and index < length. */
+/** Copy size bytes to output. Requires an initialized array and index < length; the entire writable output extent must be outside the array object and its allocation. */
 inline void array_get(const ARRAY* array, NUINT index, POINTERW element) {
     ::catrl_array_get(array, index, element);
 }
 
-/** Replace one element with a copy of size readable bytes outside owned storage. Requires an initialized array and index < length. */
+/** Replace one element with a copy of size readable bytes. Requires an initialized array and index < length; the entire input extent must be outside the array object and its allocation. */
 inline void array_set(ARRAY* array, NUINT index, POINTER element) {
     ::catrl_array_set(array, index, element);
 }
@@ -181,12 +181,12 @@ inline RESULT array_free(ARRAY* array) {
  * C++ API :: FILE OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Move two distinct initialized Arrays into unused file storage without allocation, emptying the source Arrays. Requires separate objects and a non-null resolver; source sizes are retained. */
+/** Transfer ownership of two distinct initialized Arrays into unused file storage without allocation, emptying the source Arrays. Requires separate objects and a non-null resolver; source sizes are retained. */
 inline void file_init(FILE* file, ARRAY* metadata, ARRAY* data, ::CATALYST_RESULT (*resolver)(const FILE*, NUINT, ARRAY*)) {
     ::catrl_file_init(file, metadata, data, resolver);
 }
 
-/** Call the initialized file resolver once with current metadata/data. Requires valid separate output storage and resolver preconditions; index validity and output/failure behavior are resolver-defined. */
+/** Call the initialized file resolver once with current metadata/data. Requires a writable output Array object outside the file and its allocations; resolver-defined output data may borrow file storage. Index validity and output/failure behavior belong to the resolver. */
 inline RESULT file_get(const FILE* file, NUINT index, ARRAY* output) {
     return ::catrl_file_get(file, index, output);
 }
@@ -200,7 +200,7 @@ inline RESULT file_free(FILE* file) {
  * C++ API :: STREAM OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Initialize stream storage without allocation or taking state ownership. Requires a non-null producer; state may be null if the producer permits it. */
+/** Bind stream state and producer without allocation or ownership transfer. Requires a non-null producer, which defines state ownership, lifetime, and cleanup; state may be null if the producer permits it. */
 inline void stream_init(STREAM* stream, POINTERW state, ::CATALYST_RESULT (*next)(STREAM*, POINTERW*)) {
     ::catrl_stream_init(stream, state, next);
 }

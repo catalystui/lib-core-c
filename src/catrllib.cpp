@@ -18,7 +18,14 @@ using namespace catalyst;
  * File free: 01 no-op, 02 metadata release failure, 03 data release failure, 04 success.
  * File get and Stream next: 01 callback result, including success and no-op.
  * Dependency status and detail are retained; callback signatures use the same
- * argument indices as their reporting boundary.
+ * argument indices as their reporting boundary. Callback context and operation
+ * are replaced, so their original diagnostic sites are not available here.
+ */
+
+/* Allocation checks bound each buffer's capacity times element size by
+ * CATALYST_NUINT_MAX. Live counts and offset products stay within that extent.
+ * Insertions require a spare slot and direct indices are caller preconditions;
+ * increments and suffix calculations do not depend on wider integer promotions.
  */
 
 /* Nonzero size; count * size bytes are readable when count is nonzero, and
@@ -258,6 +265,7 @@ void catrl_array_add(CATRLLIB_ARRAY* array, CATMMLIB_POINTER element) {
 }
 
 void catrl_array_insert(CATRLLIB_ARRAY* array, CATALYST_NUINT index, CATMMLIB_POINTER element) {
+    /* The shift precedes the input copy; element is outside this Array's storage. */
     BYTE* destination = (BYTE*) array->data + (NUINT) (index * array->size);
     if (index < array->length) {
         catmm_move(destination + array->size, destination, (NUINT) ((array->length - index) * array->size));
