@@ -34,6 +34,8 @@ The compile workflow checks C90 and C++98 on x86, and C99 and C++11 on x64, usin
 | Library | Windows | macOS | Linux | Description |
 | --- | --- | --- | --- | --- |
 | [CATTELIB](include/cattelib.h) | `cattelib.dll`, `cattelib.lib` | `libcatte.dylib`, `libcatte.a` | `libcatte.so`, `libcatte.a` | Text encoding, decoding, length calculation, and conversion. |
+| [CATMMLIB](include/catmmlib.h) | `catmm10.dll`, `catmm.lib`, `libcatmm.lib` | `libcatmm.dylib`, `libcatmm.a` | `libcatmm.so`, `libcatmm.a` | Memory allocation, resizing, release, and byte operations. |
+| [CATRLLIB](include/catrllib.h) | `catrl10.dll`, `catrl.lib`, `libcatrl.lib` | `libcatrl.dylib`, `libcatrl.a` | `libcatrl.so`, `libcatrl.a` | Set, Map, Array, File, and Stream operations. |
 
 The filenames follow the shared build configuration and platform toolchain conventions. Core types are provided through [`catalyst.h`](include/catalyst.h) and [`catalyst.hpp`](include/catalyst.hpp), without a separate binary library.
 
