@@ -278,6 +278,36 @@ static int test_memory(BOOL managed) {
         }
     }
 
+    // Exercise every source/destination offset and size in a small extent,
+    // including unaligned words, short overlaps, tails, and disjoint ranges.
+    {
+        const NUINT extent = 40;
+        BYTE bytes[extent];
+        BYTE original[extent];
+        BOOL passed = TRUE;
+        for (NUINT i = 0; i < extent; ++i) original[i] = (BYTE) (i + (NUINT) 17);
+        for (NUINT source = 0; source < extent && passed; ++source) {
+            for (NUINT destination = 0; destination < extent && passed; ++destination) {
+                NUINT limit = (NUINT) (extent - (source > destination ? source : destination));
+                for (NUINT size = 0; size <= limit && passed; ++size) {
+                    for (NUINT i = 0; i < extent; ++i) bytes[i] = original[i];
+                    catmm_move(bytes + destination, bytes + source, size);
+                    for (NUINT i = 0; i < extent; ++i) {
+                        BYTE expected = i >= destination && (NUINT) (i - destination) < size
+                            ? original[source + (NUINT) (i - destination)] : original[i];
+                        if (bytes[i] != expected) passed = FALSE;
+                    }
+                }
+            }
+        }
+        if (!passed) {
+            std::printf("FAIL: catmm_move exhaustive small extents\n");
+            ++failed;
+        } else {
+            std::printf("PASS: catmm_move exhaustive small extents\n");
+        }
+    }
+
     // ------------------------------------------------------------
     // Compare: byte ordering, unaligned buffers, chunks, and tails
     // ------------------------------------------------------------

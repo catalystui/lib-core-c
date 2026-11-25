@@ -33,6 +33,18 @@ using namespace catalyst;
 static void catmm_copy_forward(CATMMLIB_POINTERW destination, CATMMLIB_POINTER source, CATALYST_NUINT size) {
     BYTE* output = (BYTE*) destination;
     const BYTE* input = (const BYTE*) source;
+#if defined(__GNUC__) && !defined(__clang__) && !defined(__OPTIMIZE_SIZE__) && (defined(__x86_64__) || defined(__aarch64__)) && !defined(__CHERI__) && !defined(__CHERI_PURE_CAPABILITY__)
+    /* GCC's normal -O2 byte loop may remain scalar. Stage fixed blocks so
+     * forward overlap remains safe while the compiler can use wide loads. */
+    while (size >= (NUINT) 32) {
+        BYTE chunk[32];
+        __builtin_memcpy(chunk, input, sizeof(chunk));
+        __builtin_memcpy(output, chunk, sizeof(chunk));
+        output += (NUINT) 32;
+        input += (NUINT) 32;
+        size = (NUINT) (size - (NUINT) 32);
+    }
+#endif
 #if CATMMLIB_FIXED_COPY
     const NUINT chunkSize = (NUINT) sizeof(CATMMLIB_COPY_WORD);
     while (size >= chunkSize) {
@@ -243,25 +255,70 @@ void catmm_move(CATMMLIB_POINTERW destination, CATMMLIB_POINTER source, CATALYST
     if (size == 0 || destination == source) return;
     BYTE* output = (BYTE*) destination;
     const BYTE* input = (const BYTE*) source;
-    /* Equality is defined for unrelated pointers. Only scan within the readable
-     * source extent; avoid ordering unrelated objects or flattening addresses.
-     */
+    BOOL backward = FALSE;
+#if TARGET_SIZEOF_ADDRESS >= 4 && !defined(__CHERI__) && !defined(__CHERI_PURE_CAPABILITY__) && (defined(__i386__) || defined(__x86_64__) || defined(__arm__) || defined(__aarch64__) || defined(_M_IX86) || defined(_M_X64) || defined(_M_ARM) || defined(_M_ARM64))
+    /* These native ABIs have flat byte addresses. Subtract only in ascending
+     * order; computing the end address could overflow the representation. */
+    const CATMMLIB_ADDRESS outputAddress = (CATMMLIB_ADDRESS) destination;
+    const CATMMLIB_ADDRESS inputAddress = (CATMMLIB_ADDRESS) source;
+    backward = outputAddress > inputAddress && (CATMMLIB_ADDRESS) (outputAddress - inputAddress) < (CATMMLIB_ADDRESS) size;
+#else
+    /* On other representations, equality within the source extent avoids
+     * ordering unrelated pointers or assuming a flat address space. */
     NUINT offset = size;
     const BYTE* candidate = input;
     while (offset != 0) {
         if (output == candidate) {
-            output += size;
-            input += size;
-            do {
-                *--output = *--input;
-                --size;
-            } while (size != 0);
-            return;
+            backward = TRUE;
+            break;
         }
         ++candidate;
         --offset;
     }
-    catmm_copy_forward(destination, source, size);
+#endif
+    if (!backward) {
+        catmm_copy_forward(destination, source, size);
+        return;
+    }
+    output += size;
+    input += size;
+#if (defined(__GNUC__) || defined(__clang__)) && (defined(__x86_64__) || defined(__aarch64__)) && !defined(__CHERI__) && !defined(__CHERI_PURE_CAPABILITY__)
+    /* Stage a whole block before writing so even close overlaps permit
+     * independent loads and stores on native vector-capable targets. */
+    while (size >= (NUINT) 16) {
+        BYTE chunk[16];
+        output -= (NUINT) 16;
+        input -= (NUINT) 16;
+        __builtin_memcpy(chunk, input, sizeof(chunk));
+        __builtin_memcpy(output, chunk, sizeof(chunk));
+        size = (NUINT) (size - (NUINT) 16);
+    }
+#endif
+#if (defined(__GNUC__) || defined(__clang__)) && (defined(__i386__) || defined(__x86_64__) || defined(__arm__) || defined(__aarch64__)) && (CATALYST_SUPPORTS_64BIT || CATALYST_SUPPORTS_32BIT || CATALYST_SUPPORTS_16BIT)
+#if CATALYST_SUPPORTS_64BIT && TARGET_SIZEOF_ADDRESS >= 8
+    typedef ULONG CATMMLIB_MOVE_WORD;
+#elif CATALYST_SUPPORTS_32BIT
+    typedef UINT CATMMLIB_MOVE_WORD;
+#elif CATALYST_SUPPORTS_16BIT
+    typedef USHORT CATMMLIB_MOVE_WORD;
+#else
+    typedef BYTE CATMMLIB_MOVE_WORD;
+#endif
+    const NUINT chunkSize = (NUINT) sizeof(CATMMLIB_MOVE_WORD);
+    while (size >= chunkSize) {
+        CATMMLIB_MOVE_WORD chunk;
+        output -= chunkSize;
+        input -= chunkSize;
+        /* Stage the entire word before writing, even for one-byte overlap. */
+        __builtin_memcpy(&chunk, input, sizeof(chunk));
+        __builtin_memcpy(output, &chunk, sizeof(chunk));
+        size = (NUINT) (size - chunkSize);
+    }
+#endif
+    while (size != 0) {
+        *--output = *--input;
+        --size;
+    }
 }
 
 CATALYST_SBYTE catmm_compare(CATMMLIB_POINTER memory1, CATMMLIB_POINTER memory2, CATALYST_NUINT size) {
