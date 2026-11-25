@@ -41,13 +41,13 @@ typedef void*           CATMMLIB_POINTERW;
  * C API :: MEMORY ALLOCATION & MANAGEMENT
  * ------------------------------------------------------------------------------------------------- */
 
-/** Allocate nonzero size bytes into valid output storage; output is null on
+/** Allocate nonzero size bytes through the native backend into valid output storage; output is null on
  * failure. Storage is zero-filled and supports native fundamental alignment,
  * not extended alignment. The output slot must not own a live allocation.
  */
 CATMMLIB_API CATALYST_RESULT catmm_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT size);
 
-/** Resize a live CATMMLIB allocation, preserving its pointer and bytes on
+/** Resize a live native CATMMLIB allocation, preserving its pointer and bytes on
  * failure. The output slot must be valid and outside the allocation. A null
  * input allocates (new_size must be nonzero); zero size releases a live input
  * and clears the pointer on success. Growth is zero-filled; the retained
@@ -55,11 +55,30 @@ CATMMLIB_API CATALYST_RESULT catmm_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUI
  */
 CATMMLIB_API CATALYST_RESULT catmm_realloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT new_size);
 
-/** Release a live, non-null CATMMLIB allocation; the caller's pointer is not
+/** Release a live, non-null native CATMMLIB allocation; the caller's pointer is not
  * cleared. Release failure leaves the allocation live. Allocation operations
  * on the same block require external synchronization.
  */
 CATMMLIB_API CATALYST_RESULT catmm_free(CATMMLIB_POINTERW memory);
+
+/** Allocate nonzero size bytes through the managed heap into a valid output
+ * slot with no live allocation. Zero-filled, fundamentally aligned storage;
+ * output is null on failure. Use only heap resize/release on the allocation.
+ */
+CATMMLIB_API CATALYST_RESULT catmm_heap_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT size);
+
+/** Resize a live heap allocation, or allocate from null with nonzero size.
+ * Zero size releases a live heap allocation and clears the slot on success.
+ * Retain the prefix, zero-fill growth, and preserve pointer/bytes on failure.
+ * The output slot is valid and outside the allocation; success invalidates aliases.
+ */
+CATMMLIB_API CATALYST_RESULT catmm_heap_realloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT new_size);
+
+/** Release a live, non-null heap allocation; the caller's pointer is not
+ * cleared. Failure leaves the allocation live. Operations on the same block
+ * require external synchronization. Backing storage may be retained for reuse.
+ */
+CATMMLIB_API CATALYST_RESULT catmm_heap_free(CATMMLIB_POINTERW memory);
 
 /* -------------------------------------------------------------------------------------------------
  * C API :: MEMORY OPERATIONS

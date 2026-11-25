@@ -31,6 +31,18 @@ inline RESULT free(POINTERW memory) {
     return ::catmm_free(memory);
 }
 
+inline RESULT heap_alloc(POINTERW* memory, NUINT size) {
+    return ::catmm_heap_alloc(memory, size);
+}
+
+inline RESULT heap_realloc(POINTERW* memory, NUINT new_size) {
+    return ::catmm_heap_realloc(memory, new_size);
+}
+
+inline RESULT heap_free(POINTERW memory) {
+    return ::catmm_heap_free(memory);
+}
+
 /* -------------------------------------------------------------------------------------------------
  * C++ API :: MEMORY OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
