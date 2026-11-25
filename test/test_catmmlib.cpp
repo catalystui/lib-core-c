@@ -282,7 +282,7 @@ static int test_memory(BOOL managed) {
     // Compare: byte ordering, unaligned buffers, chunks, and tails
     // ------------------------------------------------------------
     {
-        NUINT sizes[] = { 0, 1, 2, 3, 7, 8, 9, 15, 16, 17, 31, 32, 33, 127 };
+        NUINT sizes[] = { 0, 1, 2, 3, 7, 8, 9, 15, 16, 17, 24, 31, 32, 33, 127 };
         for (NUINT test = 0; test < (NUINT) (sizeof(sizes) / sizeof(sizes[0])); ++test) {
             BYTE first[132];
             BYTE second[132];
@@ -296,11 +296,8 @@ static int test_memory(BOOL managed) {
                 std::printf("PASS: catmm_compare equal/empty/identical, size %lu\n", (unsigned long) sizes[test]);
             }
             if (sizes[test] == 0) continue;
-            NUINT positions[] = { 0, (NUINT) (sizes[test] / (NUINT) 2), (NUINT) (sizes[test] - (NUINT) 1) };
-            for (NUINT position = 0; position < (NUINT) 3; ++position) {
-                if (position != 0 && positions[position] == positions[position - (NUINT) 1]) continue;
+            for (NUINT difference = 0; difference < sizes[test]; ++difference) {
                 for (NUINT i = 0; i < (NUINT) 132; ++i) { first[i] = 0x80; second[i] = 0x80; }
-                NUINT difference = positions[position];
                 first[1 + difference] = 0x7F;
                 // A later, opposite mismatch must not override the first one.
                 if (difference + (NUINT) 1 < sizes[test]) {

@@ -280,19 +280,35 @@ CATALYST_SBYTE catmm_compare(CATMMLIB_POINTER memory1, CATMMLIB_POINTER memory2,
     while (size >= chunkSize) {
         CATMMLIB_COMPARE_WORD firstChunk;
         CATMMLIB_COMPARE_WORD secondChunk;
-        /* Copy object representations into aligned unsigned locals. Never
-         * load a scalar through an unaligned or aliased pointer, or derive
-         * byte ordering from the native scalar's ordering.
-         */
-#if CATMMLIB_FIXED_COPY
-        /* Fixed-size compiler copies avoid out-of-line byte loops on x86. */
+        /* Fixed-size copies preserve alignment and aliasing requirements. */
+#if defined(__GNUC__) || defined(__clang__)
         __builtin_memcpy(&firstChunk, first, sizeof(firstChunk));
         __builtin_memcpy(&secondChunk, second, sizeof(secondChunk));
 #else
         catmm_copy(&firstChunk, first, chunkSize);
         catmm_copy(&secondChunk, second, chunkSize);
 #endif
-        if (firstChunk != secondChunk) break;
+        if (firstChunk != secondChunk) {
+            /* Compare native words in byte order, not native little-endian order.
+             * Unknown representations and compilers retain the byte fallback. */
+#if defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+            return firstChunk < secondChunk ? (SBYTE) -1 : (SBYTE) 1;
+#elif defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__) && (defined(__clang__) || (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 8))))
+#if CATALYST_SUPPORTS_64BIT
+            firstChunk = (CATMMLIB_COMPARE_WORD) __builtin_bswap64(firstChunk);
+            secondChunk = (CATMMLIB_COMPARE_WORD) __builtin_bswap64(secondChunk);
+#elif CATALYST_SUPPORTS_32BIT
+            firstChunk = (CATMMLIB_COMPARE_WORD) __builtin_bswap32(firstChunk);
+            secondChunk = (CATMMLIB_COMPARE_WORD) __builtin_bswap32(secondChunk);
+#else
+            firstChunk = (CATMMLIB_COMPARE_WORD) __builtin_bswap16(firstChunk);
+            secondChunk = (CATMMLIB_COMPARE_WORD) __builtin_bswap16(secondChunk);
+#endif
+            return firstChunk < secondChunk ? (SBYTE) -1 : (SBYTE) 1;
+#else
+            break;
+#endif
+        }
         first += chunkSize;
         second += chunkSize;
         size = (NUINT) (size - chunkSize);
