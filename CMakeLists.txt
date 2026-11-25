@@ -104,9 +104,9 @@ foreach(TARGET_NAME IN LISTS CATALYST_RELEASE_LIBRARIES CATALYST_RELEASE_EXECUTA
     endif()
 endforeach()
 
-# IPO archives can require the producing compiler/linker; keep native archives
-# by default and let consumers explicitly select toolchain-specific static LTO.
-option(CATALYST_RELEASE_STATIC_IPO "Enable Release IPO for static libraries (requires a compatible consumer toolchain)" OFF)
+# Enable static IPO by default; consumers distributing native machine-code
+# archives can opt out to avoid compiler/linker-specific LTO requirements.
+option(CATALYST_RELEASE_STATIC_IPO "Enable Release IPO for static libraries (requires a compatible consumer toolchain)" ON)
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|MSVC)$")
     include(CheckIPOSupported)
     function(catalyst_configure_release_ipo)
