@@ -117,8 +117,8 @@ CATRLLIB_API CATALYST_BOOL catrl_map_remove(CATRLLIB_MAP* map, CATMMLIB_POINTER 
 /** Determine whether a key belongs to the map. */
 CATRLLIB_API CATALYST_BOOL catrl_map_contains(const CATRLLIB_MAP* map, CATMMLIB_POINTER key);
 
-/** Retrieve the value associated with a key if present. */
-CATRLLIB_API CATALYST_BOOL catrl_map_get(const CATRLLIB_MAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTERW value);
+/** Borrow the writable value associated with a readable key, or null if absent. Requires an initialized Map. Reacquire after removal, clear, resize or free attempts; do not release independently. */
+CATRLLIB_API CATMMLIB_POINTERW catrl_map_get(CATRLLIB_MAP* map, CATMMLIB_POINTER key);
 
 /** Update the value associated with an existing key if present. */
 CATRLLIB_API CATALYST_BOOL catrl_map_set(CATRLLIB_MAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTER value);
@@ -154,8 +154,8 @@ CATRLLIB_API void catrl_array_remove(CATRLLIB_ARRAY* array, CATALYST_NUINT index
 /** Determine whether an element belongs to the array. */
 CATRLLIB_API CATALYST_BOOL catrl_array_contains(const CATRLLIB_ARRAY* array, CATMMLIB_POINTER element);
 
-/** Retrieve the element at the specified index. */
-CATRLLIB_API void catrl_array_get(const CATRLLIB_ARRAY* array, CATALYST_NUINT index, CATMMLIB_POINTERW element);
+/** Borrow the writable element at a valid index of an initialized Array. Reacquire after insertion, removal, clear, resize or free attempts; do not release independently. */
+CATRLLIB_API CATMMLIB_POINTERW catrl_array_get(CATRLLIB_ARRAY* array, CATALYST_NUINT index);
 
 /** Replace the element at the specified index. */
 CATRLLIB_API void catrl_array_set(CATRLLIB_ARRAY* array, CATALYST_NUINT index, CATMMLIB_POINTER element);

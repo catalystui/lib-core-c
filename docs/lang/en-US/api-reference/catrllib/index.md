@@ -29,7 +29,7 @@ Set, Map, and Array own copies of fixed-size byte representations. Initialize re
 
 Capacity counts slots, not bytes. Reserve space before insertion; insertion never allocates. Only live slots represent elements. Use current pointers after Map resizing, including partial failure. Allocation extents use `CATALYST_NUINT` and follow CATMMLIB's allocation and resizing guarantees.
 
-Copy inputs and outputs must lie outside the collection object and its allocations. Search inputs may identify live elements or keys, including Map replacement keys.
+Copy inputs must lie outside the collection object and its allocations. Search inputs may identify live elements or keys, including Map replacement keys.
 
 File resolvers define metadata interpretation and resolved-output ownership. Stream producers define chunk contents, sequencing, and exhaustion; CATRLLIB owns the raw Stream state and chunk storage, not resources referenced by those bytes.
 
@@ -63,7 +63,7 @@ For Core-wide requirements, see [Assumptions](../../assumptions/index.md).
 | [catrl_map_add](#catrl_map_add) | Copy a new key and value if the key is absent. |
 | [catrl_map_remove](#catrl_map_remove) | Remove a key and its value if present. |
 | [catrl_map_contains](#catrl_map_contains) | Determine key membership by byte equality. |
-| [catrl_map_get](#catrl_map_get) | Copy the associated value if present. |
+| [catrl_map_get](#catrl_map_get) | Borrow the associated writable value if present. |
 | [catrl_map_set](#catrl_map_set) | Replace the value of an existing key. |
 | [catrl_map_clear](#catrl_map_clear) | Empty the Map while retaining capacity. |
 | [catrl_map_expand](#catrl_map_expand) | Request an exact larger pair capacity. |
@@ -74,7 +74,7 @@ For Core-wide requirements, see [Assumptions](../../assumptions/index.md).
 | [catrl_array_insert](#catrl_array_insert) | Insert an element and shift the suffix right. |
 | [catrl_array_remove](#catrl_array_remove) | Remove an element and shift the suffix left. |
 | [catrl_array_contains](#catrl_array_contains) | Determine membership by byte equality. |
-| [catrl_array_get](#catrl_array_get) | Copy the element at an index. |
+| [catrl_array_get](#catrl_array_get) | Borrow the writable element at an index. |
 | [catrl_array_set](#catrl_array_set) | Replace the element at an index. |
 | [catrl_array_clear](#catrl_array_clear) | Empty the Array while retaining capacity. |
 | [catrl_array_expand](#catrl_array_expand) | Request an exact larger element capacity. |
@@ -171,7 +171,7 @@ typedef struct CATRLLIB_ARRAY {
 
 **C++ equivalent:** `catalyst::ARRAY`.
 
-Owns its element storage. Indexed access and append require constant work apart from copying the element. Insertion and removal shift the affected suffix; membership uses a linear bytewise search. Direct access is limited to live elements.
+Owns its element storage. Indexed access requires constant work without copying; append requires constant work apart from copying the element. Insertion and removal shift the affected suffix; membership uses a linear bytewise search. Direct access is limited to live elements.
 
 ### CATRLLIB_FILE
 
@@ -481,20 +481,19 @@ Determine key membership by byte equality.
 ### catrl_map_get
 
 ```c
-CATALYST_BOOL catrl_map_get(const CATRLLIB_MAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTERW value);
+CATMMLIB_POINTERW catrl_map_get(CATRLLIB_MAP* map, CATMMLIB_POINTER key);
 ```
 
-Copy the value associated with a key into caller-provided storage.
+Borrow the stored value associated with a key without copying or allocating. The caller may read or modify exactly `vsize` bytes; the Map retains ownership. Do not independently resize or release the pointer. Reacquire it after removal, clear, resize or free attempts (including partial Map failures). Adding within existing capacity or replacing a value does not relocate existing slots.
 
 **Parameters:**
 
-- `map`: Valid initialized Map.  
-- `key`: Non-null pointer to `ksize` readable bytes.  
-- `value`: Non-null writable output of at least `vsize` bytes outside the Map object and its owned allocations.
+- `map`: Valid initialized writable Map.  
+- `key`: Non-null pointer to `ksize` readable bytes; may identify a live key.
 
 **C++ equivalent:** `catalyst::map_get`.
 
-**Returns:** `CATALYST_TRUE` with `vsize` output bytes written if found; `CATALYST_FALSE` with output unchanged otherwise.
+**Returns:** A borrowed writable pointer to the stored value if found; null otherwise.
 
 ### catrl_map_set
 
@@ -725,18 +724,19 @@ Determine whether an equal element exists by byte equality.
 ### catrl_array_get
 
 ```c
-void catrl_array_get(const CATRLLIB_ARRAY* array, CATALYST_NUINT index, CATMMLIB_POINTERW element);
+CATMMLIB_POINTERW catrl_array_get(CATRLLIB_ARRAY* array, CATALYST_NUINT index);
 ```
 
-Copy exactly `size` bytes from the specified element to caller-provided storage.
+Borrow the stored element without copying or allocating. The caller may read or modify exactly `size` bytes; the Array retains ownership. Do not independently resize or release the pointer. Reacquire it after insertion, removal, clear, resize or free attempts. Appending within existing capacity or replacing an element does not relocate existing slots.
 
 **Parameters:**
 
-- `array`: Valid initialized Array.  
-- `index`: Valid direct-access index, strictly less than `length`.  
-- `element`: Non-null writable output of at least `size` bytes outside the Array object and its owned allocation.
+- `array`: Valid initialized writable Array.  
+- `index`: Valid direct-access index, strictly less than `length`.
 
 **C++ equivalent:** `catalyst::array_get`.
+
+**Returns:** A borrowed writable pointer to the indexed element. For typed access, the caller must establish alignment, representation and object lifetime; otherwise use byte access.
 
 ### catrl_array_set
 

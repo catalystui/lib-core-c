@@ -88,9 +88,9 @@ inline BOOL map_contains(const MAP* map, POINTER key) {
     return ::catrl_map_contains(map, key);
 }
 
-/** Copy vsize bytes to value when key is present; return TRUE, or FALSE leaving output unchanged. Requires an initialized map and readable key; the entire writable output extent must be outside the map object and both allocations. */
-inline BOOL map_get(const MAP* map, POINTER key, POINTERW value) {
-    return ::catrl_map_get(map, key, value);
+/** Borrow the writable vsize-byte value, or null if absent. Requires an initialized map and readable key. Reacquire after removal, clear, resize or free attempts; do not release independently. */
+inline POINTERW map_get(MAP* map, POINTER key) {
+    return ::catrl_map_get(map, key);
 }
 
 /** Replace an existing value; return TRUE, or FALSE without mutation for an absent key. Requires an initialized map and readable key; the entire vsize-byte input extent must be outside the map object and both allocations. */
@@ -147,9 +147,9 @@ inline BOOL array_contains(const ARRAY* array, POINTER element) {
     return ::catrl_array_contains(array, element);
 }
 
-/** Copy size bytes to output. Requires an initialized array and index < length; the entire writable output extent must be outside the array object and its allocation. */
-inline void array_get(const ARRAY* array, NUINT index, POINTERW element) {
-    ::catrl_array_get(array, index, element);
+/** Borrow the writable size-byte element. Requires an initialized array and index < length. Reacquire after insertion, removal, clear, resize or free attempts; do not release independently. */
+inline POINTERW array_get(ARRAY* array, NUINT index) {
+    return ::catrl_array_get(array, index);
 }
 
 /** Replace one element with a copy of size readable bytes. Requires an initialized array and index < length; the entire input extent must be outside the array object and its allocation. */

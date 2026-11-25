@@ -148,11 +148,10 @@ CATALYST_BOOL catrl_map_contains(const CATRLLIB_MAP* map, CATMMLIB_POINTER key) 
     return catrl_find(map->keys, map->cardinality, map->ksize, key) != map->cardinality ? TRUE : FALSE;
 }
 
-CATALYST_BOOL catrl_map_get(const CATRLLIB_MAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTERW value) {
+CATMMLIB_POINTERW catrl_map_get(CATRLLIB_MAP* map, CATMMLIB_POINTER key) {
     NUINT index = catrl_find(map->keys, map->cardinality, map->ksize, key);
-    if (index == map->cardinality) return FALSE;
-    catmm_copy(value, (const BYTE*) map->values + (NUINT) (index * map->vsize), map->vsize);
-    return TRUE;
+    if (index == map->cardinality) return 0;
+    return (BYTE*) map->values + (NUINT) (index * map->vsize);
 }
 
 CATALYST_BOOL catrl_map_set(CATRLLIB_MAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTER value) {
@@ -273,8 +272,8 @@ CATALYST_BOOL catrl_array_contains(const CATRLLIB_ARRAY* array, CATMMLIB_POINTER
     return catrl_find(array->data, array->length, array->size, element) != array->length ? TRUE : FALSE;
 }
 
-void catrl_array_get(const CATRLLIB_ARRAY* array, CATALYST_NUINT index, CATMMLIB_POINTERW element) {
-    catmm_copy(element, (const BYTE*) array->data + (NUINT) (index * array->size), array->size);
+CATMMLIB_POINTERW catrl_array_get(CATRLLIB_ARRAY* array, CATALYST_NUINT index) {
+    return (BYTE*) array->data + (NUINT) (index * array->size);
 }
 
 void catrl_array_set(CATRLLIB_ARRAY* array, CATALYST_NUINT index, CATMMLIB_POINTER element) {

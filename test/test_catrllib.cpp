@@ -40,6 +40,10 @@ static CATALYST_RESULT produce_stateless(CATRLLIB_STREAM*, POINTERW chunk, NUINT
     return RESULT(STATUS_CODE_SUCCESS, 0xA3, 0x01, 0);
 }
 
+static BOOL value_matches(POINTER actual, POINTER expected, NUINT size) {
+    return actual != 0 && catmm_compare(actual, expected, size) == 0 ? TRUE : FALSE;
+}
+
 static BOOL chunk_matches(POINTER chunk, NUINT size, BYTE first) {
     if (chunk == 0) return FALSE;
     for (NUINT i = 0; i < size; ++i) {
@@ -116,12 +120,11 @@ int main() {
         BYTE value1[] = { 4, 5, 6 };
         BYTE value2[] = { 7, 8, 9 };
         BYTE value3[] = { 10, 11, 12 };
-        BYTE output[] = { 0xCC, 0, 0, 0, 0xCC };
         map_init(&map, 2, 3);
         check(&failed, map.keys == 0 && map.values == 0 && map.ksize == 2 && map.vsize == 3 && map.cardinality == 0 && map.capacity == 0, "catrl_map_init independent sizes");
         check(&failed, matches(map_shrink(&map), STATUS_CODE_SUCCESS_NOOP, 0x11, 0x01), "catrl_map_shrink unallocated Map");
         check(&failed, matches(map_expand(&map, 0), STATUS_CODE_SUCCESS_NOOP, 0x10, 0x01), "catrl_map_expand zero capacity no-op");
-        check(&failed, !catrl_map_get(&map, key1, output + 1) && output[1] == 0 && output[2] == 0 && output[3] == 0, "catrl_map_get absent key preserves output");
+        check(&failed, catrl_map_get(&map, key1) == 0, "catrl_map_get absent key returns null");
 
         NUINT valueOverflow = (NUINT) (CATALYST_NUINT_MAX / (NUINT) 3 + (NUINT) 1);
         check(&failed, matches(catrl_map_expand(&map, CATALYST_NUINT_MAX), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x10, 0x02), "catrl_map_expand key extent overflow");
@@ -132,20 +135,25 @@ int main() {
             check(&failed, catrl_map_add(&map, key1, value1) && map_add(&map, key2, value1) && map.cardinality == 2, "catrl_map_add distinct keys with equal values");
             check(&failed, !map_add(&map, key1, value2) && map.cardinality == 2 && map.capacity == 2, "catrl_map_add duplicate at full capacity");
             check(&failed, catrl_map_contains(&map, key1) && map_contains(&map, key2) && !map_contains(&map, key3), "catrl_map_contains");
-            check(&failed, map_get(&map, key1, output + 1) && output[0] == 0xCC && output[1] == 4 && output[2] == 5 && output[3] == 6 && output[4] == 0xCC, "catrl_map_get copies exact value extent");
+            BYTE* value = (BYTE*) map_get(&map, key1);
+            if (check(&failed, value != 0 && value == map.values && catmm_compare(value, value1, 3) == 0, "catrl_map_get borrows exact value address")) {
+                value[1] = 0xA5;
+                check(&failed, catrl_map_get(&map, key1) == value && ((const BYTE*) map.values)[1] == 0xA5 && catmm_compare((const BYTE*) map.values + 3, value1, 3) == 0, "catrl_map_get writes in place without affecting another value");
+            }
+            check(&failed, map_get(&map, key3) == 0, "catrl_map_get absent from nonempty Map");
             check(&failed, !map_set(&map, key3, value3) && !map_remove(&map, key3) && map.cardinality == 2, "catrl_map_set and remove absent key");
-            check(&failed, catrl_map_set(&map, map.keys, value2) && catrl_map_get(&map, key1, output + 1) && output[1] == 7 && output[2] == 8 && output[3] == 9, "catrl_map_set replaces existing value");
-            check(&failed, map_get(&map, key2, output + 1) && output[1] == 4 && output[2] == 5 && output[3] == 6, "catrl_map_set leaves other values unchanged");
+            check(&failed, catrl_map_set(&map, map.keys, value2) && value_matches(map_get(&map, key1), value2, 3), "catrl_map_set replaces existing value");
+            check(&failed, value_matches(map_get(&map, key2), value1, 3), "catrl_map_set leaves other values unchanged");
             POINTERW keys = map.keys;
             POINTERW values = map.values;
             check(&failed, matches(map_expand(&map, 2), STATUS_CODE_SUCCESS_NOOP, 0x10, 0x01) && map.keys == keys && map.values == values, "catrl_map_expand equal capacity no-op");
-            check(&failed, matches(map_expand(&map, valueOverflow), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x10, 0x03) && map.keys == keys && map.values == values && map.cardinality == 2 && map.capacity == 2 && map_get(&map, key1, output + 1) && output[1] == 7 && output[2] == 8 && output[3] == 9, "catrl_map_expand overflow preserves pairs");
+            check(&failed, matches(map_expand(&map, valueOverflow), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x10, 0x03) && map.keys == keys && map.values == values && map.cardinality == 2 && map.capacity == 2 && value_matches(map_get(&map, key1), value2, 3), "catrl_map_expand overflow preserves pairs");
             check(&failed, matches(map_shrink(&map), STATUS_CODE_SUCCESS_NOOP, 0x11, 0x01), "catrl_map_shrink full Map");
             result = catrl_map_expand(&map, 8);
-            if (check(&failed, matches(result, STATUS_CODE_SUCCESS, 0x10, 0x06) && map.capacity == 8 && map.cardinality == 2 && map_get(&map, key1, output + 1) && output[1] == 7 && output[2] == 8 && output[3] == 9, "catrl_map_expand preserves pairs")) {
+            if (check(&failed, matches(result, STATUS_CODE_SUCCESS, 0x10, 0x06) && map.capacity == 8 && map.cardinality == 2 && value_matches(map_get(&map, key1), value2, 3), "catrl_map_expand preserves pairs")) {
                 check(&failed, map_add(&map, key3, value3) && map.cardinality == 3, "catrl_map_add after expansion");
-                check(&failed, catrl_map_remove(&map, map.keys) && map.cardinality == 2 && !map_contains(&map, key1) && map_get(&map, key3, output + 1) && output[1] == 10 && output[2] == 11 && output[3] == 12, "catrl_map_remove keeps moved key and value associated");
-                check(&failed, matches(catrl_map_shrink(&map), STATUS_CODE_SUCCESS, 0x11, 0x04) && map.capacity == 4 && map.cardinality == 2 && map_get(&map, key2, output + 1) && output[1] == 4 && output[2] == 5 && output[3] == 6, "catrl_map_shrink preserves pairs");
+                check(&failed, catrl_map_remove(&map, map.keys) && map.cardinality == 2 && !map_contains(&map, key1) && value_matches(map_get(&map, key3), value3, 3), "catrl_map_remove keeps moved key and value associated");
+                check(&failed, matches(catrl_map_shrink(&map), STATUS_CODE_SUCCESS, 0x11, 0x04) && map.capacity == 4 && map.cardinality == 2 && value_matches(map_get(&map, key2), value1, 3), "catrl_map_shrink preserves pairs");
                 map_clear(&map);
                 check(&failed, map.cardinality == 0 && map.capacity == 4 && !map_contains(&map, key2), "catrl_map_clear retains capacity");
                 check(&failed, map_add(&map, key1, value1) && map.cardinality == 1, "catrl_map_add reuses cleared storage");
@@ -176,7 +184,6 @@ int main() {
         BYTE a[] = { 1, 2 };
         BYTE b[] = { 3, 4 };
         BYTE c[] = { 5, 6 };
-        BYTE output[] = { 0xCC, 0, 0, 0xCC };
         catrl_array_init(&array, 2);
         check(&failed, array.data == 0 && array.size == 2 && array.length == 0 && array.capacity == 0 && !array_contains(&array, a), "catrl_array_init empty Array");
         check(&failed, matches(array_expand(&array, 0), STATUS_CODE_SUCCESS_NOOP, 0x1B, 0x01), "catrl_array_expand zero capacity no-op");
@@ -193,10 +200,12 @@ int main() {
             BYTE expected[] = { 3, 4, 1, 2, 5, 6, 1, 2, 3, 4 };
             check(&failed, array.length == 5 && array.capacity == 8 && catmm_compare(array.data, expected, 10) == 0, "catrl_array_insert front, middle, and end with duplicates");
             if (array.length == 5) {
-                catrl_array_get(&array, 2, output + 1);
-                check(&failed, output[0] == 0xCC && output[1] == 5 && output[2] == 6 && output[3] == 0xCC, "catrl_array_get exact output extent");
-                array_get(&array, 0, output + 1);
-                check(&failed, output[1] == 3 && output[2] == 4, "catrl_array_get C++ wrapper");
+                BYTE* element = (BYTE*) catrl_array_get(&array, 2);
+                if (check(&failed, element != 0 && element == (BYTE*) array.data + 4 && value_matches(element, c, 2), "catrl_array_get borrows exact indexed address")) {
+                    element[0] = 0xA5;
+                    check(&failed, array_get(&array, 2) == element && ((const BYTE*) array.data)[4] == 0xA5 && value_matches(array_get(&array, 3), a, 2), "catrl_array_get writes in place without affecting next element");
+                }
+                check(&failed, array_get(&array, 0) == array.data && value_matches(array_get(&array, 0), b, 2) && value_matches(array_get(&array, 4), b, 2), "catrl_array_get C++ wrapper first and last indices");
                 catrl_array_set(&array, 2, b);
                 array_set(&array, 1, c);
                 BYTE replaced[] = { 3, 4, 5, 6, 3, 4, 1, 2, 3, 4 };
@@ -211,6 +220,7 @@ int main() {
                 check(&failed, matches(array_expand(&array, CATALYST_NUINT_MAX), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x1B, 0x02) && array.data == original && array.length == 2 && array.capacity == 8 && catmm_compare(array.data, remaining, 4) == 0, "catrl_array_expand overflow preserves elements");
                 result = array_expand(&array, 10);
                 if (check(&failed, matches(result, STATUS_CODE_SUCCESS, 0x1B, 0x04) && array.capacity == 10 && array.length == 2 && catmm_compare(array.data, remaining, 4) == 0, "catrl_array_expand preserves order")) {
+                    check(&failed, value_matches(array_get(&array, 0), c, 2) && value_matches(array_get(&array, 1), a, 2), "catrl_array_get reacquires elements after growth");
                     check(&failed, matches(catrl_array_shrink(&array), STATUS_CODE_SUCCESS, 0x1C, 0x03) && array.capacity == 5 && array.length == 2 && catmm_compare(array.data, remaining, 4) == 0, "catrl_array_shrink preserves order");
                     check(&failed, matches(array_shrink(&array), STATUS_CODE_SUCCESS, 0x1C, 0x03) && array.capacity == 2 && array.length == 2, "catrl_array_shrink retains live elements");
                     check(&failed, matches(array_shrink(&array), STATUS_CODE_SUCCESS_NOOP, 0x1C, 0x01), "catrl_array_shrink full Array");
