@@ -66,3 +66,70 @@ define_test_executables(
 # Test sources are discovered above; add the corresponding modules for their companion tests.
 target_link_libraries(test_catmmlib PRIVATE catmmlib_static)
 target_link_libraries(test_catrllib PRIVATE catrllib_static)
+
+# Release optimization is local to Core; preserve Debug and the selected target ISA.
+set(CATALYST_RELEASE_LIBRARIES
+    cattelib_shared cattelib_static
+    catmmlib_shared catmmlib_static
+    catrllib_shared catrllib_static
+)
+set(CATALYST_RELEASE_EXECUTABLES test_cattelib test_catmmlib test_catrllib)
+
+foreach(TARGET_NAME IN LISTS CATALYST_RELEASE_LIBRARIES CATALYST_RELEASE_EXECUTABLES)
+    get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
+    if(MSVC)
+        target_compile_options(${TARGET_NAME} PRIVATE
+            "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:CXX>>:/O2;/Gy;/Gw>"
+        )
+        if(NOT TARGET_TYPE STREQUAL "STATIC_LIBRARY")
+            target_link_options(${TARGET_NAME} PRIVATE "$<$<CONFIG:Release>:/OPT:REF>")
+        endif()
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$")
+        target_compile_options(${TARGET_NAME} PRIVATE
+            "$<$<AND:$<CONFIG:Release>,$<OR:$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>,$<COMPILE_LANG_AND_ID:OBJCXX,GNU,Clang,AppleClang>>>:-O2>"
+        )
+        if(TARGET_PLATFORM_LINUX)
+            target_compile_options(${TARGET_NAME} PRIVATE
+                "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:CXX>>:-ffunction-sections;-fdata-sections>"
+            )
+        endif()
+        if(NOT TARGET_TYPE STREQUAL "STATIC_LIBRARY")
+            target_link_options(${TARGET_NAME} PRIVATE "$<$<CONFIG:Release>:-O2>")
+            if(TARGET_PLATFORM_LINUX)
+                target_link_options(${TARGET_NAME} PRIVATE "$<$<CONFIG:Release>:LINKER:--gc-sections>")
+            elseif(TARGET_PLATFORM_DARWIN)
+                target_link_options(${TARGET_NAME} PRIVATE "$<$<CONFIG:Release>:LINKER:-dead_strip>")
+            endif()
+        endif()
+    endif()
+endforeach()
+
+# IPO archives can require the producing compiler/linker; keep native archives
+# by default and let consumers explicitly select toolchain-specific static LTO.
+option(CATALYST_RELEASE_STATIC_IPO "Enable Release IPO for static libraries (requires a compatible consumer toolchain)" OFF)
+if(CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|MSVC)$")
+    include(CheckIPOSupported)
+    function(catalyst_configure_release_ipo)
+        check_ipo_supported(RESULT IPO_SUPPORTED OUTPUT IPO_OUTPUT LANGUAGES CXX)
+        if(NOT IPO_SUPPORTED)
+            message(STATUS "Core Release IPO unavailable: ${IPO_OUTPUT}")
+            return()
+        endif()
+        foreach(TARGET_NAME IN LISTS CATALYST_RELEASE_LIBRARIES CATALYST_RELEASE_EXECUTABLES)
+            get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
+            if(TARGET_TYPE STREQUAL "STATIC_LIBRARY" AND NOT CATALYST_RELEASE_STATIC_IPO)
+                continue()
+            endif()
+            # CheckIPOSupported does not probe Objective-C++; require the same
+            # toolchain and CMake's Objective-C++ IPO support for CATMMLIB.
+            if(TARGET_PLATFORM_DARWIN AND TARGET_NAME MATCHES "^catmmlib_" AND
+               (NOT CMAKE_OBJCXX_COMPILER_ID STREQUAL CMAKE_CXX_COMPILER_ID OR
+                NOT CMAKE_OBJCXX_COMPILER_VERSION STREQUAL CMAKE_CXX_COMPILER_VERSION OR
+                NOT CMAKE_OBJCXX_COMPILE_OPTIONS_IPO))
+                continue()
+            endif()
+            set_property(TARGET ${TARGET_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+        endforeach()
+    endfunction()
+    catalyst_configure_release_ipo()
+endif()
