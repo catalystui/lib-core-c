@@ -19,6 +19,8 @@ Provides Set, Map, Array, File, and Stream operations with managed memory.
 
 ## Usage Notes
 
+Collection-owned storage uses CATMMLIB's managed heap. Callers release it only through the owning collection operations; backing storage may be retained for reuse.
+
 CATRLLIB uses [CATMMLIB](../catmmlib/index.md) for internal storage and lifecycle. It requires no wider numeric representation or platform-specific operation of its own.
 
 Initialize unused collection storage only; do not shallow-copy owning collections or modify bookkeeping directly. Synchronize access externally.
@@ -345,7 +347,7 @@ Increase capacity to the requested element count, preserving all members. Smalle
 | `0x84060382` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize storage | Other failure is `ERROR_INVALID_STATE` |
 | `0x00060400` | `SUCCESS` | Commit requested capacity | — |
 
-**See Also:** [catrl_set_shrink](#catrl_set_shrink), [catmm_realloc](../catmmlib/index.md#catmm_realloc)
+**See Also:** [catrl_set_shrink](#catrl_set_shrink), [catmm_heap_realloc](../catmmlib/index.md#catmm_heap_realloc)
 
 ### catrl_set_shrink
 
@@ -404,7 +406,7 @@ Release storage and clear `data`, cardinality, and capacity, retaining `size` fo
 | `0x84080200` | `ERROR_ACCESS_DENIED`: release or cleanup denied | Release storage | — |
 | `0x00080300` | `SUCCESS` | Clear ownership and count | — |
 
-**See Also:** [catmm_free](../catmmlib/index.md#catmm_free)
+**See Also:** [catmm_heap_free](../catmmlib/index.md#catmm_heap_free)
 
 ### catrl_map_init
 
@@ -568,7 +570,7 @@ If key resizing fails, the Map is unchanged. If value resizing fails, all pairs 
 | `0x84100582` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize values | Other failure is `ERROR_INVALID_STATE` |
 | `0x00100600` | `SUCCESS` | Commit requested capacity | — |
 
-**See Also:** [catrl_map_shrink](#catrl_map_shrink), [catmm_realloc](../catmmlib/index.md#catmm_realloc)
+**See Also:** [catrl_map_shrink](#catrl_map_shrink), [catmm_heap_realloc](../catmmlib/index.md#catmm_heap_realloc)
 
 ### catrl_map_shrink
 
@@ -640,7 +642,7 @@ Success clears both pointers and retains the key and value sizes for reuse. Two 
 | `0x01120300` | `SUCCESS_NOOP`: both pointers are null | Keep empty Map | — |
 | `0x00120400` | `SUCCESS` | All owned storage released | — |
 
-**See Also:** [catmm_free](../catmmlib/index.md#catmm_free)
+**See Also:** [catmm_heap_free](../catmmlib/index.md#catmm_heap_free)
 
 ### catrl_array_init
 
@@ -798,7 +800,7 @@ Increase capacity to the requested element count, preserving order and elements.
 | `0x841B0382` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize storage | Other failure is `ERROR_INVALID_STATE` |
 | `0x001B0400` | `SUCCESS` | Commit requested capacity | — |
 
-**See Also:** [catrl_array_shrink](#catrl_array_shrink), [catmm_realloc](../catmmlib/index.md#catmm_realloc)
+**See Also:** [catrl_array_shrink](#catrl_array_shrink), [catmm_heap_realloc](../catmmlib/index.md#catmm_heap_realloc)
 
 ### catrl_array_shrink
 
@@ -857,7 +859,7 @@ Release storage and clear `data`, length, and capacity, retaining `size` for reu
 | `0x841D0200` | `ERROR_ACCESS_DENIED`: release or cleanup denied | Release storage | — |
 | `0x001D0300` | `SUCCESS` | Clear ownership and count | — |
 
-**See Also:** [catmm_free](../catmmlib/index.md#catmm_free)
+**See Also:** [catmm_heap_free](../catmmlib/index.md#catmm_heap_free)
 
 ### catrl_file_init
 
@@ -974,7 +976,7 @@ Failure clears all public fields and leaves no owned allocation; initialization 
 | `0x91210400` | `ERROR_ALLOCATION_FAILED`: allocation failed | Allocate state and bookkeeping | — |
 | `0x00210500` | `SUCCESS` | Managed Stream initialized | — |
 
-**See Also:** [CATRLLIB_STREAM](#catrllib_stream), [catrl_stream_free](#catrl_stream_free), [catmm_alloc](../catmmlib/index.md#catmm_alloc)
+**See Also:** [CATRLLIB_STREAM](#catrllib_stream), [catrl_stream_free](#catrl_stream_free), [catmm_heap_alloc](../catmmlib/index.md#catmm_heap_alloc)
 
 ### catrl_stream_next
 
@@ -1047,7 +1049,7 @@ Producer context and operation are replaced. `ERROR_INVALID_ARGUMENT` details `0
 | `0x40220491` | `WARNING` (NONE): optional shrink failed after exact production | Keep published chunk; retain spare allocation | Shrink status `ERROR_ALLOCATION_FAILED` |
 | `0xSS2205DD` | Fatal shrink status `SS` retained (`C0` or `C1`), if returned by CATMMLIB | Keep published chunk; report fatal optimization outcome | Original shrink detail `DD` |
 
-**See Also:** [CATRLLIB_STREAM](#catrllib_stream), [catrl_stream_init](#catrl_stream_init), [catrl_stream_free](#catrl_stream_free), [catmm_realloc](../catmmlib/index.md#catmm_realloc)
+**See Also:** [CATRLLIB_STREAM](#catrllib_stream), [catrl_stream_init](#catrl_stream_init), [catrl_stream_free](#catrl_stream_free), [catmm_heap_realloc](../catmmlib/index.md#catmm_heap_realloc)
 
 ### catrl_stream_free
 
@@ -1080,4 +1082,4 @@ On failure, unreleased allocations remain owned, with `state` and `ssize` retain
 | `0x84230400` | `ERROR_ACCESS_DENIED`: release or cleanup denied | Release state and bookkeeping | — |
 | `0x00230500` | `SUCCESS` | All owned storage released; public fields cleared | — |
 
-**See Also:** [catrl_stream_init](#catrl_stream_init), [catmm_free](../catmmlib/index.md#catmm_free)
+**See Also:** [catrl_stream_init](#catrl_stream_init), [catmm_heap_free](../catmmlib/index.md#catmm_heap_free)

@@ -1,6 +1,6 @@
 # CATMMLIB
 
-Provides zero-filled memory allocation and resizing, memory release, and byte-level copy, move, compare, and fill operations.
+Provides native and managed-heap zero-filled memory allocation, resizing and release, and byte-level copy, move, compare, and fill operations.
 
 **C Header:** `catmmlib.h`  
 **C++ Header:** `catmmlib.hpp`  
@@ -13,7 +13,9 @@ Provides zero-filled memory allocation and resizing, memory release, and byte-le
 
 Allocation extents use `CATALYST_NUINT`. Allocations have native fundamental alignment, not extended alignment; private metadata may reduce the maximum payload.
 
-Successful resizing invalidates prior aliases even if the address is unchanged. Failure preserves the original allocation and its ownership. The caller is responsible for releasing live allocations through CATMMLIB.
+Successful resizing invalidates prior aliases even if the address is unchanged. Failure preserves the original allocation and its ownership. The caller is responsible for releasing live allocations through their originating allocation family. Native `catmm_alloc`, `catmm_realloc`, and `catmm_free` use the operating system's memory facilities (Linux mappings, Mach virtual memory, or the Windows process heap). Managed `catmm_heap_alloc`, `catmm_heap_realloc`, and `catmm_heap_free` use CATMMLIB-managed storage backed by those same facilities. Never mix the two families, even when a managed request falls back to native storage. Copy, move, compare, and fill work on any valid memory regions and are shared by both families.
+
+The managed heap uses independent synchronized size classes, lazy slot initialization, and reusable slabs and spans. A class retains at most one empty slab; surplus empty slabs are released synchronously. Partially occupied slabs may retain additional storage. Slab extents range from 4 KiB to 64 KiB on typical supported targets; requests larger than the largest class bypass pooling. Exact classes, extents, and retention are implementation details and native page rounding may increase actual mapped storage. Targets without a supported atomic or address representation use the native backend through the heap family. Distinct allocations can be operated on concurrently; operations on the same allocation require external synchronization. Library teardown requires quiescent callers and releases cached empty slabs on a best-effort basis.
 
 For Core-wide requirements, see [Assumptions](../../assumptions/index.md).
 
@@ -32,9 +34,12 @@ For Core-wide requirements, see [Assumptions](../../assumptions/index.md).
 
 | Function | Behavior |
 | --- | --- |
-| [catmm_alloc](#catmm_alloc) | Allocate zero-filled bytes. |
-| [catmm_realloc](#catmm_realloc) | Resize while preserving existing bytes and zero-filling growth. |
-| [catmm_free](#catmm_free) | Release a live allocation. |
+| [catmm_alloc](#catmm_alloc) | Allocate zero-filled bytes through the native backend. |
+| [catmm_realloc](#catmm_realloc) | Resize native storage while preserving existing bytes and zero-filling growth. |
+| [catmm_free](#catmm_free) | Release a live native allocation. |
+| [catmm_heap_alloc](#catmm_heap_alloc) | Allocate zero-filled bytes through the managed heap. |
+| [catmm_heap_realloc](#catmm_heap_realloc) | Resize a managed allocation while preserving existing bytes and zero-filling growth. |
+| [catmm_heap_free](#catmm_heap_free) | Release a live managed allocation. |
 | [catmm_copy](#catmm_copy) | Copy non-overlapping bytes. |
 | [catmm_move](#catmm_move) | Move possibly overlapping bytes. |
 | [catmm_compare](#catmm_compare) | Compare unsigned bytes. |
@@ -107,7 +112,7 @@ typedef void* CATMMLIB_POINTERW;
 CATALYST_RESULT catmm_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT size);
 ```
 
-Allocate `size` zero-filled bytes, with native fundamental alignment. Extended alignment is not supported. Private metadata reduces the largest representable payload. The allocation remains owned by the caller until released or successfully resized.
+Allocate `size` zero-filled bytes through the native backend, with native fundamental alignment. Extended alignment is not supported. Private metadata reduces the largest representable payload. The allocation remains owned by the caller until released or successfully resized.
 
 **Parameters:**
 
@@ -137,13 +142,13 @@ Allocate `size` zero-filled bytes, with native fundamental alignment. Extended a
 CATALYST_RESULT catmm_realloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT new_size);
 ```
 
-Resize an allocation. Retain the first `min(old_size, new_size)` bytes and zero-fill growth. Failure preserves the original pointer, bytes, and ownership. Success invalidates previous aliases and retains fundamental alignment. A null input allocates; zero size with a live input releases it and clears the pointer on success. On Unix mapping backends, a rare cleanup failure can retain a replacement
+Resize a native allocation. Retain the first `min(old_size, new_size)` bytes and zero-fill growth. Failure preserves the original pointer, bytes, and ownership. Success invalidates previous aliases and retains fundamental alignment. A null input allocates; zero size with a live input releases it and clears the pointer on success. On Unix mapping backends, a rare cleanup failure can retain a replacement
 mapping internally for later cleanup; the caller remains responsible only for
 the original allocation pointer.
 
 **Parameters:**
 
-- `memory`: Valid writable slot outside the allocation; contains null or a live CATMMLIB payload pointer.  
+- `memory`: Valid writable slot outside the allocation; contains null or a live native CATMMLIB payload pointer.  
 - `new_size`: Requested byte extent; must be nonzero when the input pointer is null.
 
 **C++ equivalent:** `catalyst::realloc`.
@@ -183,11 +188,11 @@ the original allocation pointer.
 CATALYST_RESULT catmm_free(CATMMLIB_POINTERW memory);
 ```
 
-Release an allocation. Success ends its lifetime without clearing the caller’s pointer. On failure the block remains live and owned by the caller. Operations on the same allocation require external synchronization.
+Release a native allocation. Success ends its lifetime without clearing the caller’s pointer. On failure the block remains live and owned by the caller. Operations on the same allocation require external synchronization.
 
 **Parameters:**
 
-- `memory`: Live, non-null payload pointer returned by CATMMLIB; not an interior pointer or an already released allocation.
+- `memory`: Live, non-null payload pointer returned by the native CATMMLIB allocation family; not an interior pointer or an already released allocation.
 
 **C++ equivalent:** `catalyst::free`.
 
@@ -204,6 +209,109 @@ Release an allocation. Success ends its lifetime without clearing the caller’s
 | `0x84030500` | `ERROR_ACCESS_DENIED`: pending mapping cleanup denied (macOS) | Pending cleanup | — |
 
 **See Also:** [catmm_alloc](#catmm_alloc)
+
+### catmm_heap_alloc
+
+```c
+CATALYST_RESULT catmm_heap_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT size);
+```
+
+Allocate `size` zero-filled bytes through the managed heap, with native fundamental alignment. Extended alignment is not supported. Private metadata reduces the largest representable payload. The allocation remains owned by the caller until released or successfully resized.
+
+**Parameters:**
+
+- `memory`: Valid writable output slot that does not own a live allocation; receives the allocation on success and null on every failure.  
+- `size`: Nonzero requested extent in bytes.
+
+**C++ equivalent:** `catalyst::heap_alloc`.
+
+**Context:** `0x04`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x90040300` | `ERROR_BUFFER_OVERFLOW`: size plus private prefix cannot be represented | Reject extent | — |
+| `0x86040400` | `ERROR_SYSTEM_NOT_SUPPORTED`: native page size is unavailable or unrepresentable (macOS) | Acquire heap storage | — |
+| `0x90040400` | `ERROR_BUFFER_OVERFLOW`: native page rounding overflows (macOS) | Acquire heap storage | — |
+| `0x84040400` | `ERROR_ACCESS_DENIED`: Mach allocation was denied (macOS) | Acquire heap storage | — |
+| `0x91040400` | `ERROR_ALLOCATION_FAILED`: backing allocation failed | Acquire heap storage | — |
+| `0x00040500` | `SUCCESS` | Allocation complete | — |
+
+**See Also:** [catmm_heap_free](#catmm_heap_free)
+
+### catmm_heap_realloc
+
+```c
+CATALYST_RESULT catmm_heap_realloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT new_size);
+```
+
+Resize a managed allocation. Same-class resizing can retain the allocation in place. Retain the first `min(old_size, new_size)` bytes and zero-fill growth. Failure preserves the original pointer, bytes, and ownership. Success invalidates previous aliases and retains fundamental alignment. A null input allocates; zero size with a live input releases it and clears the pointer on success. A rare cleanup failure can retain a replacement
+allocation internally for later cleanup; the caller remains responsible only for
+the original allocation pointer.
+
+**Parameters:**
+
+- `memory`: Valid writable slot outside the allocation; contains null or a live managed CATMMLIB payload pointer.  
+- `new_size`: Requested byte extent; must be nonzero when the input pointer is null.
+
+**C++ equivalent:** `catalyst::heap_realloc`.
+
+**Context:** `0x05`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x00050300` | `SUCCESS` | Allocate from null | — |
+| `0x90050300` | `ERROR_BUFFER_OVERFLOW`: allocation extent is unrepresentable | Allocate from null | — |
+| `0x86050300` | `ERROR_SYSTEM_NOT_SUPPORTED`: native page size unsupported (macOS) | Allocate from null | — |
+| `0x84050300` | `ERROR_ACCESS_DENIED`: Mach allocation denied (macOS) | Allocate from null | — |
+| `0x91050300` | `ERROR_ALLOCATION_FAILED` | Allocate from null | — |
+| `0x00050400` | `SUCCESS` | Release for zero size | — |
+| `0x82050400` | `ERROR_INVALID_STATE`: backing release or pending cleanup failed | Release for zero size | — |
+| `0x84050400` | `ERROR_ACCESS_DENIED`: Mach release or pending cleanup denied (macOS) | Release for zero size | — |
+| `0x90050500` | `ERROR_BUFFER_OVERFLOW`: resized extent plus prefix is unrepresentable | Reject extent | — |
+| `0x00050700` | `SUCCESS`: unchanged or resized allocation | Resize complete | — |
+| `0x82050800` | `ERROR_INVALID_STATE`: previously retained allocation cleanup failed | Pending cleanup | — |
+| `0x84050800` | `ERROR_ACCESS_DENIED`: pending allocation cleanup denied (macOS) | Pending cleanup | — |
+| `0x86050900` | `ERROR_SYSTEM_NOT_SUPPORTED`: replacement allocation cannot use native page size (macOS) | Replacement allocation | — |
+| `0x90050900` | `ERROR_BUFFER_OVERFLOW`: replacement allocation page rounding overflows (macOS) | Replacement allocation | — |
+| `0x84050900` | `ERROR_ACCESS_DENIED`: replacement allocation denied (macOS) | Replacement allocation | — |
+| `0x91050900` | `ERROR_ALLOCATION_FAILED`: replacement allocation failed | Replacement allocation | — |
+| `0xSS050ADD` | Both original release and replacement cleanup failed; `SS` is the selected failure status (`82` or `84` for current backends) | Dual cleanup failure | `DD` is `00` when both statuses match, otherwise the other failure's status (`82` or `84`) |
+| `0x82050B00` | `ERROR_INVALID_STATE`: original release failed but replacement cleanup succeeded | Original release | — |
+| `0x84050B00` | `ERROR_ACCESS_DENIED`: Mach original release denied but replacement cleanup succeeded (macOS) | Original release | — |
+
+**See Also:** [catmm_heap_alloc](#catmm_heap_alloc)
+
+### catmm_heap_free
+
+```c
+CATALYST_RESULT catmm_heap_free(CATMMLIB_POINTERW memory);
+```
+
+Release a managed allocation. Backing storage may remain cached. Success ends its lifetime without clearing the caller’s pointer. On failure the block remains live and owned by the caller. Operations on the same allocation require external synchronization.
+
+**Parameters:**
+
+- `memory`: Live, non-null payload pointer returned by the managed CATMMLIB allocation family; not an interior pointer or an already released allocation.
+
+**C++ equivalent:** `catalyst::heap_free`.
+
+**Context:** `0x06`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x82060300` | `ERROR_INVALID_STATE`: backing release failed | Release heap storage | — |
+| `0x84060300` | `ERROR_ACCESS_DENIED`: Mach release denied (macOS) | Release heap storage | — |
+| `0x00060400` | `SUCCESS` | Release complete | — |
+| `0x82060500` | `ERROR_INVALID_STATE`: pending allocation cleanup failed | Pending cleanup | — |
+| `0x84060500` | `ERROR_ACCESS_DENIED`: pending allocation cleanup denied (macOS) | Pending cleanup | — |
+
+**See Also:** [catmm_heap_alloc](#catmm_heap_alloc)
 
 ### catmm_copy
 
