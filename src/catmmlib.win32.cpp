@@ -8,21 +8,11 @@
 
 using namespace catalyst;
 
-/* Native fundamental types determine payload alignment only; no floating-point
- * arithmetic is performed. A union's size is a multiple of its alignment.
- * Native storage supports fundamental alignment, not over-aligned objects.
- */
-union CATMMLIB_NATIVE_PREFIX {
-    CATMMLIB_MEMORY_HEADER header;
-    long double floating_alignment;
-    void* pointer_alignment;
-    void (*function_alignment)();
-};
 typedef char CATMMLIB_prefix_fits[(sizeof(CATMMLIB_NATIVE_PREFIX) <= CATALYST_NUINT_MAX) ? 1 : -1];
 typedef char CATMMLIB_native_extent_fits[(sizeof(SIZE_T) >= sizeof(CATALYST_NUINT)) ? 1 : -1];
 
-CATALYST_NUINT catmm_platform_prefix_size() {
-    return (NUINT) sizeof(CATMMLIB_NATIVE_PREFIX);
+void catmm_platform_yield() {
+    SwitchToThread();
 }
 
 CATALYST_RESULT catmm_platform_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT size) {

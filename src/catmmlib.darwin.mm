@@ -5,25 +5,17 @@
 #include <mach/vm_map.h>
 #include <mach/vm_statistics.h>
 
+#include <sched.h>
+
 using namespace catalyst;
 
-/* Native fundamental types determine payload alignment only; no floating-point
- * arithmetic is performed. A union's size is a multiple of its alignment.
- * Native storage supports fundamental alignment, not over-aligned objects.
- */
-union CATMMLIB_NATIVE_PREFIX {
-    CATMMLIB_MEMORY_HEADER header;
-    long double floating_alignment;
-    void* pointer_alignment;
-    void (*function_alignment)();
-};
 typedef char CATMMLIB_prefix_fits[(sizeof(CATMMLIB_NATIVE_PREFIX) <= CATALYST_NUINT_MAX) ? 1 : -1];
 typedef char CATMMLIB_native_extent_fits[(sizeof(vm_size_t) >= sizeof(CATALYST_NUINT)) ? 1 : -1];
 
 typedef char CATMMLIB_native_address_fits[(sizeof(vm_address_t) >= sizeof(void*)) ? 1 : -1];
 
-CATALYST_NUINT catmm_platform_prefix_size() {
-    return (NUINT) sizeof(CATMMLIB_NATIVE_PREFIX);
+void catmm_platform_yield() {
+    sched_yield();
 }
 
 CATALYST_BOOL catmm_platform_extent_matches(CATALYST_NUINT old_size, CATALYST_NUINT new_size) {

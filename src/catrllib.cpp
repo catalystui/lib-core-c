@@ -76,7 +76,7 @@ CATALYST_RESULT catrl_set_expand(CATRLLIB_SET* set, CATALYST_NUINT capacity) {
     if (capacity > (NUINT) (CATALYST_NUINT_MAX / set->size)) {
         return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x06, 0x02, 0);
     }
-    RESULT resize = catmm_realloc(&set->data, (NUINT) (capacity * set->size));
+    RESULT resize = catmm_heap_realloc(&set->data, (NUINT) (capacity * set->size));
     if (!status_code_is_success(resize.status)) {
         return RESULT(resize.status, 0x06, 0x03, resize.detail);
     }
@@ -90,7 +90,7 @@ CATALYST_RESULT catrl_set_shrink(CATRLLIB_SET* set) {
     if (capacity == set->capacity) {
         return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x07, 0x01, 0);
     }
-    RESULT resize = catmm_realloc(&set->data, (NUINT) (capacity * set->size));
+    RESULT resize = catmm_heap_realloc(&set->data, (NUINT) (capacity * set->size));
     if (!status_code_is_success(resize.status)) {
         return RESULT(resize.status, 0x07, 0x02, resize.detail);
     }
@@ -102,7 +102,7 @@ CATALYST_RESULT catrl_set_free(CATRLLIB_SET* set) {
     if (set->data == 0) {
         return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x08, 0x01, 0);
     }
-    RESULT release = catmm_free(set->data);
+    RESULT release = catmm_heap_free(set->data);
     if (!status_code_is_success(release.status)) {
         return RESULT(release.status, 0x08, 0x02, release.detail);
     }
@@ -176,14 +176,14 @@ CATALYST_RESULT catrl_map_expand(CATRLLIB_MAP* map, CATALYST_NUINT capacity) {
     if (capacity > (NUINT) (CATALYST_NUINT_MAX / map->vsize)) {
         return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x10, 0x03, 0);
     }
-    RESULT keys = catmm_realloc(&map->keys, (NUINT) (capacity * map->ksize));
+    RESULT keys = catmm_heap_realloc(&map->keys, (NUINT) (capacity * map->ksize));
     if (!status_code_is_success(keys.status)) {
         return RESULT(keys.status, 0x10, 0x04, keys.detail);
     }
     /* Commit the logical capacity only when both buffers can hold it. If the
      * second resize fails, the larger key buffer is still owned by the map.
      */
-    RESULT values = catmm_realloc(&map->values, (NUINT) (capacity * map->vsize));
+    RESULT values = catmm_heap_realloc(&map->values, (NUINT) (capacity * map->vsize));
     if (!status_code_is_success(values.status)) {
         return RESULT(values.status, 0x10, 0x05, values.detail);
     }
@@ -197,7 +197,7 @@ CATALYST_RESULT catrl_map_shrink(CATRLLIB_MAP* map) {
     if (capacity == map->capacity) {
         return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x11, 0x01, 0);
     }
-    RESULT keys = catmm_realloc(&map->keys, (NUINT) (capacity * map->ksize));
+    RESULT keys = catmm_heap_realloc(&map->keys, (NUINT) (capacity * map->ksize));
     if (!status_code_is_success(keys.status)) {
         return RESULT(keys.status, 0x11, 0x02, keys.detail);
     }
@@ -205,7 +205,7 @@ CATALYST_RESULT catrl_map_shrink(CATRLLIB_MAP* map) {
      * Both buffers still contain every live pair on either outcome.
      */
     map->capacity = capacity;
-    RESULT values = catmm_realloc(&map->values, (NUINT) (capacity * map->vsize));
+    RESULT values = catmm_heap_realloc(&map->values, (NUINT) (capacity * map->vsize));
     if (!status_code_is_success(values.status)) {
         return RESULT(values.status, 0x11, 0x03, values.detail);
     }
@@ -217,7 +217,7 @@ CATALYST_RESULT catrl_map_free(CATRLLIB_MAP* map) {
         return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x12, 0x03, 0);
     }
     if (map->keys != 0) {
-        RESULT keys = catmm_free(map->keys);
+        RESULT keys = catmm_heap_free(map->keys);
         if (!status_code_is_success(keys.status)) {
             return RESULT(keys.status, 0x12, 0x01, keys.detail);
         }
@@ -226,7 +226,7 @@ CATALYST_RESULT catrl_map_free(CATRLLIB_MAP* map) {
         map->capacity = 0;
     }
     if (map->values != 0) {
-        RESULT values = catmm_free(map->values);
+        RESULT values = catmm_heap_free(map->values);
         if (!status_code_is_success(values.status)) {
             return RESULT(values.status, 0x12, 0x02, values.detail);
         }
@@ -292,7 +292,7 @@ CATALYST_RESULT catrl_array_expand(CATRLLIB_ARRAY* array, CATALYST_NUINT capacit
     if (capacity > (NUINT) (CATALYST_NUINT_MAX / array->size)) {
         return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x1B, 0x02, 0);
     }
-    RESULT resize = catmm_realloc(&array->data, (NUINT) (capacity * array->size));
+    RESULT resize = catmm_heap_realloc(&array->data, (NUINT) (capacity * array->size));
     if (!status_code_is_success(resize.status)) {
         return RESULT(resize.status, 0x1B, 0x03, resize.detail);
     }
@@ -306,7 +306,7 @@ CATALYST_RESULT catrl_array_shrink(CATRLLIB_ARRAY* array) {
     if (capacity == array->capacity) {
         return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x1C, 0x01, 0);
     }
-    RESULT resize = catmm_realloc(&array->data, (NUINT) (capacity * array->size));
+    RESULT resize = catmm_heap_realloc(&array->data, (NUINT) (capacity * array->size));
     if (!status_code_is_success(resize.status)) {
         return RESULT(resize.status, 0x1C, 0x02, resize.detail);
     }
@@ -318,7 +318,7 @@ CATALYST_RESULT catrl_array_free(CATRLLIB_ARRAY* array) {
     if (array->data == 0) {
         return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x1D, 0x01, 0);
     }
-    RESULT release = catmm_free(array->data);
+    RESULT release = catmm_heap_free(array->data);
     if (!status_code_is_success(release.status)) {
         return RESULT(release.status, 0x1D, 0x02, release.detail);
     }
@@ -401,7 +401,7 @@ CATALYST_RESULT catrl_stream_init(CATRLLIB_STREAM* stream, CATALYST_NUINT ssize,
     if (lifetime > (NUINT) ((NUINT) (CATALYST_NUINT_MAX - prefix) / slotSize)) {
         return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x21, 0x03, 0);
     }
-    RESULT allocation = catmm_alloc(&stream->state, (NUINT) (prefix + (NUINT) (lifetime * slotSize)));
+    RESULT allocation = catmm_heap_alloc(&stream->state, (NUINT) (prefix + (NUINT) (lifetime * slotSize)));
     if (!status_code_is_success(allocation.status)) {
         return RESULT(allocation.status, 0x21, 0x04, allocation.detail);
     }
@@ -438,7 +438,7 @@ CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize,
         }
     }
     if (capacity != memory.spare.capacity) {
-        RESULT resize = catmm_realloc(&memory.spare.data, capacity);
+        RESULT resize = catmm_heap_realloc(&memory.spare.data, capacity);
         if (!status_code_is_success(resize.status)) {
             return RESULT(resize.status, 0x22, 0x01, resize.detail);
         }
@@ -460,7 +460,7 @@ CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize,
         /* Only the expired chunk is now scratch; never resize the published chunk or a retained slot. Quarter utilization provides hysteresis before halving. */
         if (required <= (NUINT) (memory.spare.capacity / (NUINT) 4)) {
             NUINT smaller = (NUINT) (memory.spare.capacity / (NUINT) 2);
-            RESULT shrink = catmm_realloc(&memory.spare.data, smaller);
+            RESULT shrink = catmm_heap_realloc(&memory.spare.data, smaller);
             if (!status_code_is_success(shrink.status)) {
                 if (status_code_is_fatal(shrink.status)) {
                     return RESULT(shrink.status, 0x22, 0x05, shrink.detail);
@@ -495,7 +495,7 @@ CATALYST_RESULT catrl_stream_free(CATRLLIB_STREAM* stream) {
         BYTE* slot = catrl_stream_slot(stream, index);
         catmm_copy(&chunk, slot, (NUINT) sizeof(chunk));
         if (chunk.data != 0) {
-            RESULT release = catmm_free(chunk.data);
+            RESULT release = catmm_heap_free(chunk.data);
             if (!status_code_is_success(release.status)) {
                 return RESULT(release.status, 0x23, 0x02, release.detail);
             }
@@ -505,7 +505,7 @@ CATALYST_RESULT catrl_stream_free(CATRLLIB_STREAM* stream) {
         }
     }
     if (memory.spare.data != 0) {
-        RESULT release = catmm_free(memory.spare.data);
+        RESULT release = catmm_heap_free(memory.spare.data);
         if (!status_code_is_success(release.status)) {
             return RESULT(release.status, 0x23, 0x03, release.detail);
         }
@@ -513,7 +513,7 @@ CATALYST_RESULT catrl_stream_free(CATRLLIB_STREAM* stream) {
         memory.spare.capacity = 0;
         catmm_copy(bookkeeping, &memory, (NUINT) sizeof(memory));
     }
-    RESULT release = catmm_free(stream->state);
+    RESULT release = catmm_heap_free(stream->state);
     if (!status_code_is_success(release.status)) {
         return RESULT(release.status, 0x23, 0x04, release.detail);
     }

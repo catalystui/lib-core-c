@@ -5,7 +5,17 @@
 
 using namespace catalyst;
 
-int main() {
+static int test_memory(BOOL managed) {
+    const CONTEXT_CODE allocContext = managed ? (CONTEXT_CODE) 0x04 : (CONTEXT_CODE) 0x01;
+    const CONTEXT_CODE resizeContext = managed ? (CONTEXT_CODE) 0x05 : (CONTEXT_CODE) 0x02;
+    const CONTEXT_CODE freeContext = managed ? (CONTEXT_CODE) 0x06 : (CONTEXT_CODE) 0x03;
+    CATALYST_RESULT (*allocate)(POINTERW*, NUINT) = managed ? catmm_heap_alloc : catmm_alloc;
+    CATALYST_RESULT (*resize)(POINTERW*, NUINT) = managed ? catmm_heap_realloc : catmm_realloc;
+    CATALYST_RESULT (*release)(POINTERW) = managed ? catmm_heap_free : catmm_free;
+    RESULT (*allocateCpp)(POINTERW*, NUINT) = managed ? catalyst::heap_alloc : catalyst::alloc;
+    RESULT (*resizeCpp)(POINTERW*, NUINT) = managed ? catalyst::heap_realloc : catalyst::realloc;
+    RESULT (*releaseCpp)(POINTERW) = managed ? catalyst::heap_free : catalyst::free;
+    std::printf("Testing %s allocation family.\n", managed ? "managed" : "native");
     int failed = 0;
     RESULT result;
 
@@ -26,8 +36,8 @@ int main() {
         NUINT sizes[] = { 1, 64, largeSize };
         for (NUINT test = 0; test < (NUINT) 3; ++test) {
             POINTERW memory = 0;
-            result = catmm_alloc(&memory, sizes[test]);
-            BOOL passed = result.status == STATUS_CODE_SUCCESS && result.context == 0x01 &&
+            result = allocate(&memory, sizes[test]);
+            BOOL passed = result.status == STATUS_CODE_SUCCESS && result.context == allocContext &&
                 result.operation == 0x05 && result.detail == 0 && memory != 0;
             if (memory != 0) {
                 const BYTE* bytes = (const BYTE*) memory;
@@ -42,8 +52,8 @@ int main() {
                 std::printf("PASS: catmm_alloc %lu zero-filled bytes\n", (unsigned long) sizes[test]);
             }
             if (memory != 0) {
-                result = catmm_free(memory);
-                if (result.status != STATUS_CODE_SUCCESS || result.context != 0x03 || result.operation != 0x04 || result.detail != 0) {
+                result = release(memory);
+                if (result.status != STATUS_CODE_SUCCESS || result.context != freeContext || result.operation != 0x04 || result.detail != 0) {
                     std::printf("FAIL: catmm_free %lu-byte allocation\n", (unsigned long) sizes[test]);
                     ++failed;
                 } else {
@@ -57,17 +67,17 @@ int main() {
     {
         BYTE sentinel = 0xA5;
         POINTERW memory = &sentinel;
-        result = catmm_alloc(&memory, CATALYST_NUINT_MAX);
+        result = allocate(&memory, CATALYST_NUINT_MAX);
         if (memory != 0 || sentinel != (BYTE) 0xA5 || result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW ||
-            result.context != 0x01 || result.operation != 0x03 || result.detail != 0) {
+            result.context != allocContext || result.operation != 0x03 || result.detail != 0) {
             std::printf("FAIL: catmm_alloc deterministic size overflow and null output\n");
             ++failed;
         } else {
             std::printf("PASS: catmm_alloc deterministic size overflow and null output\n");
         }
         if (memory != 0 && memory != &sentinel) {
-            result = catmm_free(memory);
-            if (result.status != STATUS_CODE_SUCCESS || result.context != 0x03 || result.operation != 0x04 || result.detail != 0) {
+            result = release(memory);
+            if (result.status != STATUS_CODE_SUCCESS || result.context != freeContext || result.operation != 0x04 || result.detail != 0) {
                 std::printf("FAIL: catmm_free unexpected overflow-test allocation\n");
                 ++failed;
             } else {
@@ -81,8 +91,8 @@ int main() {
     // ------------------------------------------------------------
     {
         POINTERW memory = 0;
-        result = catmm_realloc(&memory, 32);
-        BOOL passed = result.status == STATUS_CODE_SUCCESS && result.context == 0x02 &&
+        result = resize(&memory, 32);
+        BOOL passed = result.status == STATUS_CODE_SUCCESS && result.context == resizeContext &&
             result.operation == 0x03 && result.detail == 0 && memory != 0;
         if (memory != 0) {
             const BYTE* bytes = (const BYTE*) memory;
@@ -105,8 +115,8 @@ int main() {
                 for (NUINT i = 0; i < oldSize; ++i) {
                     bytes[i] = (BYTE) ((NUINT) (i % (NUINT) 251) + (NUINT) 1);
                 }
-                result = catmm_realloc(&memory, sizes[test]);
-                passed = result.status == STATUS_CODE_SUCCESS && result.context == 0x02 &&
+                result = resize(&memory, sizes[test]);
+                passed = result.status == STATUS_CODE_SUCCESS && result.context == resizeContext &&
                     result.operation == (sizes[test] == 0 ? 0x04 : 0x07) && result.detail == 0;
                 if (sizes[test] == 0) {
                     if (memory != 0) passed = FALSE;
@@ -130,8 +140,8 @@ int main() {
                 oldSize = sizes[test];
             }
             if (memory != 0) {
-                result = catmm_free(memory);
-                if (result.status != STATUS_CODE_SUCCESS || result.context != 0x03 || result.operation != 0x04 || result.detail != 0) {
+                result = release(memory);
+                if (result.status != STATUS_CODE_SUCCESS || result.context != freeContext || result.operation != 0x04 || result.detail != 0) {
                     std::printf("FAIL: catmm_free remaining resized allocation\n");
                     ++failed;
                 } else {
@@ -146,8 +156,8 @@ int main() {
     // ------------------------------------------------------------
     {
         POINTERW memory = 0;
-        result = catmm_alloc(&memory, 32);
-        BOOL passed = result.status == STATUS_CODE_SUCCESS && result.context == 0x01 &&
+        result = allocate(&memory, 32);
+        BOOL passed = result.status == STATUS_CODE_SUCCESS && result.context == allocContext &&
             result.operation == 0x05 && result.detail == 0 && memory != 0;
         if (!passed) {
             std::printf("FAIL: catmm_alloc overflow-preservation setup\n");
@@ -159,8 +169,8 @@ int main() {
             BYTE* bytes = (BYTE*) memory;
             for (NUINT i = 0; i < (NUINT) 32; ++i) bytes[i] = (BYTE) (i + (NUINT) 1);
             POINTERW original = memory;
-            result = catmm_realloc(&memory, CATALYST_NUINT_MAX);
-            passed = result.status == STATUS_CODE_ERROR_BUFFER_OVERFLOW && result.context == 0x02 &&
+            result = resize(&memory, CATALYST_NUINT_MAX);
+            passed = result.status == STATUS_CODE_ERROR_BUFFER_OVERFLOW && result.context == resizeContext &&
                 result.operation == 0x05 && result.detail == 0;
             if (!status_code_is_success(result.status)) {
                 if (memory != original) passed = FALSE;
@@ -177,8 +187,8 @@ int main() {
                 std::printf("PASS: catmm_realloc size overflow preserves pointer and data\n");
             }
             if (memory != 0) {
-                result = catmm_free(memory);
-                if (result.status != STATUS_CODE_SUCCESS || result.context != 0x03 || result.operation != 0x04 || result.detail != 0) {
+                result = release(memory);
+                if (result.status != STATUS_CODE_SUCCESS || result.context != freeContext || result.operation != 0x04 || result.detail != 0) {
                     std::printf("FAIL: catmm_free after rejected resize\n");
                     ++failed;
                 } else {
@@ -187,17 +197,17 @@ int main() {
             }
         }
         memory = 0;
-        result = catmm_realloc(&memory, CATALYST_NUINT_MAX);
+        result = resize(&memory, CATALYST_NUINT_MAX);
         if (memory != 0 || result.status != STATUS_CODE_ERROR_BUFFER_OVERFLOW ||
-            result.context != 0x02 || result.operation != 0x03 || result.detail != 0) {
+            result.context != resizeContext || result.operation != 0x03 || result.detail != 0) {
             std::printf("FAIL: catmm_realloc null-input overflow keeps null output\n");
             ++failed;
         } else {
             std::printf("PASS: catmm_realloc null-input overflow keeps null output\n");
         }
         if (memory != 0) {
-            result = catmm_free(memory);
-            if (result.status != STATUS_CODE_SUCCESS || result.context != 0x03 || result.operation != 0x04 || result.detail != 0) {
+            result = release(memory);
+            if (result.status != STATUS_CODE_SUCCESS || result.context != freeContext || result.operation != 0x04 || result.detail != 0) {
                 std::printf("FAIL: catmm_free unexpected null-input overflow allocation\n");
                 ++failed;
             } else {
@@ -341,11 +351,11 @@ int main() {
     {
         POINTERW source = 0;
         POINTERW destination = 0;
-        RESULT sourceResult = catmm_alloc(&source, largeSize);
-        RESULT destinationResult = catmm_alloc(&destination, largeSize);
-        BOOL passed = sourceResult.status == STATUS_CODE_SUCCESS && sourceResult.context == 0x01 &&
+        RESULT sourceResult = allocate(&source, largeSize);
+        RESULT destinationResult = allocate(&destination, largeSize);
+        BOOL passed = sourceResult.status == STATUS_CODE_SUCCESS && sourceResult.context == allocContext &&
             sourceResult.operation == 0x05 && sourceResult.detail == 0 && source != 0 &&
-            destinationResult.status == STATUS_CODE_SUCCESS && destinationResult.context == 0x01 &&
+            destinationResult.status == STATUS_CODE_SUCCESS && destinationResult.context == allocContext &&
             destinationResult.operation == 0x05 && destinationResult.detail == 0 && destination != 0;
         if (!passed) {
             std::printf("FAIL: catmm_alloc two independent large buffers\n");
@@ -377,8 +387,8 @@ int main() {
         POINTERW allocations[] = { source, destination };
         for (NUINT i = 0; i < (NUINT) 2; ++i) {
             if (allocations[i] == 0) continue;
-            result = catmm_free(allocations[i]);
-            if (result.status != STATUS_CODE_SUCCESS || result.context != 0x03 || result.operation != 0x04 || result.detail != 0) {
+            result = release(allocations[i]);
+            if (result.status != STATUS_CODE_SUCCESS || result.context != freeContext || result.operation != 0x04 || result.detail != 0) {
                 std::printf("FAIL: catmm_free large buffer %lu\n", (unsigned long) i);
                 ++failed;
             } else {
@@ -392,8 +402,8 @@ int main() {
     // ------------------------------------------------------------
     for (NUINT iteration = 0; iteration < (NUINT) 16; ++iteration) {
         POINTERW memory = 0;
-        RESULT allocation = catalyst::alloc(&memory, 16);
-        BOOL passed = allocation.status == STATUS_CODE_SUCCESS && allocation.context == 0x01 &&
+        RESULT allocation = allocateCpp(&memory, 16);
+        BOOL passed = allocation.status == STATUS_CODE_SUCCESS && allocation.context == allocContext &&
             allocation.operation == 0x05 && allocation.detail == 0 && memory != 0;
         if (memory != 0) {
             BYTE* bytes = (BYTE*) memory;
@@ -414,8 +424,8 @@ int main() {
             for (NUINT i = 0; i < (NUINT) 16; ++i) {
                 if (bytes[i] != expected[i] || output[i] != expected[i == 0 ? (NUINT) 0 : (NUINT) (i - (NUINT) 1)]) passed = FALSE;
             }
-            result = catalyst::realloc(&memory, 64);
-            if (result.status != STATUS_CODE_SUCCESS || result.context != 0x02 || result.operation != 0x07 || result.detail != 0 || memory == 0) passed = FALSE;
+            result = resizeCpp(&memory, 64);
+            if (result.status != STATUS_CODE_SUCCESS || result.context != resizeContext || result.operation != 0x07 || result.detail != 0 || memory == 0) passed = FALSE;
             if (status_code_is_success(result.status) && memory != 0) {
                 bytes = (BYTE*) memory;
                 for (NUINT i = 0; i < (NUINT) 64; ++i) {
@@ -424,8 +434,8 @@ int main() {
                 }
             }
             if (memory != 0) {
-                result = catalyst::free(memory);
-                if (result.status != STATUS_CODE_SUCCESS || result.context != 0x03 || result.operation != 0x04 || result.detail != 0) passed = FALSE;
+                result = releaseCpp(memory);
+                if (result.status != STATUS_CODE_SUCCESS || result.context != freeContext || result.operation != 0x04 || result.detail != 0) passed = FALSE;
             }
         }
         if (!passed) {
@@ -436,6 +446,108 @@ int main() {
         }
     }
 
+#if TARGET_SIZEOF_ADDRESS >= 4
+    // Multiple live blocks, alternating releases, and zero-filled reuse.
+    // The extent and count also exercise multiple slabs on Linux.
+    {
+        const NUINT count = 72;
+        const NUINT extent = 1024;
+        POINTERW blocks[count] = { 0 };
+        BOOL passed = TRUE;
+        for (NUINT round = 0; round < (NUINT) 2 && passed; ++round) {
+            for (NUINT i = 0; i < count; ++i) {
+                if (blocks[i] != 0) continue;
+                result = allocate(&blocks[i], extent);
+                if (result.status != STATUS_CODE_SUCCESS || result.context != allocContext ||
+                    result.operation != 0x05 || result.detail != 0 || blocks[i] == 0) {
+                    passed = FALSE;
+                    break;
+                }
+                BYTE* bytes = (BYTE*) blocks[i];
+                for (NUINT j = 0; j < extent; ++j) {
+                    if (bytes[j] != 0) passed = FALSE;
+                }
+                catmm_fill(blocks[i], (BYTE) (i + (NUINT) 1), extent);
+            }
+            if (!passed) break;
+            for (NUINT i = 0; i < count; ++i) {
+                const BYTE* bytes = (const BYTE*) blocks[i];
+                for (NUINT j = 0; j < extent; ++j) {
+                    if (bytes[j] != (BYTE) (i + (NUINT) 1)) passed = FALSE;
+                }
+            }
+            if (!passed) break;
+            for (NUINT i = 0; i < count; i += (NUINT) 2) {
+                result = release(blocks[i]);
+                if (status_code_is_success(result.status)) blocks[i] = 0;
+                if (result.status != STATUS_CODE_SUCCESS || result.context != freeContext ||
+                    result.operation != 0x04 || result.detail != 0) {
+                    passed = FALSE;
+                    break;
+                }
+            }
+        }
+        for (NUINT i = 0; i < count; ++i) {
+            if (blocks[i] == 0) continue;
+            result = release(blocks[i]);
+            if (result.status != STATUS_CODE_SUCCESS || result.context != freeContext ||
+                result.operation != 0x04 || result.detail != 0) passed = FALSE;
+        }
+        if (!passed) {
+            std::printf("FAIL: independent live allocations and zero-filled reuse\n");
+            ++failed;
+        } else {
+            std::printf("PASS: independent live allocations and zero-filled reuse\n");
+        }
+    }
+    // Exercise reusable native spans and transitions between extent classes.
+    {
+        NUINT sizes[] = { 12000, 13000, 11000, 13000, 24000, 25000, 40000, 60000, 70000, 24000 };
+        POINTERW blocks[3] = { 0 };
+        BOOL passed = TRUE;
+        for (NUINT i = 0; i < (NUINT) 3; ++i) {
+            result = allocate(&blocks[i], sizes[0]);
+            if (result.status != STATUS_CODE_SUCCESS || result.context != allocContext ||
+                result.operation != 0x05 || result.detail != 0 || blocks[i] == 0) {
+                passed = FALSE;
+                break;
+            }
+            for (NUINT j = 0; j < sizes[0]; ++j) {
+                if (((BYTE*) blocks[i])[j] != 0) passed = FALSE;
+            }
+            catmm_fill(blocks[i], (BYTE) (i + (NUINT) 1), sizes[0]);
+        }
+        for (NUINT step = 1; step < (NUINT) (sizeof(sizes) / sizeof(sizes[0])) && passed; ++step) {
+            for (NUINT i = 0; i < (NUINT) 3; ++i) {
+                result = resize(&blocks[i], sizes[step]);
+                if (result.status != STATUS_CODE_SUCCESS || result.context != resizeContext ||
+                    result.operation != 0x07 || result.detail != 0 || blocks[i] == 0) {
+                    passed = FALSE;
+                    break;
+                }
+                NUINT retained = sizes[step - (NUINT) 1] < sizes[step] ? sizes[step - (NUINT) 1] : sizes[step];
+                for (NUINT j = 0; j < sizes[step]; ++j) {
+                    BYTE expected = j < retained ? (BYTE) (i + (NUINT) 1) : (BYTE) 0;
+                    if (((BYTE*) blocks[i])[j] != expected) passed = FALSE;
+                }
+                catmm_fill(blocks[i], (BYTE) (i + (NUINT) 1), sizes[step]);
+            }
+        }
+        for (NUINT i = 0; i < (NUINT) 3; ++i) {
+            if (blocks[i] == 0) continue;
+            result = release(blocks[i]);
+            if (result.status != STATUS_CODE_SUCCESS || result.context != freeContext ||
+                result.operation != 0x04 || result.detail != 0) passed = FALSE;
+        }
+        if (!passed) {
+            std::printf("FAIL: multi-block span growth, shrink and reuse\n");
+            ++failed;
+        } else {
+            std::printf("PASS: multi-block span growth, shrink and reuse\n");
+        }
+    }
+#endif
+
     // ------------------------------------------------------------
     // Done
     // ------------------------------------------------------------
@@ -445,4 +557,10 @@ int main() {
     }
     std::printf("\nAll CATMMLIB tests passed.\n");
     return 0;
+}
+
+int main() {
+    const int native = test_memory(FALSE);
+    const int managed = test_memory(TRUE);
+    return native != 0 || managed != 0 ? 1 : 0;
 }
