@@ -433,7 +433,7 @@ static const Workload workloads[] = {
         {0xC3, 0xA9, 0, 0}, 2, {0xE9, 0, 0, 0}, 1 },
     { "CP1252 extension", {0, 0, 0x20, 0xAC}, 0x43, 0x80,
         {0xE2, 0x82, 0xAC, 0}, 3, {0xAC, 0x20, 0, 0}, 1 },
-    { "Supplementary / undefined CP1252", {0, 1, 0xF6, 0}, 0x44, 0x81,
+    { "Supplementary / undef.", {0, 1, 0xF6, 0}, 0x44, 0x81,
         {0xF0, 0x9F, 0x98, 0x80}, 4, {0x3D, 0xD8, 0, 0xDE}, 2 }
 };
 
@@ -547,35 +547,65 @@ static unsigned long decimal_digit(unsigned long* remainder, unsigned long divis
     return digit;
 }
 
-/* Absolute time per call, with integer arithmetic confined to reporting. */
+/* Print ns/call to three decimal places without floating point or large products.
+ * Divide the decimal digits of elapsed seconds by the call count as they are
+ * generated. maxCalls below ensures carry * 10 fits even a 32-bit unsigned long.
+ */
 static void print_nanoseconds(unsigned long ticks, unsigned long calls) {
     const unsigned long frequency = (unsigned long) CLOCKS_PER_SEC;
-    unsigned long value = ticks / frequency, remainder = ticks % frequency;
-    for (BYTE i = 0; i < 9; ++i) {
-        unsigned long digit = decimal_digit(&remainder, frequency);
-        if (value > (ULONG_MAX - digit) / 10) {
-            std::printf(" %12s", "n/a");
-            return;
+    unsigned long seconds = ticks / frequency;
+    unsigned long remainder = ticks % frequency;
+    unsigned long value = seconds / calls, carry = seconds % calls;
+    unsigned long fraction = 0;
+    for (BYTE i = 0; i < 12; ++i) {
+        carry = carry * 10 + decimal_digit(&remainder, frequency);
+        unsigned long digit = carry / calls;
+        carry %= calls;
+        if (i < 9) {
+            if (value > (ULONG_MAX - digit) / 10) {
+                std::printf(" %14s", "out of range");
+                return;
+            }
+            value = value * 10 + digit;
+        } else {
+            fraction = fraction * 10 + digit;
         }
-        value = value * 10 + digit;
     }
-    if (value < calls) std::printf(" %12s", "<1");
-    else std::printf(" %12lu", value / calls);
+    if (value == 0 && fraction == 0) std::printf(" %14s", "<0.001 ns");
+    else std::printf(" %7lu.%03lu ns", value, fraction);
 }
 
-/* Print an integer percent without requiring floating point or overflowing. */
-static void print_ratio(unsigned long native, unsigned long comparison) {
-    unsigned long whole = comparison / native;
-    unsigned long remainder = comparison % native;
-    unsigned long fraction = decimal_digit(&remainder, native) * 10;
-    fraction += decimal_digit(&remainder, native);
-    if (whole <= (ULONG_MAX - fraction) / 100)
-        std::printf("%lu%%", whole * 100 + fraction);
-    else
-        std::printf("out of range");
+/* Report the change in execution time relative to Native-C, not speedup. */
+static void print_difference(unsigned long native, unsigned long comparison) {
+    unsigned long delta = comparison >= native ? comparison - native : native - comparison;
+    unsigned long whole = delta / native, remainder = delta % native;
+    unsigned long percent = decimal_digit(&remainder, native) * 10;
+    percent += decimal_digit(&remainder, native);
+    unsigned long tenth = decimal_digit(&remainder, native);
+    if (whole > (ULONG_MAX - percent) / 100) {
+        std::printf(" %12s", "out of range");
+        return;
+    }
+    percent += whole * 100;
+    std::printf(" %c%7lu.%lu%%", comparison < native ? '-' : '+', percent, tenth);
 }
 
-static BOOL benchmark_case(const Benchmark& benchmark, const Workload& work, BYTE pairs, BOOL* unresolved) {
+struct Summary {
+    BYTE faster;
+    BYTE similar;
+    BYTE slower;
+    BYTE review;
+    BYTE shortSamples;
+    BYTE unavailable;
+    BYTE failed;
+};
+
+static void report_unavailable(const Workload& work, Summary& summary) {
+    std::printf("  %-22s %14s %14s %12s\n", work.name, "-", "-", "no timing");
+    ++summary.unavailable;
+}
+
+static void benchmark_case(const Benchmark& benchmark, const Workload& work, BYTE pairs, Summary& summary) {
     Input input;
     NativeData native;
     CatalystData comparison;
@@ -583,27 +613,35 @@ static BOOL benchmark_case(const Benchmark& benchmark, const Workload& work, BYT
     benchmark.native(&native);
     benchmark.comparison(&comparison);
     if (!matches(benchmark, native, comparison)) {
-        std::printf("FAIL: %s / %s (output or status mismatch)\n", benchmark.name, work.name);
-        return FALSE;
+        std::printf("  %-22s FAIL: output or status mismatch\n", work.name);
+        ++summary.failed;
+        return;
     }
-    unsigned long target = (unsigned long) CLOCKS_PER_SEC / 40; // about 25 ms
+
+    const unsigned long frequency = (unsigned long) CLOCKS_PER_SEC;
+    unsigned long target = frequency / 40; // Aim for 25 ms per sample.
     if (target < 20) target = 20;
+    unsigned long minimum = frequency / 1000; // Short but useful: at least 1 ms and 20 ticks.
+    if (minimum < 20) minimum = 20;
+    unsigned long budget = frequency / 4; // Avoid excessive calibration on slower targets.
+    if (budget < target) budget = target;
     unsigned long calls = 16;
     unsigned long n = 0, c = 0;
-    const unsigned long maxCalls = 4194304UL;
-    // Shared calibrated iteration count; limit slow cases and coarse clocks.
+    const unsigned long maxCalls = 67108864UL;
+
+    // Calibrate the pair with the same call count. A zero reading at a small
+    // batch is normal; keep growing until the clock advances or a limit is hit.
     for (;;) {
         if (!measure(benchmark.native, native, calls, &n) ||
             !measure(benchmark.comparison, comparison, calls, &c)) {
-            std::printf("SKIP: %s / %s (clock unavailable or wrapped)\n", benchmark.name, work.name);
-            *unresolved = TRUE;
-            return TRUE;
+            report_unavailable(work, summary);
+            return;
         }
-        if (n == 0 && c == 0 && calls >= 65536UL) break;
         if ((n >= target && c >= target) || calls == maxCalls ||
-            n >= (unsigned long) CLOCKS_PER_SEC || c >= (unsigned long) CLOCKS_PER_SEC) break;
+            n >= budget || c >= budget) break;
         calls *= 2;
     }
+
     unsigned long nativeSamples[3], catalystSamples[3];
     for (BYTE sample = 0; sample < 3; ++sample) {
         BOOL ok;
@@ -615,29 +653,43 @@ static BOOL benchmark_case(const Benchmark& benchmark, const Workload& work, BYT
                  measure(benchmark.comparison, comparison, calls, &catalystSamples[sample]);
         }
         if (!ok) {
-            std::printf("SKIP: %s / %s (clock unavailable or wrapped)\n", benchmark.name, work.name);
-            *unresolved = TRUE;
-            return TRUE;
+            report_unavailable(work, summary);
+            return;
         }
         if (!matches(benchmark, native, comparison)) {
-            std::printf("FAIL: %s / %s (timed output or status mismatch)\n", benchmark.name, work.name);
-            return FALSE;
+            std::printf("  %-22s FAIL: timed output or status mismatch\n", work.name);
+            ++summary.failed;
+            return;
         }
     }
+
     n = median(nativeSamples);
     c = median(catalystSamples);
-    std::printf("  %-34s %8lu %12lu %12lu", work.name, calls, n, c);
-    if (n >= target && c >= target) {
-        print_nanoseconds(n, calls);
-        print_nanoseconds(c, calls);
-        std::printf("  ");
-        print_ratio(n, c);
+    if (n == 0 || c == 0) {
+        report_unavailable(work, summary);
+        return;
+    }
+
+    std::printf("  %-22s", work.name);
+    print_nanoseconds(n, calls);
+    print_nanoseconds(c, calls);
+    print_difference(n, c);
+
+    // A short nonzero sample is informative, but exclude very short samples
+    // from the aggregate classification rather than counting them as failures.
+    if (n < minimum || c < minimum) {
+        std::printf(" *");
+        ++summary.shortSamples;
     } else {
-        std::printf(" %12s %12s  insufficient resolution", "-", "-");
-        *unresolved = TRUE;
+        unsigned long delta = c >= n ? c - n : n - c;
+        if (delta <= n / 20) ++summary.similar;
+        else if (c < n) ++summary.faster;
+        else {
+            ++summary.slower;
+            if (delta >= n / 5 + (n % 5 != 0 ? 1 : 0)) ++summary.review;
+        }
     }
     std::printf("\n");
-    return TRUE;
 }
 #endif
 
@@ -647,31 +699,34 @@ int main() {
         std::printf("CATTELIB performance unavailable: no usable standard C clock.\n");
         return 2;
     }
-    std::printf("CATTELIB performance (Release recommended)\n");
-    std::printf("Native-C = benchmark (100%%); Catalyst = comparison. Lower is faster.\n");
-    std::printf("Median of 3 paired samples; %lu clock ticks/second; no I/O in timed regions.\n",
-        (unsigned long) CLOCKS_PER_SEC);
-    std::printf("Both paths consume status and validate output; Native-C has no diagnostic metadata.\n");
-    std::printf("Scalar cases use the first unit/scalar; strings use 16 scalars.\n");
-    std::printf("Ticks are total measured time; ns/call is rounded down (not timer precision).\n");
-    std::printf("  %-34s %8s %12s %12s %12s %12s  %s\n", "Workload", "Calls", "Native ticks", "Cat. ticks", "Native ns/op", "Cat. ns/op", "Relative");
-    BOOL failed = FALSE, unresolved = FALSE;
+    std::printf("CATTELIB Performance (Release recommended)\n");
+    std::printf("Native-C is the benchmark. Negative = faster, positive = slower.\n");
+    std::printf("Median of 3 paired samples; time per call (16 scalars per string).\n");
+    std::printf("Both paths validate output and consume status; Native-C has no diagnostic metadata.\n");
+    std::printf("Displayed decimal places are estimates, not clock precision.\n");
+    std::printf("\n  %-22s %14s %14s %12s\n", "Workload", "Native-C", "Catalyst", "Difference");
+    std::printf("  -----------------------------------------------------------------\n");
+    Summary summary = { 0, 0, 0, 0, 0, 0, 0 };
     for (BYTE i = 0; i < sizeof(benchmarks) / sizeof(benchmarks[0]); ++i) {
         std::printf("\n%s\n", benchmarks[i].name);
         for (BYTE j = 0; j < sizeof(workloads) / sizeof(workloads[0]); ++j) {
-            if (!benchmark_case(benchmarks[i], workloads[j], 8, &unresolved)) failed = TRUE;
+            benchmark_case(benchmarks[i], workloads[j], 8, summary);
         }
     }
-    if (failed) {
-        std::printf("\nCATTELIB performance verification failed.\n");
-        return 1;
-    }
-    if (unresolved) {
-        std::printf("\nSome measurements could not be resolved by this clock.\n");
-        return 2;
-    }
+
+    std::printf("\nPerformance summary\n");
+    std::printf("  Faster (>5%%):                  %3u\n", (unsigned int) summary.faster);
+    std::printf("  Comparable (within 5%%):        %3u\n", (unsigned int) summary.similar);
+    std::printf("  Slower (>5%%):                  %3u\n", (unsigned int) summary.slower);
+    std::printf("    At least 20%% slower:          %3u (review)\n", (unsigned int) summary.review);
+    std::printf("  Short samples (*):             %3u\n", (unsigned int) summary.shortSamples);
+    std::printf("  Timing unavailable:            %3u\n", (unsigned int) summary.unavailable);
+    std::printf("  Verification failures:         %3u\n", (unsigned int) summary.failed);
+    if (summary.shortSamples != 0)
+        std::printf("  * Less than 1 ms or 20 ticks; excluded from performance classification.\n");
+    if (summary.failed != 0) return 1;
     std::printf("\nAll CATTELIB performance comparisons verified.\n");
-    return 0;
+    return summary.unavailable != 0 ? 2 : 0;
 #else
     std::printf("CATTELIB performance unavailable: standard C clock not provided.\n");
     return 2;
