@@ -518,6 +518,15 @@ static BOOL matches(const Benchmark& benchmark, const NativeData& native, const 
 #if defined(CLOCKS_PER_SEC)
 static volatile BYTE observedStatus = 0;
 
+static BOOL elapsed(std::clock_t start, unsigned long* ticks) {
+    const std::clock_t end = std::clock();
+    if (start == (std::clock_t) -1 || start < 0 ||
+        end == (std::clock_t) -1 || end < start) return FALSE;
+    if (end - start > ULONG_MAX) return FALSE;
+    *ticks = (unsigned long) (end - start);
+    return TRUE;
+}
+
 template<typename Data>
 static BOOL measure(void (*function)(Data*), Data& data, unsigned long calls, unsigned long* ticks) {
     // The volatile indirect call prevents LTO from removing repeated operations.
@@ -528,11 +537,7 @@ static BOOL measure(void (*function)(Data*), Data& data, unsigned long calls, un
         operation(&data);
         observedStatus = (BYTE) data.status;
     }
-    const std::clock_t end = std::clock();
-    if (end == (std::clock_t) -1 || end < start) return FALSE;
-    if (end - start > ULONG_MAX) return FALSE;
-    *ticks = (unsigned long) (end - start);
-    return TRUE;
+    return elapsed(start, ticks);
 }
 
 static unsigned long median(unsigned long* values) {
@@ -634,27 +639,45 @@ static void benchmark_case(const Benchmark& benchmark, const Workload& work, BYT
     }
 
     const unsigned long frequency = (unsigned long) CLOCKS_PER_SEC;
-    unsigned long target = frequency / 40; // Aim for 25 ms per sample.
+    unsigned long target = frequency / 100; // Aim for 10 ms per path.
     if (target < 20) target = 20;
-    unsigned long minimum = frequency / 1000; // Short but useful: at least 1 ms and 20 ticks.
+    unsigned long minimum = frequency / 1000;
     if (minimum < 20) minimum = 20;
-    unsigned long budget = frequency / 4; // Avoid excessive calibration on slower targets.
+    unsigned long budget = frequency / 10; // 100 ms cumulative calibration CPU budget.
     if (budget < target) budget = target;
     unsigned long calls = 16;
     unsigned long n = 0, c = 0;
     const unsigned long maxCalls = 67108864UL;
+    const std::clock_t calibrationStart = std::clock();
 
-    // Calibrate the pair with the same call count. A zero reading at a small
-    // batch is normal; keep growing until the clock advances or a limit is hit.
+    // Estimate the required shared call count rather than repeatedly doubling.
     for (;;) {
+        const std::clock_t attemptStart = std::clock();
         if (!measure(benchmark.native, native, calls, &n) ||
             !measure(benchmark.comparison, comparison, calls, &c)) {
             report_unavailable(name, summary);
             return;
         }
-        if ((n >= target && c >= target) || calls == maxCalls ||
-            n >= budget || c >= budget) break;
-        calls *= 2;
+        unsigned long totalTicks = 0, attemptTicks = 0;
+        if (!elapsed(calibrationStart, &totalTicks) || !elapsed(attemptStart, &attemptTicks)) {
+            report_unavailable(name, summary);
+            return;
+        }
+        unsigned long faster = n < c ? n : c;
+        if (faster >= target || calls >= maxCalls || totalTicks >= budget ||
+            attemptTicks >= budget) break;
+
+        // Bound the estimate, including zero-tick samples and coarse clocks.
+        unsigned long factor = faster == 0 ? 8 : target / faster;
+        if (factor < 2) factor = 2;
+        if (factor > 16) factor = 16;
+        if (attemptTicks != 0) {
+            unsigned long affordable = (budget - totalTicks) / attemptTicks;
+            if (affordable < 2) break;
+            if (factor > affordable) factor = affordable;
+        }
+        if (factor > maxCalls / calls) calls = maxCalls;
+        else calls *= factor;
     }
 
     unsigned long nativeSamples[3], catalystSamples[3];
@@ -714,6 +737,7 @@ static void benchmark_case(const Benchmark& benchmark, const Workload& work, BYT
         }
     }
     std::printf("\n");
+    std::fflush(stdout);
 }
 #endif
 
@@ -726,7 +750,7 @@ int main() {
     std::printf("CATTELIB Performance (Release recommended)\n");
     std::printf("Native-C is the benchmark. Lower time is better.\n");
     std::printf("Difference: +10%% means Catalyst takes 10%% longer; -10%% means 10%% less time.\n");
-    std::printf("Time per call: median of 3 paired samples.\n");
+    std::printf("Time per call: median of 3 paired samples; %lu clock ticks/second.\n", (unsigned long) CLOCKS_PER_SEC);
     std::printf("Encode/decode: one character. Length/conversion: 8 repetitions of the named input and x (16 characters).\n");
     std::printf("Both paths validate output and consume status; Native-C has no diagnostic metadata.\n");
     std::printf("Comparable = within 5%%; Review = at least 20%% slower. Decimal places are estimates.\n");
