@@ -66,13 +66,6 @@ define_test_executables(
 # Test sources are discovered above; add the corresponding modules for their companion tests.
 target_link_libraries(test_catmmlib PRIVATE catmmlib_static)
 target_link_libraries(test_catrllib PRIVATE catrllib_static)
-# The performance executable has a separately compiled, independent C baseline.
-target_sources(perf_cattelib PRIVATE test/perf_cattelib_native.c)
-if(MSVC)
-    target_compile_options(perf_cattelib PRIVATE "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:C>>:/O2>")
-elseif(CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$")
-    target_compile_options(perf_cattelib PRIVATE "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:C>>:-O2>")
-endif()
 
 # Release optimization is local to Core; preserve Debug and the selected target ISA.
 set(CATALYST_RELEASE_LIBRARIES
