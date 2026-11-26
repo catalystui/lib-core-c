@@ -3,9 +3,45 @@
 #include <climits>
 #include <stdlib.h>
 #include <string.h>
+// Hosted C++ libraries are preferred; retain the C reference for
+// reduced standard-library toolchains (including small-address targets).
+#if defined(__has_include)
+    #if __has_include(<algorithm>) && __has_include(<vector>) && __has_include(<set>) && __has_include(<map>) && __has_include(<utility>)
+        #define PERF_STANDARD_CONTAINERS 1
+    #endif
+#else
+    #define PERF_STANDARD_CONTAINERS 1
+#endif
+#ifndef PERF_STANDARD_CONTAINERS
+    #define PERF_STANDARD_CONTAINERS 0
+#endif
+#if PERF_STANDARD_CONTAINERS
+    #include <algorithm>
+    #include <vector>
+    #include <set>
+    #include <map>
+    #include <utility>
+    #if (defined(_MSVC_LANG) && _MSVC_LANG >= 201103L) || __cplusplus >= 201103L
+        #if defined(__has_include)
+            #if __has_include(<unordered_set>) && __has_include(<unordered_map>) && __has_include(<functional>)
+                #define PERF_UNORDERED 1
+            #endif
+        #else
+            #define PERF_UNORDERED 1
+        #endif
+    #endif
+#endif
+#ifndef PERF_UNORDERED
+    #define PERF_UNORDERED 0
+#endif
+#if PERF_UNORDERED
+    #include <unordered_set>
+    #include <unordered_map>
+    #include <functional>
+#endif
 
 #include "catalyst.hpp"
-#include "catrllib.h"
+#include "catrllib.hpp"
 
 using namespace catalyst;
 
@@ -98,6 +134,7 @@ static void native_insert(NativeCollection& c, size_t index, const unsigned char
     ++c.count;
 }
 
+#if !PERF_STANDARD_CONTAINERS
 static void native_erase(NativeCollection& c, size_t index) {
     --c.count;
     if (index < c.count) {
@@ -105,6 +142,8 @@ static void native_erase(NativeCollection& c, size_t index) {
         ::memmove(p, p + c.size, (c.count - index) * c.size);
     }
 }
+
+#endif
 
 static BOOL succeeded(CATALYST_RESULT r) { return status_code_is_success(r.status); }
 
@@ -123,22 +162,32 @@ struct NativeSet {
     static BOOL contains(Data& c, const BYTE* k) { return native_find(c, k) != c.count ? TRUE : FALSE; }
     static BOOL add(Data& c, const BYTE* k, const BYTE* v) { return native_add(c, k, v); }
     static BOOL remove(Data& c, const BYTE* k) { return native_remove(c, k); }
+    static BOOL matches_item(Data& c, NUINT i, const BYTE* key, const BYTE* value, NUINT width) {
+        if (::memcmp(keys(c) + i * width, key, width) != 0) return FALSE;
+        (void) value; return TRUE;
+    }
+    static BOOL released(const Data& c) { return keys(c) == 0 && values(c) == 0 ? TRUE : FALSE; }
 };
 
 struct CatalystSet {
-    typedef CATRLLIB_SET Data;
-    static void init(Data& c, NUINT size) { catrl_set_init(&c, size); }
-    static BOOL expand(Data& c, NUINT n) { return succeeded(catrl_set_expand(&c, n)); }
-    static BOOL shrink(Data& c) { return succeeded(catrl_set_shrink(&c)); }
-    static BOOL release(Data& c) { return succeeded(catrl_set_free(&c)); }
+    typedef SET Data;
+    static void init(Data& c, NUINT size) { catalyst::set_init(&c, size); }
+    static BOOL expand(Data& c, NUINT n) { return succeeded(catalyst::set_expand(&c, n)); }
+    static BOOL shrink(Data& c) { return succeeded(catalyst::set_shrink(&c)); }
+    static BOOL release(Data& c) { return succeeded(catalyst::set_free(&c)); }
     static NUINT count(const Data& c) { return c.cardinality; }
     static NUINT capacity(const Data& c) { return c.capacity; }
     static const BYTE* keys(const Data& c) { return (const BYTE*) c.data; }
     static const BYTE* values(const Data& c) { (void) c; return 0; }
-    static void clear(Data& c) { catrl_set_clear(&c); }
-    static BOOL contains(Data& c, const BYTE* k) { return catrl_set_contains(&c, k); }
-    static BOOL add(Data& c, const BYTE* k, const BYTE* v) { (void) v; return catrl_set_add(&c, k); }
-    static BOOL remove(Data& c, const BYTE* k) { return catrl_set_remove(&c, k); }
+    static void clear(Data& c) { catalyst::set_clear(&c); }
+    static BOOL contains(Data& c, const BYTE* k) { return catalyst::set_contains(&c, k); }
+    static BOOL add(Data& c, const BYTE* k, const BYTE* v) { (void) v; return catalyst::set_add(&c, k); }
+    static BOOL remove(Data& c, const BYTE* k) { return catalyst::set_remove(&c, k); }
+    static BOOL matches_item(Data& c, NUINT i, const BYTE* key, const BYTE* value, NUINT width) {
+        if (::memcmp(keys(c) + i * width, key, width) != 0) return FALSE;
+        (void) value; return TRUE;
+    }
+    static BOOL released(const Data& c) { return keys(c) == 0 && values(c) == 0 ? TRUE : FALSE; }
 };
 
 struct NativeMap {
@@ -157,26 +206,37 @@ struct NativeMap {
     static BOOL remove(Data& c, const BYTE* k) { return native_remove(c, k); }
     static BYTE* get(Data& c, const BYTE* k) { size_t i = native_find(c, k); return i == c.count ? 0 : c.values + i * c.valueSize; }
     static BOOL set(Data& c, const BYTE* k, const BYTE* v) { BYTE* p = get(c, k); if (p == 0) return FALSE; ::memcpy(p, v, c.valueSize); return TRUE; }
+    static BOOL matches_item(Data& c, NUINT i, const BYTE* key, const BYTE* value, NUINT width) {
+        if (::memcmp(keys(c) + i * width, key, width) != 0) return FALSE;
+        return ::memcmp(values(c) + i * width, value, width) == 0 ? TRUE : FALSE;
+    }
+    static BOOL released(const Data& c) { return keys(c) == 0 && values(c) == 0 ? TRUE : FALSE; }
 };
 
 struct CatalystMap {
-    typedef CATRLLIB_MAP Data;
-    static void init(Data& c, NUINT size) { catrl_map_init(&c, size, size); }
-    static BOOL expand(Data& c, NUINT n) { return succeeded(catrl_map_expand(&c, n)); }
-    static BOOL shrink(Data& c) { return succeeded(catrl_map_shrink(&c)); }
-    static BOOL release(Data& c) { return succeeded(catrl_map_free(&c)); }
+    typedef MAP Data;
+    static void init(Data& c, NUINT size) { catalyst::map_init(&c, size, size); }
+    static BOOL expand(Data& c, NUINT n) { return succeeded(catalyst::map_expand(&c, n)); }
+    static BOOL shrink(Data& c) { return succeeded(catalyst::map_shrink(&c)); }
+    static BOOL release(Data& c) { return succeeded(catalyst::map_free(&c)); }
     static NUINT count(const Data& c) { return c.cardinality; }
     static NUINT capacity(const Data& c) { return c.capacity; }
     static const BYTE* keys(const Data& c) { return (const BYTE*) c.keys; }
     static const BYTE* values(const Data& c) { return (const BYTE*) c.values; }
-    static void clear(Data& c) { catrl_map_clear(&c); }
-    static BOOL contains(Data& c, const BYTE* k) { return catrl_map_contains(&c, k); }
-    static BOOL add(Data& c, const BYTE* k, const BYTE* v) { return catrl_map_add(&c, k, v); }
-    static BOOL remove(Data& c, const BYTE* k) { return catrl_map_remove(&c, k); }
-    static BYTE* get(Data& c, const BYTE* k) { return (BYTE*) catrl_map_get(&c, k); }
-    static BOOL set(Data& c, const BYTE* k, const BYTE* v) { return catrl_map_set(&c, k, v); }
+    static void clear(Data& c) { catalyst::map_clear(&c); }
+    static BOOL contains(Data& c, const BYTE* k) { return catalyst::map_contains(&c, k); }
+    static BOOL add(Data& c, const BYTE* k, const BYTE* v) { return catalyst::map_add(&c, k, v); }
+    static BOOL remove(Data& c, const BYTE* k) { return catalyst::map_remove(&c, k); }
+    static BYTE* get(Data& c, const BYTE* k) { return (BYTE*) catalyst::map_get(&c, k); }
+    static BOOL set(Data& c, const BYTE* k, const BYTE* v) { return catalyst::map_set(&c, k, v); }
+    static BOOL matches_item(Data& c, NUINT i, const BYTE* key, const BYTE* value, NUINT width) {
+        if (::memcmp(keys(c) + i * width, key, width) != 0) return FALSE;
+        return ::memcmp(values(c) + i * width, value, width) == 0 ? TRUE : FALSE;
+    }
+    static BOOL released(const Data& c) { return keys(c) == 0 && values(c) == 0 ? TRUE : FALSE; }
 };
 
+#if !PERF_STANDARD_CONTAINERS
 struct NativeArray {
     typedef NativeCollection Data;
     static void init(Data& c, NUINT size) { native_init(c, size, 0); }
@@ -194,26 +254,222 @@ struct NativeArray {
     static BOOL insert(Data& c, NUINT i, const BYTE* k) { native_insert(c, i, k); return TRUE; }
     static BYTE* get(Data& c, NUINT i) { return c.keys + (size_t) i * c.size; }
     static BOOL set(Data& c, NUINT i, const BYTE* k) { ::memcpy(get(c, i), k, c.size); return TRUE; }
+    static BOOL matches_item(Data& c, NUINT i, const BYTE* key, const BYTE* value, NUINT width) {
+        (void) value;
+        return ::memcmp(keys(c) + i * width, key, width) == 0 ? TRUE : FALSE;
+    }
+    static BOOL released(const Data& c) { return keys(c) == 0 && values(c) == 0 ? TRUE : FALSE; }
 };
 
+#endif
+
 struct CatalystArray {
-    typedef CATRLLIB_ARRAY Data;
-    static void init(Data& c, NUINT size) { catrl_array_init(&c, size); }
-    static BOOL expand(Data& c, NUINT n) { return succeeded(catrl_array_expand(&c, n)); }
-    static BOOL shrink(Data& c) { return succeeded(catrl_array_shrink(&c)); }
-    static BOOL release(Data& c) { return succeeded(catrl_array_free(&c)); }
+    typedef ARRAY Data;
+    static void init(Data& c, NUINT size) { catalyst::array_init(&c, size); }
+    static BOOL expand(Data& c, NUINT n) { return succeeded(catalyst::array_expand(&c, n)); }
+    static BOOL shrink(Data& c) { return succeeded(catalyst::array_shrink(&c)); }
+    static BOOL release(Data& c) { return succeeded(catalyst::array_free(&c)); }
     static NUINT count(const Data& c) { return c.length; }
     static NUINT capacity(const Data& c) { return c.capacity; }
     static const BYTE* keys(const Data& c) { return (const BYTE*) c.data; }
     static const BYTE* values(const Data& c) { (void) c; return 0; }
-    static void clear(Data& c) { catrl_array_clear(&c); }
-    static BOOL contains(Data& c, const BYTE* k) { return catrl_array_contains(&c, k); }
-    static BOOL add(Data& c, const BYTE* k, const BYTE*) { catrl_array_add(&c, k); return TRUE; }
-    static BOOL remove(Data& c, NUINT i) { catrl_array_remove(&c, i); return TRUE; }
-    static BOOL insert(Data& c, NUINT i, const BYTE* k) { catrl_array_insert(&c, i, k); return TRUE; }
-    static BYTE* get(Data& c, NUINT i) { return (BYTE*) catrl_array_get(&c, i); }
-    static BOOL set(Data& c, NUINT i, const BYTE* k) { catrl_array_set(&c, i, k); return TRUE; }
+    static void clear(Data& c) { catalyst::array_clear(&c); }
+    static BOOL contains(Data& c, const BYTE* k) { return catalyst::array_contains(&c, k); }
+    static BOOL add(Data& c, const BYTE* k, const BYTE*) { catalyst::array_add(&c, k); return TRUE; }
+    static BOOL remove(Data& c, NUINT i) { catalyst::array_remove(&c, i); return TRUE; }
+    static BOOL insert(Data& c, NUINT i, const BYTE* k) { catalyst::array_insert(&c, i, k); return TRUE; }
+    static BYTE* get(Data& c, NUINT i) { return (BYTE*) catalyst::array_get(&c, i); }
+    static BOOL set(Data& c, NUINT i, const BYTE* k) { catalyst::array_set(&c, i, k); return TRUE; }
+    static BOOL matches_item(Data& c, NUINT i, const BYTE* key, const BYTE* value, NUINT width) {
+        if (::memcmp(keys(c) + i * width, key, width) != 0) return FALSE;
+        (void) value; return TRUE;
+    }
+    static BOOL released(const Data& c) { return keys(c) == 0 && values(c) == 0 ? TRUE : FALSE; }
 };
+
+// ------------------------------------------------------------
+// Standard library baselines. Fixed-width values avoid the extra allocations
+// and length fields of strings. Byte equality is the collection contract.
+// ------------------------------------------------------------
+#if PERF_STANDARD_CONTAINERS
+template<size_t Width>
+struct StandardWord {
+    unsigned char bytes[Width];
+    static StandardWord from(const unsigned char* p) {
+        StandardWord word;
+        ::memcpy(word.bytes, p, Width);
+        return word;
+    }
+    bool operator==(const StandardWord& other) const {
+        return ::memcmp(bytes, other.bytes, Width) == 0;
+    }
+    bool operator<(const StandardWord& other) const {
+        return ::memcmp(bytes, other.bytes, Width) < 0;
+    }
+};
+
+#if PERF_UNORDERED
+template<size_t Width>
+struct StandardHash {
+    size_t operator()(const StandardWord<Width>& word) const {
+        // The benchmark only uses 1- and 8-byte keys. A native integer hash
+        // incorporates all bytes without requiring an allocating string key.
+        unsigned long long value = 0;
+        ::memcpy(&value, word.bytes, Width);
+        return std::hash<unsigned long long>()(value);
+    }
+};
+#endif
+
+template<size_t Width>
+struct StandardSet {
+    typedef StandardWord<Width> Word;
+#if PERF_UNORDERED
+    typedef std::unordered_set<Word, StandardHash<Width> > Container;
+#else
+    typedef std::set<Word> Container;
+#endif
+    struct Data { Container items; NUINT fixtureCapacity; };
+    static void init(Data& c, NUINT) { c.fixtureCapacity = 0; }
+    static BOOL expand(Data& c, NUINT n) {
+#if PERF_UNORDERED
+        c.items.reserve(n);
+#endif
+        c.fixtureCapacity = n;
+        return TRUE;
+    }
+    static BOOL release(Data& c) {
+        Container().swap(c.items);
+        c.fixtureCapacity = 0;
+        return TRUE;
+    }
+    static NUINT count(const Data& c) { return (NUINT) c.items.size(); }
+    static NUINT capacity(const Data& c) { return c.fixtureCapacity; }
+    static BOOL released(const Data& c) { return c.items.empty() ? TRUE : FALSE; }
+    static void clear(Data& c) { c.items.clear(); }
+    static BOOL contains(Data& c, const BYTE* k) {
+        return c.items.find(Word::from(k)) != c.items.end() ? TRUE : FALSE;
+    }
+    static BOOL add(Data& c, const BYTE* k, const BYTE*) {
+        return c.items.insert(Word::from(k)).second ? TRUE : FALSE;
+    }
+    static BOOL remove(Data& c, const BYTE* k) {
+        return c.items.erase(Word::from(k)) != 0 ? TRUE : FALSE;
+    }
+    static BOOL matches_item(Data& c, NUINT, const BYTE* key, const BYTE*, NUINT) {
+        return contains(c, key);
+    }
+};
+
+template<size_t Width>
+struct StandardMap {
+    typedef StandardWord<Width> Word;
+#if PERF_UNORDERED
+    typedef std::unordered_map<Word, Word, StandardHash<Width> > Container;
+#else
+    typedef std::map<Word, Word> Container;
+#endif
+    struct Data { Container items; NUINT fixtureCapacity; };
+    static void init(Data& c, NUINT) { c.fixtureCapacity = 0; }
+    static BOOL expand(Data& c, NUINT n) {
+#if PERF_UNORDERED
+        c.items.reserve(n);
+#endif
+        c.fixtureCapacity = n;
+        return TRUE;
+    }
+    static BOOL release(Data& c) {
+        Container().swap(c.items);
+        c.fixtureCapacity = 0;
+        return TRUE;
+    }
+    static NUINT count(const Data& c) { return (NUINT) c.items.size(); }
+    static NUINT capacity(const Data& c) { return c.fixtureCapacity; }
+    static BOOL released(const Data& c) { return c.items.empty() ? TRUE : FALSE; }
+    static void clear(Data& c) { c.items.clear(); }
+    static BOOL contains(Data& c, const BYTE* k) {
+        return c.items.find(Word::from(k)) != c.items.end() ? TRUE : FALSE;
+    }
+    static BOOL add(Data& c, const BYTE* k, const BYTE* v) {
+        return c.items.insert(std::make_pair(Word::from(k), Word::from(v))).second ? TRUE : FALSE;
+    }
+    static BOOL remove(Data& c, const BYTE* k) {
+        return c.items.erase(Word::from(k)) != 0 ? TRUE : FALSE;
+    }
+    static BYTE* get(Data& c, const BYTE* k) {
+        typename Container::iterator found = c.items.find(Word::from(k));
+        return found == c.items.end() ? 0 : found->second.bytes;
+    }
+    static BOOL set(Data& c, const BYTE* k, const BYTE* v) {
+        typename Container::iterator found = c.items.find(Word::from(k));
+        if (found == c.items.end()) return FALSE;
+        found->second = Word::from(v);
+        return TRUE;
+    }
+    static BOOL matches_item(Data& c, NUINT, const BYTE* key, const BYTE* value, NUINT) {
+        BYTE* p = get(c, key);
+        return p != 0 && ::memcmp(p, value, Width) == 0 ? TRUE : FALSE;
+    }
+};
+
+template<size_t Width>
+struct StandardArray {
+    typedef StandardWord<Width> Word;
+    typedef std::vector<Word> Container;
+    struct Data { Container items; NUINT requestedCapacity; };
+    static void init(Data& c, NUINT) { c.requestedCapacity = 0; }
+    static BOOL expand(Data& c, NUINT n) {
+        if (n <= c.requestedCapacity) return TRUE;
+        c.items.reserve(n);
+        c.requestedCapacity = n;
+        return TRUE;
+    }
+    static BOOL shrink(Data& c) {
+        NUINT n = (NUINT) (c.requestedCapacity / 2);
+        if (n < c.items.size()) n = (NUINT) c.items.size();
+        if (n == c.requestedCapacity) return TRUE;
+        // std::vector has no exact shrink-to-capacity operation. Rebuild
+        // using reserve + insert + swap; the actual capacity may be larger.
+        Container replacement;
+        replacement.reserve(n);
+        replacement.insert(replacement.end(), c.items.begin(), c.items.end());
+        replacement.swap(c.items);
+        c.requestedCapacity = n;
+        return TRUE;
+    }
+    static BOOL release(Data& c) {
+        Container().swap(c.items);
+        c.requestedCapacity = 0;
+        return TRUE;
+    }
+    static NUINT count(const Data& c) { return (NUINT) c.items.size(); }
+    static NUINT capacity(const Data& c) {
+        return c.items.capacity() >= c.requestedCapacity ? c.requestedCapacity : 0;
+    }
+    static BOOL released(const Data& c) { return c.items.empty() && c.items.capacity() == 0 ? TRUE : FALSE; }
+    static void clear(Data& c) { c.items.clear(); }
+    static BOOL contains(Data& c, const BYTE* k) {
+        return std::find(c.items.begin(), c.items.end(), Word::from(k)) != c.items.end() ? TRUE : FALSE;
+    }
+    static BOOL add(Data& c, const BYTE* k, const BYTE*) {
+        c.items.push_back(Word::from(k)); return TRUE;
+    }
+    static BOOL remove(Data& c, NUINT i) {
+        c.items.erase(c.items.begin() + i); return TRUE;
+    }
+    static BOOL insert(Data& c, NUINT i, const BYTE* k) {
+        c.items.insert(c.items.begin() + i, Word::from(k)); return TRUE;
+    }
+    static BYTE* get(Data& c, NUINT i) { return c.items[i].bytes; }
+    static BOOL set(Data& c, NUINT i, const BYTE* k) {
+        c.items[i] = Word::from(k); return TRUE;
+    }
+    static BOOL matches_item(Data& c, NUINT i, const BYTE* key, const BYTE*, NUINT) {
+        return c.items[i] == Word::from(key) ? TRUE : FALSE;
+    }
+};
+
+#endif
 
 // ------------------------------------------------------------
 // Fixtures and timed operations. A cycle restores the collection
@@ -257,11 +513,8 @@ static BOOL verify_collection(CollectionTrial<API>& t) {
         NUINT expected = t.flipped && i == 0 ? (NUINT) (n - 1) :
             t.flipped && i == n - 1 ? (NUINT) 0 : i;
         element(key, t.width, (BYTE) expected);
-        if (::memcmp(API::keys(t.data) + i * t.width, key, t.width) != 0) return FALSE;
-        if (t.mapped) {
-            element(value, t.width, (BYTE) ((BYTE) expected ^ (BYTE) 0xA5));
-            if (::memcmp(API::values(t.data) + i * t.width, value, t.width) != 0) return FALSE;
-        }
+        element(value, t.width, (BYTE) ((BYTE) expected ^ (BYTE) 0xA5));
+        if (!API::matches_item(t.data, i, key, value, t.width)) return FALSE;
     }
     return TRUE;
 }
@@ -273,7 +526,7 @@ static BOOL op_lifecycle(CollectionTrial<API>* t) {
     BOOL ok = API::expand(c, (NUINT) (t->n + 1));
     BOOL released = API::release(c);
     return ok && released && API::capacity(c) == 0 && API::count(c) == 0 &&
-        API::keys(c) == 0 && API::values(c) == 0 ? TRUE : FALSE;
+        API::released(c) ? TRUE : FALSE;
 }
 
 template<typename API>
@@ -492,7 +745,7 @@ static void native_file_init(NativeFile& f, NativeCollection& metadata, NativeCo
 static BOOL native_file_free(NativeFile& f) {
     native_free(f.metadata); native_free(f.data); f.resolver = 0; return TRUE;
 }
-static CATALYST_RESULT catalyst_resolve(const CATRLLIB_FILE* f, NUINT index, CATRLLIB_ARRAY* out) {
+static CATALYST_RESULT catalyst_resolve(const catalyst::FILE* f, NUINT index, ARRAY* out) {
     if (index >= f->metadata.length) return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0xA1, 1, 1);
     NUINT offset = ((const BYTE*) f->metadata.data)[index];
     if (offset >= f->data.length || f->data.length - offset < (NUINT) 2)
@@ -517,15 +770,15 @@ struct NativeFileAPI {
     static NUINT count(const Array& a) { return (NUINT) a.count; }
 };
 struct CatalystFileAPI {
-    typedef CATRLLIB_ARRAY Array;
-    typedef CATRLLIB_FILE Data;
-    static void array_init(Array& a) { catrl_array_init(&a, 1); }
-    static BOOL expand(Array& a, NUINT n) { return succeeded(catrl_array_expand(&a, n)); }
-    static void add(Array& a, BYTE v) { catrl_array_add(&a, &v); }
-    static BOOL release_array(Array& a) { return succeeded(catrl_array_free(&a)); }
-    static void init(Data& f, Array& m, Array& d) { catrl_file_init(&f, &m, &d, catalyst_resolve); }
-    static BOOL release(Data& f) { return succeeded(catrl_file_free(&f)); }
-    static BOOL get(Data& f, NUINT i, Array& out) { return succeeded(catrl_file_get(&f, i, &out)); }
+    typedef ARRAY Array;
+    typedef catalyst::FILE Data;
+    static void array_init(Array& a) { catalyst::array_init(&a, 1); }
+    static BOOL expand(Array& a, NUINT n) { return succeeded(catalyst::array_expand(&a, n)); }
+    static void add(Array& a, BYTE v) { catalyst::array_add(&a, &v); }
+    static BOOL release_array(Array& a) { return succeeded(catalyst::array_free(&a)); }
+    static void init(Data& f, Array& m, Array& d) { catalyst::file_init(&f, &m, &d, catalyst_resolve); }
+    static BOOL release(Data& f) { return succeeded(catalyst::file_free(&f)); }
+    static BOOL get(Data& f, NUINT i, Array& out) { return succeeded(catalyst::file_get(&f, i, &out)); }
     static const BYTE* bytes(const Array& a) { return (const BYTE*) a.data; }
     static NUINT count(const Array& a) { return a.length; }
 };
@@ -651,10 +904,10 @@ static BOOL native_stream_free(NativeStream** out) {
     }
     return TRUE;
 }
-static CATALYST_RESULT produce(CATRLLIB_STREAM* stream, CATMMLIB_POINTERW chunk, NUINT size) {
+static CATALYST_RESULT produce(STREAM* stream, POINTERW chunk, NUINT size) {
     BYTE* counter = (BYTE*) stream->state;
     ++*counter;
-    catmm_fill(chunk, *counter, size);
+    catalyst::fill(chunk, *counter, size);
     return RESULT(STATUS_CODE_SUCCESS, 0xA2, 1, 0);
 }
 struct NativeStreamAPI {
@@ -664,15 +917,15 @@ struct NativeStreamAPI {
     static BOOL release(Data& s) { return native_stream_free(&s); }
 };
 struct CatalystStreamAPI {
-    typedef CATRLLIB_STREAM Data;
-    static BOOL init(Data& s, NUINT lifetime) { return succeeded(catrl_stream_init(&s, 1, lifetime, produce)); }
+    typedef STREAM Data;
+    static BOOL init(Data& s, NUINT lifetime) { return succeeded(catalyst::stream_init(&s, 1, lifetime, produce)); }
     static BOOL next(Data& s, NUINT size, BYTE** out) {
-        CATMMLIB_POINTERW p = 0;
-        CATALYST_RESULT r = catrl_stream_next(&s, size, &p);
+        POINTERW p = 0;
+        CATALYST_RESULT r = catalyst::stream_next(&s, size, &p);
         *out = (BYTE*) p;
         return succeeded(r);
     }
-    static BOOL release(Data& s) { return succeeded(catrl_stream_free(&s)); }
+    static BOOL release(Data& s) { return succeeded(catalyst::stream_free(&s)); }
 };
 enum StreamKind { STREAM_LIFECYCLE, STREAM_STEADY, STREAM_VARIABLE };
 template<typename API>
@@ -876,9 +1129,11 @@ static void collection_fixture(CollectionTrial<API>& t, NUINT n, NUINT width, Po
 template<typename Native, typename Catalyst>
 static void collection_cases(const char* heading, Position position, BOOL mapped, BOOL populated,
                              BOOL (*nOp)(CollectionTrial<Native>*),
-                             BOOL (*cOp)(CollectionTrial<Catalyst>*), Summary& summary) {
+                             BOOL (*cOp)(CollectionTrial<Catalyst>*), Summary& summary, NUINT onlyWidth = 0) {
+    if (nOp == op_empty_lifecycle<Native> && onlyWidth > 1) return;
     std::printf("\n%s\n", heading);
     for (BYTE w = 0; w < sizeof(widths) / sizeof(widths[0]); ++w) {
+        if (onlyWidth != 0 && widths[w] != onlyWidth) continue;
         for (BYTE i = 0; i < sizeof(counts) / sizeof(counts[0]); ++i) {
             if (nOp == op_empty_lifecycle<Native> && (w != 0 || i != 0)) continue;
             NUINT n = counts[i], width = widths[w];
@@ -894,6 +1149,99 @@ static void collection_cases(const char* heading, Position position, BOOL mapped
     }
 }
 
+#if PERF_STANDARD_CONTAINERS
+template<size_t Width>
+static void benchmark_set_standard(Summary& summary) {
+    typedef StandardSet<Width> Native;
+    collection_cases<Native, CatalystSet>("catrl_set_init + free (empty)", FIRST, FALSE, FALSE, op_empty_lifecycle<Native>, op_empty_lifecycle<CatalystSet>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystSet>("catrl_set_clear + refill", FIRST, FALSE, TRUE, op_clear<Native>, op_clear<CatalystSet>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystSet>("catrl_set_contains (first)", FIRST, FALSE, TRUE, op_contains_hit<Native>, op_contains_hit<CatalystSet>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystSet>("catrl_set_contains (last)", LAST, FALSE, TRUE, op_contains_hit<Native>, op_contains_hit<CatalystSet>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystSet>("catrl_set_contains (absent)", ABSENT, FALSE, TRUE, op_contains_miss<Native>, op_contains_miss<CatalystSet>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystSet>("catrl_set_add + remove (new key)", ABSENT, FALSE, TRUE, op_add_remove<Native>, op_add_remove<CatalystSet>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystSet>("catrl_set_remove + add (alternating keys)", FIRST, FALSE, TRUE, op_remove_front<Native>, op_remove_front<CatalystSet>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystSet>("catrl_set_add (duplicate)", LAST, FALSE, TRUE, op_add_duplicate<Native>, op_add_duplicate<CatalystSet>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystSet>("catrl_set_remove (absent)", ABSENT, FALSE, TRUE, op_remove_missing<Native>, op_remove_missing<CatalystSet>, summary, (NUINT) Width);
+}
+
+static void benchmark_set(Summary& summary) {
+    std::printf("\nSet capacity (C contiguous reference; no exact STL capacity contract)\n");
+    collection_cases<NativeSet, CatalystSet>("catrl_set_init + expand + free", FIRST, FALSE, FALSE, op_lifecycle<NativeSet>, op_lifecycle<CatalystSet>, summary);
+    collection_cases<NativeSet, CatalystSet>("catrl_set_expand + shrink (preserve contents)", FIRST, FALSE, TRUE, op_capacity<NativeSet>, op_capacity<CatalystSet>, summary);
+    collection_cases<NativeSet, CatalystSet>("catrl_set_expand (no-op)", FIRST, FALSE, TRUE, op_expand_noop<NativeSet>, op_expand_noop<CatalystSet>, summary);
+#if PERF_UNORDERED
+    std::printf("\nSet (std::unordered_set)\n");
+#else
+    std::printf("\nSet (std::set)\n");
+#endif
+    benchmark_set_standard<1>(summary);
+#if TARGET_SIZEOF_ADDRESS >= 2
+    benchmark_set_standard<8>(summary);
+#endif
+}
+
+template<size_t Width>
+static void benchmark_map_standard(Summary& summary) {
+    typedef StandardMap<Width> Native;
+    collection_cases<Native, CatalystMap>("catrl_map_init + free (empty)", FIRST, TRUE, FALSE, op_empty_lifecycle<Native>, op_empty_lifecycle<CatalystMap>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystMap>("catrl_map_clear + refill", FIRST, TRUE, TRUE, op_clear<Native>, op_clear<CatalystMap>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystMap>("catrl_map_contains (first)", FIRST, TRUE, TRUE, op_contains_hit<Native>, op_contains_hit<CatalystMap>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystMap>("catrl_map_contains (last)", LAST, TRUE, TRUE, op_contains_hit<Native>, op_contains_hit<CatalystMap>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystMap>("catrl_map_contains (absent)", ABSENT, TRUE, TRUE, op_contains_miss<Native>, op_contains_miss<CatalystMap>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystMap>("catrl_map_add + remove (new key)", ABSENT, TRUE, TRUE, op_add_remove<Native>, op_add_remove<CatalystMap>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystMap>("catrl_map_remove + add (alternating keys)", FIRST, TRUE, TRUE, op_remove_front<Native>, op_remove_front<CatalystMap>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystMap>("catrl_map_add (duplicate)", LAST, TRUE, TRUE, op_add_duplicate<Native>, op_add_duplicate<CatalystMap>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystMap>("catrl_map_remove (absent)", ABSENT, TRUE, TRUE, op_remove_missing<Native>, op_remove_missing<CatalystMap>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystMap>("catrl_map_get (first)", FIRST, TRUE, TRUE, op_map_get<Native>, op_map_get<CatalystMap>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystMap>("catrl_map_get (last)", LAST, TRUE, TRUE, op_map_get<Native>, op_map_get<CatalystMap>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystMap>("catrl_map_get (absent)", ABSENT, TRUE, TRUE, op_map_get_miss<Native>, op_map_get_miss<CatalystMap>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystMap>("catrl_map_set + restore (last)", LAST, TRUE, TRUE, op_map_set<Native>, op_map_set<CatalystMap>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystMap>("catrl_map_set (absent)", ABSENT, TRUE, TRUE, op_map_set_miss<Native>, op_map_set_miss<CatalystMap>, summary, (NUINT) Width);
+}
+
+static void benchmark_map(Summary& summary) {
+    std::printf("\nMap capacity (C contiguous reference; no exact STL capacity contract)\n");
+    collection_cases<NativeMap, CatalystMap>("catrl_map_init + expand + free", FIRST, TRUE, FALSE, op_lifecycle<NativeMap>, op_lifecycle<CatalystMap>, summary);
+    collection_cases<NativeMap, CatalystMap>("catrl_map_expand + shrink (preserve contents)", FIRST, TRUE, TRUE, op_capacity<NativeMap>, op_capacity<CatalystMap>, summary);
+    collection_cases<NativeMap, CatalystMap>("catrl_map_expand (no-op)", FIRST, TRUE, TRUE, op_expand_noop<NativeMap>, op_expand_noop<CatalystMap>, summary);
+#if PERF_UNORDERED
+    std::printf("\nMap (std::unordered_map)\n");
+#else
+    std::printf("\nMap (std::map)\n");
+#endif
+    benchmark_map_standard<1>(summary);
+#if TARGET_SIZEOF_ADDRESS >= 2
+    benchmark_map_standard<8>(summary);
+#endif
+}
+
+template<size_t Width>
+static void benchmark_array_standard(Summary& summary) {
+    typedef StandardArray<Width> Native;
+    collection_cases<Native, CatalystArray>("catrl_array_init + free (empty)", FIRST, FALSE, FALSE, op_empty_lifecycle<Native>, op_empty_lifecycle<CatalystArray>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystArray>("catrl_array_init + expand + free", FIRST, FALSE, FALSE, op_lifecycle<Native>, op_lifecycle<CatalystArray>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystArray>("catrl_array_expand + shrink (preserve contents)", FIRST, FALSE, TRUE, op_capacity<Native>, op_capacity<CatalystArray>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystArray>("catrl_array_expand (no-op)", FIRST, FALSE, TRUE, op_expand_noop<Native>, op_expand_noop<CatalystArray>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystArray>("catrl_array_clear + refill", FIRST, FALSE, TRUE, op_clear<Native>, op_clear<CatalystArray>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystArray>("catrl_array_contains (first)", FIRST, FALSE, TRUE, op_contains_hit<Native>, op_contains_hit<CatalystArray>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystArray>("catrl_array_contains (last)", LAST, FALSE, TRUE, op_contains_hit<Native>, op_contains_hit<CatalystArray>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystArray>("catrl_array_contains (absent)", ABSENT, FALSE, TRUE, op_contains_miss<Native>, op_contains_miss<CatalystArray>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystArray>("catrl_array_add + remove (append)", ABSENT, FALSE, TRUE, op_array_add<Native>, op_array_add<CatalystArray>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystArray>("catrl_array_insert + remove (front)", FIRST, FALSE, TRUE, op_array_insert<Native>, op_array_insert<CatalystArray>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystArray>("catrl_array_insert + remove (middle)", MIDDLE, FALSE, TRUE, op_array_insert<Native>, op_array_insert<CatalystArray>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystArray>("catrl_array_get (middle)", MIDDLE, FALSE, TRUE, op_array_get<Native>, op_array_get<CatalystArray>, summary, (NUINT) Width);
+    collection_cases<Native, CatalystArray>("catrl_array_set + restore (middle)", MIDDLE, FALSE, TRUE, op_array_set<Native>, op_array_set<CatalystArray>, summary, (NUINT) Width);
+}
+
+static void benchmark_array(Summary& summary) {
+    std::printf("\nArray (std::vector)\n");
+    benchmark_array_standard<1>(summary);
+#if TARGET_SIZEOF_ADDRESS >= 2
+    benchmark_array_standard<8>(summary);
+#endif
+}
+
+#else
 static void benchmark_set(Summary& summary) {
     std::printf("\nSet (contiguous C reference)\n");
     collection_cases<NativeSet, CatalystSet>("catrl_set_init + free (empty)", FIRST, FALSE, FALSE, op_empty_lifecycle<NativeSet>, op_empty_lifecycle<CatalystSet>, summary);
@@ -947,6 +1295,8 @@ static void benchmark_array(Summary& summary) {
     collection_cases<NativeArray, CatalystArray>("catrl_array_get (middle)", MIDDLE, FALSE, TRUE, op_array_get<NativeArray>, op_array_get<CatalystArray>, summary);
     collection_cases<NativeArray, CatalystArray>("catrl_array_set + restore (middle)", MIDDLE, FALSE, TRUE, op_array_set<NativeArray>, op_array_set<CatalystArray>, summary);
 }
+
+#endif
 
 static void benchmark_files(Summary& summary) {
     std::printf("\nFile (C reference with borrowed-view resolver)\n");
@@ -1010,16 +1360,24 @@ int main() {
         return 2;
     }
     std::printf("CATRLLIB Performance (Release recommended)\n");
-    std::printf("Native-C is the benchmark. Lower time is better.\n");
+    std::printf("Standard library / reference is the baseline. Lower time is better.\n");
     std::printf("Difference: +10%% means Catalyst takes 10%% longer; -10%% means 10%% less time.\n");
     std::printf("Time per operation or named cycle: median of 3 paired samples; %lu clock ticks/second.\n", (unsigned long) CLOCKS_PER_SEC);
-    std::printf("Native references use contiguous arrays, linear search, C heap allocation and matching stream retention.\n");
+#if PERF_STANDARD_CONTAINERS
+    std::printf("Standard containers are used for equivalent operations; C references cover exact Set/Map capacity, File and Stream.\n");
+#else
+    std::printf("C contiguous collection references (standard containers unavailable on this toolchain).\n");
+#endif
     std::printf("Collection counts/widths vary; map keys and values have the same width.\n");
+#if PERF_STANDARD_CONTAINERS
+    std::printf("STL Set/Map may allocate per insertion; vector reserve is not required to zero spare capacity.\n");
+    std::printf("Vector shrink rebuilds to the requested capacity; the STL may reserve more.\n");
+#endif
     std::printf("Named cycles include every listed operation; fixtures and final verification are untimed.\n");
     std::printf("Stream measurements include production and identical endpoint checks; file get returns a borrowed view.\n");
-    std::printf("Both paths consume outcomes; Native-C has no diagnostic metadata.\n");
+    std::printf("Both paths consume outcomes; baseline has no diagnostic metadata.\n");
     std::printf("Comparable = within 5%%; Review = at least 20%% slower. Decimal places are estimates.\n");
-    std::printf("\n  %-28s %14s %14s %12s  %s\n", "Workload", "Native-C", "Catalyst", "Difference", "Assessment");
+    std::printf("\n  %-28s %14s %14s %12s  %s\n", "Workload", "Baseline", "Catalyst", "Difference", "Assessment");
     std::printf("  -------------------------------------------------------------------------------------\n");
     Summary summary = { 0, 0, 0, 0, 0, 0, 0 };
     benchmark_set(summary);

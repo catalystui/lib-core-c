@@ -4,11 +4,33 @@
 #include <stddef.h>
 #include <string.h>
 
+#if defined(_MSVC_LANG)
+    #define PERF_CPP_STANDARD _MSVC_LANG
+#else
+    #define PERF_CPP_STANDARD __cplusplus
+#endif
+#if PERF_CPP_STANDARD >= 201103L && PERF_CPP_STANDARD <= 202302L
+    #if defined(__has_include)
+        #if __has_include(<codecvt>)
+            #define PERF_STANDARD_UNICODE 1
+        #endif
+    #else
+        #define PERF_STANDARD_UNICODE 1
+    #endif
+#endif
+#ifndef PERF_STANDARD_UNICODE
+    #define PERF_STANDARD_UNICODE 0
+#endif
+#if PERF_STANDARD_UNICODE
+    #include <codecvt>
+    #include <cwchar>
+#endif
+
 #include "catalyst.hpp"
-#include "cattelib.h"
+#include "cattelib.hpp"
 
 // ------------------------------------------------------------
-// Native-C benchmark: independent C-style reference operations.
+// Baseline: standard C/C++ facilities and contract-specific references.
 // ------------------------------------------------------------
 /* C90 reference: use the smallest conventional native scalar that holds Unicode. */
 #if UINT_MAX >= 0xFFFFFFFFUL
@@ -17,7 +39,7 @@ typedef unsigned int NativeScalar;
 typedef unsigned long NativeScalar;
 #endif
 
-enum { PERF_BYTES = 52, PERF_UTF16_UNITS = PERF_BYTES / 2 };
+enum { PERF_BYTES = 52, PERF_UTF16_UNITS = PERF_BYTES / 2, PERF_SCALARS = 16 };
 enum { PERF_ASCII, PERF_CP1252, PERF_UTF8, PERF_UTF16LE };
 
 typedef struct NativeData {
@@ -62,6 +84,94 @@ static void write16(unsigned char* output, NativeScalar value) {
 static NativeScalar read16(const unsigned char* input) {
     return (NativeScalar) input[0] | ((NativeScalar) input[1] << 8);
 }
+
+#if PERF_STANDARD_UNICODE
+// Facets take byte ranges and emit Unicode scalars without allocating
+// strings. UTF-16LE is external little-endian bytes, not native wchar_t.
+static std::codecvt_utf8<char32_t> standard_utf8;
+static std::codecvt_utf16<char32_t, 0x10FFFF, std::little_endian> standard_utf16le;
+
+static const std::codecvt<char32_t, char, std::mbstate_t>& unicode_facet(int encoding) {
+    if (encoding == PERF_UTF16LE) return standard_utf16le;
+    return standard_utf8;
+}
+
+static size_t unicode_scalar_bytes(int encoding, const unsigned char* input) {
+    if (encoding == PERF_UTF16LE) {
+        NativeScalar first = read16(input);
+        return first >= 0xD800 && first <= 0xDBFF ? 4 : 2;
+    }
+    unsigned char first = *input;
+    if (first < 0x80) return 1;
+    if (first >= 0xC2 && first <= 0xDF) return 2;
+    if (first >= 0xE0 && first <= 0xEF) return 3;
+    if (first >= 0xF0 && first <= 0xF4) return 4;
+    return 0;
+}
+
+static unsigned char standard_encode(int encoding, NativeScalar value,
+                                     unsigned char* output, size_t* count) {
+    char32_t scalar = (char32_t) value;
+    std::mbstate_t state = std::mbstate_t();
+    const char32_t* consumed = 0;
+    char* begin = (char*) output;
+    char* end = begin;
+    std::codecvt_base::result result = unicode_facet(encoding).out(
+        state, &scalar, &scalar + 1, consumed, begin, begin + 4, end);
+    if (result != std::codecvt_base::ok || consumed != &scalar + 1) {
+        *count = 0;
+        return INVALID;
+    }
+    *count = (size_t) (end - begin) / (size_t) unit_bytes(encoding);
+    return OK;
+}
+
+static unsigned char standard_decode(int encoding, const unsigned char* input,
+                                     NativeScalar* scalar, size_t* count) {
+    size_t bytes = unicode_scalar_bytes(encoding, input);
+    *scalar = 0;
+    *count = 0;
+    if (bytes == 0) return MALFORMED;
+    char32_t value = 0;
+    std::mbstate_t state = std::mbstate_t();
+    const char* begin = (const char*) input;
+    const char* consumed = begin;
+    char32_t* end = &value;
+    std::codecvt_base::result result = unicode_facet(encoding).in(
+        state, begin, begin + bytes, consumed, &value, &value + 1, end);
+    if (result != std::codecvt_base::ok || consumed != begin + bytes ||
+        end != &value + 1 || value > 0x10FFFFUL ||
+        (value >= 0xD800 && value <= 0xDFFF)) return MALFORMED;
+    *scalar = (NativeScalar) value;
+    *count = bytes / (size_t) unit_bytes(encoding);
+    return OK;
+}
+
+// Input extents are valid, terminated benchmark strings of at most 16 scalars.
+static size_t unicode_bytes(int encoding, const unsigned char* input) {
+    if (encoding == PERF_UTF8) return strlen((const char*) input);
+    const unsigned char* end = input;
+    while (!terminated(encoding, end)) end += 2;
+    return (size_t) (end - input);
+}
+
+static unsigned char standard_read_string(int encoding, const unsigned char* input,
+                                          char32_t* scalars, size_t* count) {
+    const char* begin = (const char*) input;
+    const char* end = begin + unicode_bytes(encoding, input);
+    const char* consumed = begin;
+    char32_t* produced = scalars;
+    std::mbstate_t state = std::mbstate_t();
+    std::codecvt_base::result result = unicode_facet(encoding).in(
+        state, begin, end, consumed, scalars, scalars + PERF_SCALARS, produced);
+    *count = 0;
+    if (result != std::codecvt_base::ok || consumed != end) return MALFORMED;
+    for (const char32_t* p = scalars; p != produced; ++p)
+        if (*p > 0x10FFFFUL || (*p >= 0xD800 && *p <= 0xDFFF)) return MALFORMED;
+    *count = (size_t) (produced - scalars);
+    return OK;
+}
+#endif
 
 static unsigned char encode(int encoding, NativeScalar value, unsigned char* output, size_t* count) {
     *count = 1;
@@ -110,6 +220,9 @@ static unsigned char encode(int encoding, NativeScalar value, unsigned char* out
         *count = 0;
         return INVALID;
     }
+#if PERF_STANDARD_UNICODE
+    return standard_encode(encoding, value, output, count);
+#else
     if (encoding == PERF_UTF16LE) {
         if (value < 0x10000UL) {
             write16(output, value);
@@ -140,6 +253,7 @@ static unsigned char encode(int encoding, NativeScalar value, unsigned char* out
         *count = 4;
     }
     return OK;
+#endif
 }
 
 static unsigned char decode(int encoding, const unsigned char* input, NativeScalar* scalar, size_t* count) {
@@ -148,6 +262,10 @@ static unsigned char decode(int encoding, const unsigned char* input, NativeScal
     size_t n, i;
     *scalar = 0;
     *count = 0;
+#if PERF_STANDARD_UNICODE
+    if (encoding == PERF_UTF8 || encoding == PERF_UTF16LE)
+        return standard_decode(encoding, input, scalar, count);
+#endif
     if (encoding == PERF_UTF16LE) {
         value = read16(input);
         if (value >= 0xDC00 && value <= 0xDFFF) return MALFORMED;
@@ -213,6 +331,10 @@ static unsigned char length(int encoding, const unsigned char* input, size_t* co
     }
     *count = 0;
     input = skip_bom(encoding, input);
+#if PERF_STANDARD_UNICODE
+    char32_t scalars[PERF_SCALARS];
+    return standard_read_string(encoding, input, scalars, count);
+#else
     while (!terminated(encoding, input)) {
         status = decode(encoding, input, &value, &consumed);
         if (status != OK) return status;
@@ -221,6 +343,7 @@ static unsigned char length(int encoding, const unsigned char* input, size_t* co
     }
     *count = total;
     return OK;
+#endif
 }
 
 static unsigned char convert(int from, int to, const unsigned char* input, unsigned char* output) {
@@ -228,6 +351,19 @@ static unsigned char convert(int from, int to, const unsigned char* input, unsig
     size_t consumed, produced, written = 0, bytes;
     NativeScalar value;
     const size_t width = (size_t) unit_bytes(to);
+    // All-ASCII strings have identical byte representations in these
+    // encodings. Validate once and use the C library's bulk copy.
+    if ((from == PERF_ASCII && (to == PERF_CP1252 || to == PERF_UTF8)) ||
+        (from == PERF_CP1252 && to == PERF_ASCII)) {
+        size_t length = strlen((const char*) input);
+        size_t i = 0;
+        while (i < length && input[i] < 0x80) ++i;
+        if (i == length) {
+            if (to == PERF_UTF8 && length >= PERF_BYTES) return OVERFLOW;
+            memcpy(output, input, length + 1);
+            return OK;
+        }
+    }
     /* Neither single-byte to single-byte API requires a capacity argument. */
     if ((from == PERF_ASCII && to == PERF_CP1252) ||
         (from == PERF_CP1252 && to == PERF_ASCII)) {
@@ -243,6 +379,49 @@ static unsigned char convert(int from, int to, const unsigned char* input, unsig
         return status;
     }
     input = skip_bom(from, input);
+#if PERF_STANDARD_UNICODE
+    // Decode/encode entire Unicode strings with one library call per side.
+    // ASCII/CP1252 substitution still follows the explicit Core contract.
+    if (from == PERF_UTF8 || from == PERF_UTF16LE || to == PERF_UTF8 || to == PERF_UTF16LE) {
+        char32_t scalars[PERF_SCALARS];
+        size_t count = 0;
+        if (from == PERF_UTF8 || from == PERF_UTF16LE) {
+            step = standard_read_string(from, input, scalars, &count);
+            if (step != OK) return step;
+        } else {
+            while (*input != 0) {
+                if (count == PERF_SCALARS) return OVERFLOW;
+                step = decode(from, input, &value, &consumed);
+                if (from == PERF_ASCII && value >= 0x80) { value = 0x3F; step = PARTIAL; }
+                if (step == PARTIAL) status = PARTIAL;
+                else if (step != OK) return step;
+                scalars[count++] = (char32_t) value;
+                input += consumed;
+            }
+        }
+        if (to == PERF_UTF8 || to == PERF_UTF16LE) {
+            std::mbstate_t state = std::mbstate_t();
+            const char32_t* consumedScalars = scalars;
+            char* begin = (char*) output;
+            char* end = begin;
+            std::codecvt_base::result result = unicode_facet(to).out(
+                state, scalars, scalars + count, consumedScalars,
+                begin, begin + PERF_BYTES - width, end);
+            if (result != std::codecvt_base::ok || consumedScalars != scalars + count)
+                return result == std::codecvt_base::partial ? OVERFLOW : INVALID;
+            memset(end, 0, width);
+            return status;
+        }
+        if (count >= PERF_BYTES) return OVERFLOW;
+        for (size_t i = 0; i < count; ++i) {
+            step = encode(to, (NativeScalar) scalars[i], output + i, &produced);
+            if (step == PARTIAL) status = PARTIAL;
+            else if (step != OK) return step;
+        }
+        output[count] = 0;
+        return status;
+    }
+#endif
     while (!terminated(from, input)) {
         /* ASCII conversions check the input byte and substitute as CATTELIB does. */
         if (from == PERF_ASCII && input[0] >= 0x80) {
@@ -315,53 +494,53 @@ struct CatalystData {
 // Catalyst comparison: only Core types and CATTELIB operations.
 // ------------------------------------------------------------
 static void compare_ascii_encode(CatalystData* d) {
-    d->status = catte_ascii_encode(d->scalar, d->output).status;
+    d->status = catalyst::ascii_encode(d->scalar, d->output).status;
     d->count = 1;
 }
 static void compare_ascii_decode(CatalystData* d) {
-    d->scalar = catte_ascii_decode(d->input);
+    d->scalar = catalyst::ascii_decode(d->input);
     d->count = 1;
     d->status = STATUS_CODE_SUCCESS;
 }
 static void compare_ascii_length(CatalystData* d) {
-    d->count = catte_ascii_length(d->input);
+    d->count = catalyst::ascii_length(d->input);
     d->status = STATUS_CODE_SUCCESS;
 }
 static void compare_cp1252_encode(CatalystData* d) {
-    d->status = catte_cp1252_encode(d->scalar, d->output).status;
+    d->status = catalyst::cp1252_encode(d->scalar, d->output).status;
     d->count = 1;
 }
 static void compare_cp1252_decode(CatalystData* d) {
-    d->status = catte_cp1252_decode(d->input, &d->scalar).status;
+    d->status = catalyst::cp1252_decode(d->input, &d->scalar).status;
     d->count = 1;
 }
 static void compare_cp1252_length(CatalystData* d) {
-    d->count = catte_cp1252_length(d->input);
+    d->count = catalyst::cp1252_length(d->input);
     d->status = STATUS_CODE_SUCCESS;
 }
 
 #define COMPARE_UNICODE(name, input, output) \
     static void compare_##name##_encode(CatalystData* d) { \
-        d->status = catte_##name##_encode(d->scalar, d->output, &d->count).status; \
+        d->status = catalyst::name##_encode(d->scalar, d->output, &d->count).status; \
     } \
     static void compare_##name##_decode(CatalystData* d) { \
-        d->status = catte_##name##_decode(d->input, &d->scalar, &d->count).status; \
+        d->status = catalyst::name##_decode(d->input, &d->scalar, &d->count).status; \
     } \
     static void compare_##name##_length(CatalystData* d) { \
-        d->status = catte_##name##_length(d->input, &d->count).status; \
+        d->status = catalyst::name##_length(d->input, &d->count).status; \
     }
 #define COMPARE_CONVERSION(from, to, input, output, capacity) \
     static void compare_##from##_to_##to(CatalystData* d) { \
-        d->status = catte_##from##_to_##to(d->input, d->output, capacity).status; \
+        d->status = catalyst::from##_to_##to(d->input, d->output, capacity).status; \
     }
 COMPARE_UNICODE(utf8, input, output)
 COMPARE_UNICODE(utf16le, input16, output16)
 
 static void compare_ascii_to_cp1252(CatalystData* d) {
-    d->status = catte_ascii_to_cp1252(d->input, d->output).status;
+    d->status = catalyst::ascii_to_cp1252(d->input, d->output).status;
 }
 static void compare_cp1252_to_ascii(CatalystData* d) {
-    d->status = catte_cp1252_to_ascii(d->input, d->output).status;
+    d->status = catalyst::cp1252_to_ascii(d->input, d->output).status;
 }
 COMPARE_CONVERSION(ascii, utf8, input, output, (NUINT) PERF_BYTES)
 COMPARE_CONVERSION(ascii, utf16le, input, output16, (NUINT) PERF_UTF16_UNITS)
@@ -748,13 +927,18 @@ int main() {
         return 2;
     }
     std::printf("CATTELIB Performance (Release recommended)\n");
-    std::printf("Native-C is the benchmark. Lower time is better.\n");
+    std::printf("Standard library / reference is the baseline. Lower time is better.\n");
     std::printf("Difference: +10%% means Catalyst takes 10%% longer; -10%% means 10%% less time.\n");
     std::printf("Time per call: median of 3 paired samples; %lu clock ticks/second.\n", (unsigned long) CLOCKS_PER_SEC);
+#if PERF_STANDARD_UNICODE
+    std::printf("UTF-8/UTF-16LE baseline: standard C++ codecvt facets; ASCII/CP1252: C library and byte mapping.\n");
+#else
+    std::printf("UTF-8/UTF-16LE baseline: C-style reference (Unicode facets unavailable); ASCII/CP1252: C library and byte mapping.\n");
+#endif
     std::printf("Encode/decode: one character. Length/conversion: 8 repetitions of the named input and x (16 characters).\n");
-    std::printf("Both paths validate output and consume status; Native-C has no diagnostic metadata.\n");
+    std::printf("Both paths validate output and consume status; baseline has no diagnostic metadata.\n");
     std::printf("Comparable = within 5%%; Review = at least 20%% slower. Decimal places are estimates.\n");
-    std::printf("\n  %-22s %14s %14s %12s  %s\n", "Input", "Native-C", "Catalyst", "Difference", "Assessment");
+    std::printf("\n  %-22s %14s %14s %12s  %s\n", "Input", "Baseline", "Catalyst", "Difference", "Assessment");
     std::printf("  -------------------------------------------------------------------------------\n");
     Summary summary = { 0, 0, 0, 0, 0, 0, 0 };
     for (BYTE i = 0; i < sizeof(benchmarks) / sizeof(benchmarks[0]); ++i) {

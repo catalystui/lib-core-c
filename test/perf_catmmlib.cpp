@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include "catalyst.hpp"
-#include "catmmlib.h"
+#include "catmmlib.hpp"
 
 // The direct baseline uses exactly the native backend available on the target.
 #if TARGET_PLATFORM_WIN32
@@ -31,14 +31,14 @@ using namespace catalyst;
 // Native-C benchmark and Catalyst comparison.
 // The common harness owns fixtures, timing and verification.
 // ------------------------------------------------------------
-typedef catalyst::BOOL (*AllocationOperation)(CATMMLIB_POINTERW*, NUINT, NUINT);
+typedef catalyst::BOOL (*AllocationOperation)(POINTERW*, NUINT, NUINT);
 
-static catalyst::BOOL native_alloc(CATMMLIB_POINTERW* memory, NUINT, NUINT size) {
+static catalyst::BOOL native_alloc(POINTERW* memory, NUINT, NUINT size) {
     *memory = ::calloc(1, (size_t) size);
     return *memory != 0 ? TRUE : FALSE;
 }
 
-static catalyst::BOOL native_resize(CATMMLIB_POINTERW* memory, NUINT oldSize, NUINT size) {
+static catalyst::BOOL native_resize(POINTERW* memory, NUINT oldSize, NUINT size) {
     if (*memory == 0) return native_alloc(memory, 0, size);
     if (size == 0) {
         ::free(*memory);
@@ -53,7 +53,7 @@ static catalyst::BOOL native_resize(CATMMLIB_POINTERW* memory, NUINT oldSize, NU
     return TRUE;
 }
 
-static catalyst::BOOL native_free(CATMMLIB_POINTERW* memory, NUINT, NUINT) {
+static catalyst::BOOL native_free(POINTERW* memory, NUINT, NUINT) {
     ::free(*memory);
     *memory = 0;
     return TRUE;
@@ -63,7 +63,7 @@ static catalyst::BOOL native_free(CATMMLIB_POINTERW* memory, NUINT, NUINT) {
 // The caller supplies the original extent, as the native API requires.
 #if TARGET_PLATFORM_WIN32 || TARGET_PLATFORM_DARWIN || TARGET_PLATFORM_LINUX
 
-static catalyst::BOOL os_alloc(CATMMLIB_POINTERW* memory, NUINT, NUINT size) {
+static catalyst::BOOL os_alloc(POINTERW* memory, NUINT, NUINT size) {
     *memory = 0;
 #if TARGET_PLATFORM_WIN32
     *memory = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (SIZE_T) size);
@@ -82,7 +82,7 @@ static catalyst::BOOL os_alloc(CATMMLIB_POINTERW* memory, NUINT, NUINT size) {
     return *memory != 0 ? TRUE : FALSE;
 }
 
-static catalyst::BOOL os_free(CATMMLIB_POINTERW* memory, NUINT oldSize, NUINT) {
+static catalyst::BOOL os_free(POINTERW* memory, NUINT oldSize, NUINT) {
 #if TARGET_PLATFORM_WIN32
     (void) oldSize;
     if (!HeapFree(GetProcessHeap(), 0, *memory)) return FALSE;
@@ -96,7 +96,7 @@ static catalyst::BOOL os_free(CATMMLIB_POINTERW* memory, NUINT oldSize, NUINT) {
     return TRUE;
 }
 
-static catalyst::BOOL os_resize(CATMMLIB_POINTERW* memory, NUINT oldSize, NUINT size) {
+static catalyst::BOOL os_resize(POINTERW* memory, NUINT oldSize, NUINT size) {
     if (*memory == 0) return os_alloc(memory, 0, size);
     if (size == 0) return os_free(memory, oldSize, 0);
     if (size == oldSize) return TRUE;
@@ -144,20 +144,20 @@ static const char* osFreeName = "munmap";
 #endif
 #endif
 
-#define ALLOCATOR(name, prefix) \
-    static catalyst::BOOL name##_alloc(CATMMLIB_POINTERW* memory, NUINT, NUINT size) { \
-        return prefix##_alloc(memory, size).status == STATUS_CODE_SUCCESS ? TRUE : FALSE; \
+#define ALLOCATOR(name, allocate, resize, release) \
+    static catalyst::BOOL name##_alloc(POINTERW* memory, NUINT, NUINT size) { \
+        return allocate(memory, size).status == STATUS_CODE_SUCCESS ? TRUE : FALSE; \
     } \
-    static catalyst::BOOL name##_resize(CATMMLIB_POINTERW* memory, NUINT, NUINT size) { \
-        return prefix##_realloc(memory, size).status == STATUS_CODE_SUCCESS ? TRUE : FALSE; \
+    static catalyst::BOOL name##_resize(POINTERW* memory, NUINT, NUINT size) { \
+        return resize(memory, size).status == STATUS_CODE_SUCCESS ? TRUE : FALSE; \
     } \
-    static catalyst::BOOL name##_free(CATMMLIB_POINTERW* memory, NUINT, NUINT) { \
-        if (prefix##_free(*memory).status != STATUS_CODE_SUCCESS) return FALSE; \
+    static catalyst::BOOL name##_free(POINTERW* memory, NUINT, NUINT) { \
+        if (release(*memory).status != STATUS_CODE_SUCCESS) return FALSE; \
         *memory = 0; \
         return TRUE; \
     }
-ALLOCATOR(direct, catmm)
-ALLOCATOR(heap, catmm_heap)
+ALLOCATOR(direct, catalyst::alloc, catalyst::realloc, catalyst::free)
+ALLOCATOR(heap, catalyst::heap_alloc, catalyst::heap_realloc, catalyst::heap_free)
 #undef ALLOCATOR
 
 struct Allocator {
@@ -181,24 +181,24 @@ struct MemoryData {
 };
 
 static void native_copy(MemoryData* d) { ::memcpy(d->first, d->second, (size_t) d->size); }
-static void compare_copy(MemoryData* d) { catmm_copy(d->first, d->second, d->size); }
+static void compare_copy(MemoryData* d) { catalyst::copy(d->first, d->second, d->size); }
 static void native_copy_unaligned(MemoryData* d) { ::memcpy(d->first + 1, d->second + 1, (size_t) d->size); }
-static void compare_copy_unaligned(MemoryData* d) { catmm_copy(d->first + 1, d->second + 1, d->size); }
+static void compare_copy_unaligned(MemoryData* d) { catalyst::copy(d->first + 1, d->second + 1, d->size); }
 static void native_move_separate(MemoryData* d) { ::memmove(d->first, d->second, (size_t) d->size); }
-static void compare_move_separate(MemoryData* d) { catmm_move(d->first, d->second, d->size); }
+static void compare_move_separate(MemoryData* d) { catalyst::move(d->first, d->second, d->size); }
 static void native_move_right(MemoryData* d) { ::memmove(d->first + 1, d->first, (size_t) d->size); }
-static void compare_move_right(MemoryData* d) { catmm_move(d->first + 1, d->first, d->size); }
+static void compare_move_right(MemoryData* d) { catalyst::move(d->first + 1, d->first, d->size); }
 static void native_move_left(MemoryData* d) { ::memmove(d->first, d->first + 1, (size_t) d->size); }
-static void compare_move_left(MemoryData* d) { catmm_move(d->first, d->first + 1, d->size); }
+static void compare_move_left(MemoryData* d) { catalyst::move(d->first, d->first + 1, d->size); }
 static void native_compare(MemoryData* d) {
     int result = ::memcmp(d->first, d->second, (size_t) d->size);
     d->result = result < 0 ? -1 : result > 0 ? 1 : 0;
 }
-static void compare_compare(MemoryData* d) { d->result = catmm_compare(d->first, d->second, d->size); }
+static void compare_compare(MemoryData* d) { d->result = catalyst::compare(d->first, d->second, d->size); }
 static void native_fill(MemoryData* d) { ::memset(d->first, 0xA5, (size_t) d->size); }
-static void compare_fill(MemoryData* d) { catmm_fill(d->first, 0xA5, d->size); }
+static void compare_fill(MemoryData* d) { catalyst::fill(d->first, 0xA5, d->size); }
 static void native_zero(MemoryData* d) { ::memset(d->first, 0, (size_t) d->size); }
-static void compare_zero(MemoryData* d) { catmm_fill(d->first, 0, d->size); }
+static void compare_zero(MemoryData* d) { catalyst::fill(d->first, 0, d->size); }
 
 enum MemoryKind {
     COPY, COPY_UNALIGNED, MOVE_SEPARATE, MOVE_RIGHT, MOVE_LEFT,
@@ -346,7 +346,7 @@ struct AllocationTrial {
     NUINT newSize;
 };
 
-static catalyst::BOOL verify_allocation(CATMMLIB_POINTERW memory, NUINT oldSize, NUINT newSize, catalyst::BOOL full) {
+static catalyst::BOOL verify_allocation(POINTERW memory, NUINT oldSize, NUINT newSize, catalyst::BOOL full) {
     if (newSize == 0) return memory == 0 ? TRUE : FALSE;
     if (memory == 0) return FALSE;
     const catalyst::BYTE* bytes = (const catalyst::BYTE*) memory;
@@ -376,7 +376,7 @@ static Measurement measure_allocation(AllocationTrial& trial, unsigned long call
     *ticks = 0;
     unsigned long completed = 0;
     while (completed < calls) {
-        CATMMLIB_POINTERW blocks[BATCH_CAPACITY] = { 0 };
+        POINTERW blocks[BATCH_CAPACITY] = { 0 };
         catalyst::BYTE count = calls - completed < batchLimit ? (catalyst::BYTE) (calls - completed) : batchLimit;
         catalyst::BOOL ok = TRUE;
         if (trial.oldSize != 0) {
@@ -435,7 +435,7 @@ static Measurement measure_warm(WarmTrial& trial, unsigned long calls, unsigned 
     AllocationOperation volatile allocate = trial.kind == WARM_NULL_ZERO ? allocator.resize : allocator.allocate;
     AllocationOperation volatile release = trial.kind == WARM_NULL_ZERO ? allocator.resize : allocator.release;
     AllocationOperation volatile resize = allocator.resize;
-    CATMMLIB_POINTERW memory = 0;
+    POINTERW memory = 0;
     NUINT owned = 0;
     catalyst::BOOL ok = TRUE;
     const catalyst::BOOL lifetime = trial.kind == WARM_LIFETIME || trial.kind == WARM_NULL_ZERO ? TRUE : FALSE;
@@ -763,7 +763,7 @@ int main() {
         return 2;
     }
     std::printf("CATMMLIB Performance (Release recommended)\n");
-    std::printf("Native-C is the benchmark. Lower time is better.\n");
+    std::printf("Standard C library / OS APIs are the baseline. Lower time is better.\n");
     std::printf("Difference: +10%% means Catalyst takes 10%% longer; -10%% means 10%% less time.\n");
     std::printf("Time per operation or pair: median of 3 paired samples; %lu clock ticks/second.\n", (unsigned long) CLOCKS_PER_SEC);
     std::printf("Direct allocation: two representative sizes; mapping baseline touches its first page.\n");
@@ -773,7 +773,7 @@ int main() {
     std::printf("Full allocation contents checked in preflight; measured batches sample endpoints.\n");
     std::printf("Memory: standard C memcpy/memmove/memcmp/memset vs CATMMLIB.\n");
     std::printf("Comparable = within 5%%; Review = at least 20%% slower. Decimal places are estimates.\n");
-    std::printf("\n  %-28s %14s %14s %12s  %s\n", "Workload", "Native-C", "Catalyst", "Difference", "Assessment");
+    std::printf("\n  %-28s %14s %14s %12s  %s\n", "Workload", "Baseline", "Catalyst", "Difference", "Assessment");
     std::printf("  -------------------------------------------------------------------------------------\n");
     Summary summary = { 0, 0, 0, 0, 0, 0, 0 };
 #if TARGET_PLATFORM_WIN32 || TARGET_PLATFORM_DARWIN || TARGET_PLATFORM_LINUX
