@@ -7,6 +7,22 @@
 #include "catalyst.hpp"
 #include "catmmlib.h"
 
+// The direct baseline uses exactly the native backend available on the target.
+#if TARGET_PLATFORM_WIN32
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
+    #include <windows.h>
+    #undef TRUE
+    #undef FALSE
+#elif TARGET_PLATFORM_DARWIN
+    #include <mach/mach_init.h>
+    #include <mach/vm_map.h>
+    #include <mach/vm_statistics.h>
+#elif TARGET_PLATFORM_LINUX
+    #include <sys/mman.h>
+#endif
+
 using namespace catalyst;
 
 #if defined(CLOCKS_PER_SEC)
@@ -15,14 +31,14 @@ using namespace catalyst;
 // Native-C benchmark and Catalyst comparison.
 // The common harness owns fixtures, timing and verification.
 // ------------------------------------------------------------
-typedef BOOL (*AllocationOperation)(CATMMLIB_POINTERW*, NUINT, NUINT);
+typedef catalyst::BOOL (*AllocationOperation)(CATMMLIB_POINTERW*, NUINT, NUINT);
 
-static BOOL native_alloc(CATMMLIB_POINTERW* memory, NUINT, NUINT size) {
+static catalyst::BOOL native_alloc(CATMMLIB_POINTERW* memory, NUINT, NUINT size) {
     *memory = ::calloc(1, (size_t) size);
     return *memory != 0 ? TRUE : FALSE;
 }
 
-static BOOL native_resize(CATMMLIB_POINTERW* memory, NUINT oldSize, NUINT size) {
+static catalyst::BOOL native_resize(CATMMLIB_POINTERW* memory, NUINT oldSize, NUINT size) {
     if (*memory == 0) return native_alloc(memory, 0, size);
     if (size == 0) {
         ::free(*memory);
@@ -37,20 +53,103 @@ static BOOL native_resize(CATMMLIB_POINTERW* memory, NUINT oldSize, NUINT size) 
     return TRUE;
 }
 
-static BOOL native_free(CATMMLIB_POINTERW* memory, NUINT, NUINT) {
+static catalyst::BOOL native_free(CATMMLIB_POINTERW* memory, NUINT, NUINT) {
     ::free(*memory);
     *memory = 0;
     return TRUE;
 }
 
+// Direct allocation baseline: no C heap or Catalyst allocator metadata.
+// The caller supplies the original extent, as the native API requires.
+#if TARGET_PLATFORM_WIN32 || TARGET_PLATFORM_DARWIN || TARGET_PLATFORM_LINUX
+
+static catalyst::BOOL os_alloc(CATMMLIB_POINTERW* memory, NUINT, NUINT size) {
+    *memory = 0;
+#if TARGET_PLATFORM_WIN32
+    *memory = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (SIZE_T) size);
+#elif TARGET_PLATFORM_DARWIN
+    vm_address_t address = 0;
+    if (vm_allocate(mach_task_self(), &address, (vm_size_t) size, VM_FLAGS_ANYWHERE) != KERN_SUCCESS)
+        return FALSE;
+    *memory = (void*) address;
+#elif TARGET_PLATFORM_LINUX
+    void* address = mmap(0, (size_t) size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (address == MAP_FAILED) return FALSE;
+    *memory = address;
+#endif
+    return *memory != 0 ? TRUE : FALSE;
+}
+
+static catalyst::BOOL os_free(CATMMLIB_POINTERW* memory, NUINT oldSize, NUINT) {
+#if TARGET_PLATFORM_WIN32
+    (void) oldSize;
+    if (!HeapFree(GetProcessHeap(), 0, *memory)) return FALSE;
+#elif TARGET_PLATFORM_DARWIN
+    if (vm_deallocate(mach_task_self(), (vm_address_t) *memory, (vm_size_t) oldSize) != KERN_SUCCESS)
+        return FALSE;
+#elif TARGET_PLATFORM_LINUX
+    if (munmap(*memory, (size_t) oldSize) != 0) return FALSE;
+#endif
+    *memory = 0;
+    return TRUE;
+}
+
+static catalyst::BOOL os_resize(CATMMLIB_POINTERW* memory, NUINT oldSize, NUINT size) {
+    if (*memory == 0) return os_alloc(memory, 0, size);
+    if (size == 0) return os_free(memory, oldSize, 0);
+    if (size == oldSize) return TRUE;
+#if TARGET_PLATFORM_WIN32
+    void* replacement = HeapReAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, *memory, (SIZE_T) size);
+    if (replacement == 0) return FALSE;
+    *memory = replacement;
+    return TRUE;
+#else
+    // Match the mapping-based resize strategy, including Darwin page reuse.
+    // No private Core headers or prefix are needed for the native baseline.
+#if TARGET_PLATFORM_DARWIN
+    if (vm_page_size != 0 &&
+        ((vm_size_t) oldSize - 1) / vm_page_size == ((vm_size_t) size - 1) / vm_page_size) {
+        if (size > oldSize)
+            ::memset((unsigned char*) *memory + oldSize, 0, (size_t) (size - oldSize));
+        return TRUE;
+    }
+#endif
+    void* replacement = 0;
+    if (!os_alloc(&replacement, 0, size)) return FALSE;
+    ::memcpy(replacement, *memory, (size_t) (oldSize < size ? oldSize : size));
+    if (!os_free(memory, oldSize, 0)) {
+        // Attempt to release the unused replacement; report any failure.
+        os_free(&replacement, size, 0);
+        return FALSE;
+    }
+    *memory = replacement;
+    return TRUE;
+#endif
+}
+
+#if TARGET_PLATFORM_WIN32
+static const char* osAllocName = "HeapAlloc";
+static const char* osResizeName = "HeapReAlloc";
+static const char* osFreeName = "HeapFree";
+#elif TARGET_PLATFORM_DARWIN
+static const char* osAllocName = "vm_allocate";
+static const char* osResizeName = "native page reuse / allocate-copy-free";
+static const char* osFreeName = "vm_deallocate";
+#elif TARGET_PLATFORM_LINUX
+static const char* osAllocName = "mmap";
+static const char* osResizeName = "native allocate-copy-free";
+static const char* osFreeName = "munmap";
+#endif
+#endif
+
 #define ALLOCATOR(name, prefix) \
-    static BOOL name##_alloc(CATMMLIB_POINTERW* memory, NUINT, NUINT size) { \
+    static catalyst::BOOL name##_alloc(CATMMLIB_POINTERW* memory, NUINT, NUINT size) { \
         return prefix##_alloc(memory, size).status == STATUS_CODE_SUCCESS ? TRUE : FALSE; \
     } \
-    static BOOL name##_resize(CATMMLIB_POINTERW* memory, NUINT, NUINT size) { \
+    static catalyst::BOOL name##_resize(CATMMLIB_POINTERW* memory, NUINT, NUINT size) { \
         return prefix##_realloc(memory, size).status == STATUS_CODE_SUCCESS ? TRUE : FALSE; \
     } \
-    static BOOL name##_free(CATMMLIB_POINTERW* memory, NUINT, NUINT) { \
+    static catalyst::BOOL name##_free(CATMMLIB_POINTERW* memory, NUINT, NUINT) { \
         if (prefix##_free(*memory).status != STATUS_CODE_SUCCESS) return FALSE; \
         *memory = 0; \
         return TRUE; \
@@ -66,12 +165,15 @@ struct Allocator {
 };
 
 static const Allocator nativeAllocator = { native_alloc, native_resize, native_free };
+#if TARGET_PLATFORM_WIN32 || TARGET_PLATFORM_DARWIN || TARGET_PLATFORM_LINUX
+static const Allocator osAllocator = { os_alloc, os_resize, os_free };
+#endif
 static const Allocator directAllocator = { direct_alloc, direct_resize, direct_free };
 static const Allocator heapAllocator = { heap_alloc, heap_resize, heap_free };
 
 struct MemoryData {
-    BYTE* first;
-    BYTE* second;
+    catalyst::BYTE* first;
+    catalyst::BYTE* second;
     NUINT size;
     SBYTE result;
 };
@@ -153,7 +255,7 @@ static const NUINT sizes[] = {
 enum Measurement { MEASURE_OK, MEASURE_CLOCK, MEASURE_FAIL };
 static volatile SBYTE observedResult = 0;
 
-static BOOL elapsed(std::clock_t start, unsigned long* ticks) {
+static catalyst::BOOL elapsed(std::clock_t start, unsigned long* ticks) {
     const std::clock_t end = std::clock();
     if (start == (std::clock_t) -1 || start < 0 ||
         end == (std::clock_t) -1 || end < start) return FALSE;
@@ -162,8 +264,8 @@ static BOOL elapsed(std::clock_t start, unsigned long* ticks) {
     return TRUE;
 }
 
-static BYTE pattern(NUINT index) {
-    return (BYTE) (index % (NUINT) 251);
+static catalyst::BYTE pattern(NUINT index) {
+    return (catalyst::BYTE) (index % (NUINT) 251);
 }
 
 static void prepare_memory(MemoryData& d, MemoryKind kind) {
@@ -171,21 +273,21 @@ static void prepare_memory(MemoryData& d, MemoryKind kind) {
         d.first[i] = pattern(i);
         d.second[i] = pattern(i);
         if (kind == COPY || kind == COPY_UNALIGNED || kind == MOVE_SEPARATE)
-            d.first[i] = (BYTE) (pattern(i) ^ (BYTE) 0xFF);
+            d.first[i] = (catalyst::BYTE) (pattern(i) ^ (catalyst::BYTE) 0xFF);
     }
-    if (kind == COMPARE_FIRST) d.second[0] ^= (BYTE) 0x80;
-    if (kind == COMPARE_LAST) d.second[d.size - (NUINT) 1] ^= (BYTE) 0x80;
+    if (kind == COMPARE_FIRST) d.second[0] ^= (catalyst::BYTE) 0x80;
+    if (kind == COMPARE_LAST) d.second[d.size - (NUINT) 1] ^= (catalyst::BYTE) 0x80;
     d.result = 0;
 }
 
-static BOOL verify_memory(const MemoryData& d, MemoryKind kind, unsigned long calls) {
+static catalyst::BOOL verify_memory(const MemoryData& d, MemoryKind kind, unsigned long calls) {
     SBYTE expectedResult = 0;
     for (NUINT i = 0; i < d.size + (NUINT) 2; ++i) {
-        BYTE first = pattern(i), second = pattern(i);
+        catalyst::BYTE first = pattern(i), second = pattern(i);
         if (kind == COPY || kind == MOVE_SEPARATE) {
-            if (i >= d.size) first ^= (BYTE) 0xFF;
+            if (i >= d.size) first ^= (catalyst::BYTE) 0xFF;
         } else if (kind == COPY_UNALIGNED) {
-            if (i == 0 || i > d.size) first ^= (BYTE) 0xFF;
+            if (i == 0 || i > d.size) first ^= (catalyst::BYTE) 0xFF;
         } else if (kind == MOVE_RIGHT && i <= d.size) {
             first = calls >= (unsigned long) i ? pattern(0) : pattern((NUINT) (i - (NUINT) calls));
         } else if (kind == MOVE_LEFT && i < d.size) {
@@ -196,7 +298,7 @@ static BOOL verify_memory(const MemoryData& d, MemoryKind kind, unsigned long ca
             first = 0;
         } else if ((kind == COMPARE_FIRST && i == 0) ||
                    (kind == COMPARE_LAST && i == d.size - (NUINT) 1)) {
-            second ^= (BYTE) 0x80;
+            second ^= (catalyst::BYTE) 0x80;
             expectedResult = first < second ? (SBYTE) -1 : (SBYTE) 1;
         }
         if (d.first[i] != first || d.second[i] != second) return FALSE;
@@ -218,7 +320,7 @@ static Measurement measure_memory(MemoryTrial& trial, unsigned long calls, unsig
         operation(&trial.data);
         observedResult = trial.data.result;
     }
-    BOOL clockOk = elapsed(start, ticks);
+    catalyst::BOOL clockOk = elapsed(start, ticks);
     if (!verify_memory(trial.data, trial.kind, calls)) return MEASURE_FAIL;
     return clockOk ? MEASURE_OK : MEASURE_CLOCK;
 }
@@ -242,14 +344,14 @@ struct AllocationTrial {
     NUINT newSize;
 };
 
-static BOOL verify_allocation(CATMMLIB_POINTERW memory, NUINT oldSize, NUINT newSize, BOOL full) {
+static catalyst::BOOL verify_allocation(CATMMLIB_POINTERW memory, NUINT oldSize, NUINT newSize, catalyst::BOOL full) {
     if (newSize == 0) return memory == 0 ? TRUE : FALSE;
     if (memory == 0) return FALSE;
-    const BYTE* bytes = (const BYTE*) memory;
+    const catalyst::BYTE* bytes = (const catalyst::BYTE*) memory;
     NUINT retained = oldSize < newSize ? oldSize : newSize;
     if (full) {
         for (NUINT i = 0; i < newSize; ++i)
-            if (bytes[i] != (i < retained ? (BYTE) 0xA5 : (BYTE) 0)) return FALSE;
+            if (bytes[i] != (i < retained ? (catalyst::BYTE) 0xA5 : (catalyst::BYTE) 0)) return FALSE;
     } else {
         // Check both ends of each retained/new extent on every timed batch.
         if (retained != 0 && (bytes[0] != 0xA5 || bytes[retained - (NUINT) 1] != 0xA5)) return FALSE;
@@ -263,7 +365,7 @@ static Measurement measure_allocation(AllocationTrial& trial, unsigned long call
     AllocationOperation selected = trial.kind == ALLOCATE ? allocator.allocate :
         trial.kind == RELEASE ? allocator.release : allocator.resize;
     AllocationOperation volatile operation = selected;
-    BYTE batchLimit = BATCH_CAPACITY;
+    catalyst::BYTE batchLimit = BATCH_CAPACITY;
 #if TARGET_SIZEOF_ADDRESS >= 4
     // Bound live large allocations to 256 KiB (not counting allocator metadata).
     NUINT extent = trial.oldSize > trial.newSize ? trial.oldSize : trial.newSize;
@@ -273,32 +375,37 @@ static Measurement measure_allocation(AllocationTrial& trial, unsigned long call
     unsigned long completed = 0;
     while (completed < calls) {
         CATMMLIB_POINTERW blocks[BATCH_CAPACITY] = { 0 };
-        BYTE count = calls - completed < batchLimit ? (BYTE) (calls - completed) : batchLimit;
-        BOOL ok = TRUE;
+        catalyst::BYTE count = calls - completed < batchLimit ? (catalyst::BYTE) (calls - completed) : batchLimit;
+        catalyst::BOOL ok = TRUE;
         if (trial.oldSize != 0) {
-            for (BYTE i = 0; i < count; ++i) {
+            for (catalyst::BYTE i = 0; i < count; ++i) {
                 if (!allocator.allocate(&blocks[i], 0, trial.oldSize)) { ok = FALSE; break; }
-                for (NUINT j = 0; j < trial.oldSize; ++j) ((BYTE*) blocks[i])[j] = 0xA5;
+                for (NUINT j = 0; j < trial.oldSize; ++j) ((catalyst::BYTE*) blocks[i])[j] = 0xA5;
             }
         }
+        catalyst::BYTE succeeded = 0;
         unsigned long batchTicks = 0;
-        BOOL clockOk = TRUE;
+        catalyst::BOOL clockOk = TRUE;
         if (ok) {
             const std::clock_t start = std::clock();
-            for (BYTE i = 0; i < count; ++i) {
+            for (catalyst::BYTE i = 0; i < count; ++i) {
                 if (!operation(&blocks[i], trial.oldSize, trial.newSize)) { ok = FALSE; break; }
                 observedResult = 0;
+                ++succeeded;
             }
             clockOk = elapsed(start, &batchTicks);
             if (ok) {
-                for (BYTE i = 0; i < count; ++i) {
+                for (catalyst::BYTE i = 0; i < count; ++i) {
                     if (!verify_allocation(blocks[i], trial.oldSize, trial.newSize, calls == 1 ? TRUE : FALSE))
                         ok = FALSE;
                 }
             }
         }
-        for (BYTE i = 0; i < count; ++i) {
-            if (blocks[i] != 0 && !allocator.release(&blocks[i], 0, 0)) ok = FALSE;
+        for (catalyst::BYTE i = 0; i < count; ++i) {
+            // Completed operations own the new extent; unprocessed or failed
+            // operations still own the old extent. Mapping APIs require it.
+            NUINT extent = i < succeeded ? trial.newSize : trial.oldSize;
+            if (blocks[i] != 0 && !allocator.release(&blocks[i], extent, 0)) ok = FALSE;
         }
         if (!ok) return MEASURE_FAIL;
         if (!clockOk || batchTicks > ULONG_MAX - *ticks) return MEASURE_CLOCK;
@@ -322,7 +429,7 @@ static unsigned long median(unsigned long* values) {
 /* Convert a fractional remainder into one decimal digit without overflow. */
 static unsigned long decimal_digit(unsigned long* remainder, unsigned long divisor) {
     unsigned long original = *remainder, carry = 0, digit = 0;
-    for (BYTE i = 0; i < 10; ++i) {
+    for (catalyst::BYTE i = 0; i < 10; ++i) {
         if (carry >= divisor - original) {
             carry -= divisor - original;
             ++digit;
@@ -344,7 +451,7 @@ static void print_nanoseconds(unsigned long ticks, unsigned long calls) {
     unsigned long remainder = ticks % frequency;
     unsigned long value = seconds / calls, carry = seconds % calls;
     unsigned long fraction = 0;
-    for (BYTE i = 0; i < 12; ++i) {
+    for (catalyst::BYTE i = 0; i < 12; ++i) {
         carry = carry * 10 + decimal_digit(&remainder, frequency);
         unsigned long digit = carry / calls;
         carry %= calls;
@@ -375,9 +482,9 @@ static void print_difference(unsigned long native, unsigned long comparison) {
     }
     percent += whole * 100;
     // Pad the complete signed percentage, not the digits after the sign.
-    BYTE digits = 1;
+    catalyst::BYTE digits = 1;
     for (unsigned long remaining = percent; remaining >= 10; remaining /= 10) ++digits;
-    for (BYTE i = digits + 4; i < 12; ++i) std::putchar(' ');
+    for (catalyst::BYTE i = digits + 4; i < 12; ++i) std::putchar(' ');
     std::printf(" %c%lu.%lu%%", comparison < native ? '-' : '+', percent, tenth);
 }
 
@@ -429,7 +536,7 @@ static void benchmark_case(const char* label, Trial& native, Trial& comparison,
         calls *= 2;
     }
     unsigned long nativeSamples[3], catalystSamples[3];
-    for (BYTE sample = 0; sample < 3; ++sample) {
+    for (catalyst::BYTE sample = 0; sample < 3; ++sample) {
         if (sample == 1) {
             result = measure(comparison, calls, &catalystSamples[sample]);
             if (result == MEASURE_OK) result = measure(native, calls, &nativeSamples[sample]);
@@ -468,16 +575,18 @@ static void benchmark_case(const char* label, Trial& native, Trial& comparison,
     std::printf("\n");
 }
 
-static void benchmark_allocations(const Allocator& allocator, BOOL managed, Summary& summary) {
-    for (BYTE b = 0; b < sizeof(allocationBenchmarks) / sizeof(allocationBenchmarks[0]); ++b) {
+static void benchmark_allocations(const Allocator& baseline, const Allocator& allocator, catalyst::BOOL managed,
+                                  const char* allocName, const char* resizeName, const char* freeName,
+                                  Summary& summary) {
+    for (catalyst::BYTE b = 0; b < sizeof(allocationBenchmarks) / sizeof(allocationBenchmarks[0]); ++b) {
         const AllocationBenchmark& benchmark = allocationBenchmarks[b];
         if (benchmark.kind == ALLOCATE)
-            std::printf("\n%s (calloc)\n", managed ? "catmm_heap_alloc" : "catmm_alloc");
+            std::printf("\n%s (%s)\n", managed ? "catmm_heap_alloc" : "catmm_alloc", allocName);
         else if (benchmark.kind == GROW)
-            std::printf("\n%s (realloc + zero growth)\n", managed ? "catmm_heap_realloc" : "catmm_realloc");
+            std::printf("\n%s (%s)\n", managed ? "catmm_heap_realloc" : "catmm_realloc", resizeName);
         else if (benchmark.kind == RELEASE)
-            std::printf("\n%s (free)\n", managed ? "catmm_heap_free" : "catmm_free");
-        for (BYTE i = 0; i < sizeof(sizes) / sizeof(sizes[0]); ++i) {
+            std::printf("\n%s (%s)\n", managed ? "catmm_heap_free" : "catmm_free", freeName);
+        for (catalyst::BYTE i = 0; i < sizeof(sizes) / sizeof(sizes[0]); ++i) {
             NUINT size = sizes[i], oldSize = size, newSize = size;
             if (benchmark.kind == ALLOCATE || benchmark.kind == RESIZE_NULL) oldSize = 0;
             else if (benchmark.kind == GROW) oldSize = (NUINT) (size / (NUINT) 2);
@@ -489,7 +598,7 @@ static void benchmark_allocations(const Allocator& allocator, BOOL managed, Summ
             else
                 std::sprintf(label, "%lu -> %lu B (%s)", (unsigned long) oldSize,
                     (unsigned long) newSize, benchmark.workload);
-            AllocationTrial native = { &nativeAllocator, benchmark.kind, oldSize, newSize };
+            AllocationTrial native = { &baseline, benchmark.kind, oldSize, newSize };
             AllocationTrial comparison = { &allocator, benchmark.kind, oldSize, newSize };
             // Limit repeated allocation setup and page churn; timing is batched.
             benchmark_case(label, native, comparison, measure_allocation, 1048576UL, summary);
@@ -499,21 +608,21 @@ static void benchmark_allocations(const Allocator& allocator, BOOL managed, Summ
 
 static void benchmark_memory(Summary& summary) {
     const char* previous = 0;
-    for (BYTE b = 0; b < sizeof(memoryBenchmarks) / sizeof(memoryBenchmarks[0]); ++b) {
+    for (catalyst::BYTE b = 0; b < sizeof(memoryBenchmarks) / sizeof(memoryBenchmarks[0]); ++b) {
         const MemoryBenchmark& benchmark = memoryBenchmarks[b];
         if (previous == 0 || ::strcmp(previous, benchmark.method) != 0) {
             std::printf("\n%s\n", benchmark.method);
             previous = benchmark.method;
         }
-        for (BYTE i = 0; i < sizeof(sizes) / sizeof(sizes[0]) + 2; ++i) {
+        for (catalyst::BYTE i = 0; i < sizeof(sizes) / sizeof(sizes[0]) + 2; ++i) {
             NUINT size = i < 2 ? (NUINT) i : sizes[i - 2];
             if (size == 0 && (benchmark.kind == COMPARE_FIRST || benchmark.kind == COMPARE_LAST)) continue;
             char label[40];
             std::sprintf(label, "%lu B (%s)", (unsigned long) size, benchmark.workload);
             // Common fixture storage is not part of either timed implementation.
             // Reuse it sequentially so small-address targets need only two buffers.
-            BYTE* first = (BYTE*) ::malloc((size_t) (size + (NUINT) 2));
-            BYTE* second = (BYTE*) ::malloc((size_t) (size + (NUINT) 2));
+            catalyst::BYTE* first = (catalyst::BYTE*) ::malloc((size_t) (size + (NUINT) 2));
+            catalyst::BYTE* second = (catalyst::BYTE*) ::malloc((size_t) (size + (NUINT) 2));
             if (first == 0 || second == 0) {
                 report_failure(label, MEASURE_FAIL, summary);
             } else {
@@ -538,8 +647,8 @@ int main() {
     std::printf("Native-C is the benchmark. Lower time is better.\n");
     std::printf("Difference: +10%% means Catalyst takes 10%% longer; -10%% means 10%% less time.\n");
     std::printf("Time per call: median of 3 paired samples; %lu clock ticks/second.\n", (unsigned long) CLOCKS_PER_SEC);
-    std::printf("Allocation: calloc/realloc with zero growth/free vs direct and managed Catalyst allocators.\n");
-    std::printf("Direct allocation may use OS mappings; the C allocator normally reuses heap storage.\n");
+    std::printf("Direct allocation: native OS backend vs CATMMLIB direct allocator.\n");
+    std::printf("Managed allocation: C heap (calloc/realloc + zero growth/free) vs CATMMLIB heap.\n");
     std::printf("Allocation timing excludes fixture setup, cleanup and verification; includes batch clock overhead.\n");
     std::printf("Allocation contents are fully checked in preflight and sampled in timed batches.\n");
     std::printf("Memory: standard C memcpy/memmove/memcmp/memset vs CATMMLIB.\n");
@@ -547,8 +656,17 @@ int main() {
     std::printf("\n  %-28s %14s %14s %12s  %s\n", "Workload", "Native-C", "Catalyst", "Difference", "Assessment");
     std::printf("  -------------------------------------------------------------------------------------\n");
     Summary summary = { 0, 0, 0, 0, 0, 0, 0 };
-    benchmark_allocations(directAllocator, FALSE, summary);
-    benchmark_allocations(heapAllocator, TRUE, summary);
+#if TARGET_PLATFORM_WIN32 || TARGET_PLATFORM_DARWIN || TARGET_PLATFORM_LINUX
+    std::printf("\nDirect allocation (native OS baseline)\n");
+    benchmark_allocations(osAllocator, directAllocator, FALSE, osAllocName, osResizeName, osFreeName, summary);
+#else
+    std::printf("\nDirect allocation: no native OS baseline available on this target.\n");
+    summary.unavailable += (sizeof(allocationBenchmarks) / sizeof(allocationBenchmarks[0])) *
+        (sizeof(sizes) / sizeof(sizes[0]));
+#endif
+    std::printf("\nManaged allocation (standard C heap baseline)\n");
+    benchmark_allocations(nativeAllocator, heapAllocator, TRUE, "calloc", "realloc + zero growth", "free", summary);
+    std::printf("\nMemory operations (standard C baseline)\n");
     benchmark_memory(summary);
     std::printf("\nPerformance summary\n");
     std::printf("  Faster (>5%%):                  %3lu\n", summary.faster);
