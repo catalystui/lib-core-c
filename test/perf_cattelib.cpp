@@ -384,39 +384,42 @@ struct Benchmark {
     const char* name;
     BYTE source;
     BYTE destination;
+    BOOL scalarInput;
     void (*native)(NativeData*);
     void (*comparison)(CatalystData*);
 };
 
-#define BENCH(name, source, destination) \
-    { "catte_" #name, source, destination, native_##name, compare_##name }
+#define BENCH(name, source, destination, scalarInput) \
+    { "catte_" #name, source, destination, scalarInput, native_##name, compare_##name }
 #define ENCODING(name, encoding) \
-    BENCH(name##_encode, encoding, encoding), \
-    BENCH(name##_decode, encoding, encoding), \
-    BENCH(name##_length, encoding, encoding)
+    BENCH(name##_encode, encoding, encoding, TRUE), \
+    BENCH(name##_decode, encoding, encoding, FALSE), \
+    BENCH(name##_length, encoding, encoding, FALSE)
 static const Benchmark benchmarks[] = {
     ENCODING(ascii, PERF_ASCII),
     ENCODING(cp1252, PERF_CP1252),
     ENCODING(utf8, PERF_UTF8),
     ENCODING(utf16le, PERF_UTF16LE),
-    BENCH(ascii_to_cp1252, PERF_ASCII, PERF_CP1252),
-    BENCH(ascii_to_utf8, PERF_ASCII, PERF_UTF8),
-    BENCH(ascii_to_utf16le, PERF_ASCII, PERF_UTF16LE),
-    BENCH(cp1252_to_ascii, PERF_CP1252, PERF_ASCII),
-    BENCH(cp1252_to_utf8, PERF_CP1252, PERF_UTF8),
-    BENCH(cp1252_to_utf16le, PERF_CP1252, PERF_UTF16LE),
-    BENCH(utf8_to_ascii, PERF_UTF8, PERF_ASCII),
-    BENCH(utf8_to_cp1252, PERF_UTF8, PERF_CP1252),
-    BENCH(utf8_to_utf16le, PERF_UTF8, PERF_UTF16LE),
-    BENCH(utf16le_to_ascii, PERF_UTF16LE, PERF_ASCII),
-    BENCH(utf16le_to_cp1252, PERF_UTF16LE, PERF_CP1252),
-    BENCH(utf16le_to_utf8, PERF_UTF16LE, PERF_UTF8)
+    BENCH(ascii_to_cp1252, PERF_ASCII, PERF_CP1252, FALSE),
+    BENCH(ascii_to_utf8, PERF_ASCII, PERF_UTF8, FALSE),
+    BENCH(ascii_to_utf16le, PERF_ASCII, PERF_UTF16LE, FALSE),
+    BENCH(cp1252_to_ascii, PERF_CP1252, PERF_ASCII, FALSE),
+    BENCH(cp1252_to_utf8, PERF_CP1252, PERF_UTF8, FALSE),
+    BENCH(cp1252_to_utf16le, PERF_CP1252, PERF_UTF16LE, FALSE),
+    BENCH(utf8_to_ascii, PERF_UTF8, PERF_ASCII, FALSE),
+    BENCH(utf8_to_cp1252, PERF_UTF8, PERF_CP1252, FALSE),
+    BENCH(utf8_to_utf16le, PERF_UTF8, PERF_UTF16LE, FALSE),
+    BENCH(utf16le_to_ascii, PERF_UTF16LE, PERF_ASCII, FALSE),
+    BENCH(utf16le_to_cp1252, PERF_UTF16LE, PERF_CP1252, FALSE),
+    BENCH(utf16le_to_utf8, PERF_UTF16LE, PERF_UTF8, FALSE)
 };
 #undef BENCH
 #undef ENCODING
 
 struct Workload {
-    const char* name;
+    const char* scalarName;
+    const char* asciiName;
+    const char* cp1252Name;
     BYTE scalar[4];
     BYTE ascii;
     BYTE cp1252;
@@ -427,15 +430,22 @@ struct Workload {
 };
 
 static const Workload workloads[] = {
-    { "ASCII", {0, 0, 0, 0x41}, 0x41, 0x41,
+    { "A (ASCII)", "A (ASCII)", "A (ASCII)", {0, 0, 0, 0x41}, 0x41, 0x41,
         {0x41, 0, 0, 0}, 1, {0x41, 0, 0, 0}, 1 },
-    { "Latin-1", {0, 0, 0, 0xE9}, 0x42, 0xE9,
+    { "U+00E9 (Latin-1)", "B (ASCII)", "U+00E9 (Latin-1)", {0, 0, 0, 0xE9}, 0x42, 0xE9,
         {0xC3, 0xA9, 0, 0}, 2, {0xE9, 0, 0, 0}, 1 },
-    { "CP1252 extension", {0, 0, 0x20, 0xAC}, 0x43, 0x80,
+    { "U+20AC (Euro)", "C (ASCII)", "0x80 (Euro)", {0, 0, 0x20, 0xAC}, 0x43, 0x80,
         {0xE2, 0x82, 0xAC, 0}, 3, {0xAC, 0x20, 0, 0}, 1 },
-    { "Supplementary / undef.", {0, 1, 0xF6, 0}, 0x44, 0x81,
+    { "U+1F600 (Emoji)", "D (ASCII)", "0x81 (Undefined)", {0, 1, 0xF6, 0}, 0x44, 0x81,
         {0xF0, 0x9F, 0x98, 0x80}, 4, {0x3D, 0xD8, 0, 0xDE}, 2 }
 };
+
+static const char* workload_name(const Benchmark& benchmark, const Workload& work) {
+    if (benchmark.scalarInput) return work.scalarName;
+    if (benchmark.source == PERF_ASCII) return work.asciiName;
+    if (benchmark.source == PERF_CP1252) return work.cp1252Name;
+    return work.scalarName;
+}
 
 struct Input {
     BYTE bytes[PERF_BYTES];
@@ -587,7 +597,11 @@ static void print_difference(unsigned long native, unsigned long comparison) {
         return;
     }
     percent += whole * 100;
-    std::printf(" %c%7lu.%lu%%", comparison < native ? '-' : '+', percent, tenth);
+    // Pad the complete signed percentage, not the digits after the sign.
+    BYTE digits = 1;
+    for (unsigned long remaining = percent; remaining >= 10; remaining /= 10) ++digits;
+    for (BYTE i = digits + 4; i < 12; ++i) std::putchar(' ');
+    std::printf(" %c%lu.%lu%%", comparison < native ? '-' : '+', percent, tenth);
 }
 
 struct Summary {
@@ -600,12 +614,13 @@ struct Summary {
     BYTE failed;
 };
 
-static void report_unavailable(const Workload& work, Summary& summary) {
-    std::printf("  %-22s %14s %14s %12s\n", work.name, "-", "-", "no timing");
+static void report_unavailable(const char* name, Summary& summary) {
+    std::printf("  %-22s %14s %14s %12s\n", name, "-", "-", "no timing");
     ++summary.unavailable;
 }
 
 static void benchmark_case(const Benchmark& benchmark, const Workload& work, BYTE pairs, Summary& summary) {
+    const char* name = workload_name(benchmark, work);
     Input input;
     NativeData native;
     CatalystData comparison;
@@ -613,7 +628,7 @@ static void benchmark_case(const Benchmark& benchmark, const Workload& work, BYT
     benchmark.native(&native);
     benchmark.comparison(&comparison);
     if (!matches(benchmark, native, comparison)) {
-        std::printf("  %-22s FAIL: output or status mismatch\n", work.name);
+        std::printf("  %-22s FAIL: output or status mismatch\n", name);
         ++summary.failed;
         return;
     }
@@ -634,7 +649,7 @@ static void benchmark_case(const Benchmark& benchmark, const Workload& work, BYT
     for (;;) {
         if (!measure(benchmark.native, native, calls, &n) ||
             !measure(benchmark.comparison, comparison, calls, &c)) {
-            report_unavailable(work, summary);
+            report_unavailable(name, summary);
             return;
         }
         if ((n >= target && c >= target) || calls == maxCalls ||
@@ -653,11 +668,11 @@ static void benchmark_case(const Benchmark& benchmark, const Workload& work, BYT
                  measure(benchmark.comparison, comparison, calls, &catalystSamples[sample]);
         }
         if (!ok) {
-            report_unavailable(work, summary);
+            report_unavailable(name, summary);
             return;
         }
         if (!matches(benchmark, native, comparison)) {
-            std::printf("  %-22s FAIL: timed output or status mismatch\n", work.name);
+            std::printf("  %-22s FAIL: timed output or status mismatch\n", name);
             ++summary.failed;
             return;
         }
@@ -666,11 +681,11 @@ static void benchmark_case(const Benchmark& benchmark, const Workload& work, BYT
     n = median(nativeSamples);
     c = median(catalystSamples);
     if (n == 0 || c == 0) {
-        report_unavailable(work, summary);
+        report_unavailable(name, summary);
         return;
     }
 
-    std::printf("  %-22s", work.name);
+    std::printf("  %-22s", name);
     print_nanoseconds(n, calls);
     print_nanoseconds(c, calls);
     print_difference(n, c);
@@ -678,15 +693,24 @@ static void benchmark_case(const Benchmark& benchmark, const Workload& work, BYT
     // A short nonzero sample is informative, but exclude very short samples
     // from the aggregate classification rather than counting them as failures.
     if (n < minimum || c < minimum) {
-        std::printf(" *");
+        std::printf("  Short sample *");
         ++summary.shortSamples;
     } else {
         unsigned long delta = c >= n ? c - n : n - c;
-        if (delta <= n / 20) ++summary.similar;
-        else if (c < n) ++summary.faster;
-        else {
+        if (delta <= n / 20) {
+            ++summary.similar;
+            std::printf("  Comparable");
+        } else if (c < n) {
+            ++summary.faster;
+            std::printf("  Faster");
+        } else {
             ++summary.slower;
-            if (delta >= n / 5 + (n % 5 != 0 ? 1 : 0)) ++summary.review;
+            if (delta >= n / 5 + (n % 5 != 0 ? 1 : 0)) {
+                ++summary.review;
+                std::printf("  Review");
+            } else {
+                std::printf("  Slower");
+            }
         }
     }
     std::printf("\n");
@@ -700,12 +724,14 @@ int main() {
         return 2;
     }
     std::printf("CATTELIB Performance (Release recommended)\n");
-    std::printf("Native-C is the benchmark. Negative = faster, positive = slower.\n");
-    std::printf("Median of 3 paired samples; time per call (16 scalars per string).\n");
+    std::printf("Native-C is the benchmark. Lower time is better.\n");
+    std::printf("Difference: +10%% means Catalyst takes 10%% longer; -10%% means 10%% less time.\n");
+    std::printf("Time per call: median of 3 paired samples.\n");
+    std::printf("Encode/decode: one character. Length/conversion: 8 repetitions of the named input and x (16 characters).\n");
     std::printf("Both paths validate output and consume status; Native-C has no diagnostic metadata.\n");
-    std::printf("Displayed decimal places are estimates, not clock precision.\n");
-    std::printf("\n  %-22s %14s %14s %12s\n", "Workload", "Native-C", "Catalyst", "Difference");
-    std::printf("  -----------------------------------------------------------------\n");
+    std::printf("Comparable = within 5%%; Review = at least 20%% slower. Decimal places are estimates.\n");
+    std::printf("\n  %-22s %14s %14s %12s  %s\n", "Input", "Native-C", "Catalyst", "Difference", "Assessment");
+    std::printf("  -------------------------------------------------------------------------------\n");
     Summary summary = { 0, 0, 0, 0, 0, 0, 0 };
     for (BYTE i = 0; i < sizeof(benchmarks) / sizeof(benchmarks[0]); ++i) {
         std::printf("\n%s\n", benchmarks[i].name);
