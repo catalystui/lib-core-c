@@ -72,10 +72,12 @@ static catalyst::BOOL os_alloc(CATMMLIB_POINTERW* memory, NUINT, NUINT size) {
     if (vm_allocate(mach_task_self(), &address, (vm_size_t) size, VM_FLAGS_ANYWHERE) != KERN_SUCCESS)
         return FALSE;
     *memory = (void*) address;
+    if (*memory != 0) *(volatile unsigned char*) *memory = 0;
 #elif TARGET_PLATFORM_LINUX
     void* address = mmap(0, (size_t) size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (address == MAP_FAILED) return FALSE;
     *memory = address;
+    if (*memory != 0) *(volatile unsigned char*) *memory = 0;
 #endif
     return *memory != 0 ? TRUE : FALSE;
 }
@@ -312,7 +314,7 @@ struct MemoryTrial {
     void (*operation)(MemoryData*);
 };
 
-static Measurement measure_memory(MemoryTrial& trial, unsigned long calls, unsigned long* ticks) {
+static Measurement measure_memory(MemoryTrial& trial, unsigned long calls, unsigned long* ticks, catalyst::BOOL verify) {
     prepare_memory(trial.data, trial.kind);
     void (*volatile operation)(MemoryData*) = trial.operation;
     const std::clock_t start = std::clock();
@@ -321,7 +323,7 @@ static Measurement measure_memory(MemoryTrial& trial, unsigned long calls, unsig
         observedResult = trial.data.result;
     }
     catalyst::BOOL clockOk = elapsed(start, ticks);
-    if (!verify_memory(trial.data, trial.kind, calls)) return MEASURE_FAIL;
+    if (verify && !verify_memory(trial.data, trial.kind, calls)) return MEASURE_FAIL;
     return clockOk ? MEASURE_OK : MEASURE_CLOCK;
 }
 
@@ -360,7 +362,7 @@ static catalyst::BOOL verify_allocation(CATMMLIB_POINTERW memory, NUINT oldSize,
     return TRUE;
 }
 
-static Measurement measure_allocation(AllocationTrial& trial, unsigned long calls, unsigned long* ticks) {
+static Measurement measure_allocation(AllocationTrial& trial, unsigned long calls, unsigned long* ticks, catalyst::BOOL verify) {
     const Allocator& allocator = *trial.allocator;
     AllocationOperation selected = trial.kind == ALLOCATE ? allocator.allocate :
         trial.kind == RELEASE ? allocator.release : allocator.resize;
@@ -380,7 +382,7 @@ static Measurement measure_allocation(AllocationTrial& trial, unsigned long call
         if (trial.oldSize != 0) {
             for (catalyst::BYTE i = 0; i < count; ++i) {
                 if (!allocator.allocate(&blocks[i], 0, trial.oldSize)) { ok = FALSE; break; }
-                for (NUINT j = 0; j < trial.oldSize; ++j) ((catalyst::BYTE*) blocks[i])[j] = 0xA5;
+                ::memset(blocks[i], 0xA5, (size_t) trial.oldSize);
             }
         }
         catalyst::BYTE succeeded = 0;
@@ -394,7 +396,7 @@ static Measurement measure_allocation(AllocationTrial& trial, unsigned long call
                 ++succeeded;
             }
             clockOk = elapsed(start, &batchTicks);
-            if (ok) {
+            if (ok && verify) {
                 for (catalyst::BYTE i = 0; i < count; ++i) {
                     if (!verify_allocation(blocks[i], trial.oldSize, trial.newSize, calls == 1 ? TRUE : FALSE))
                         ok = FALSE;
@@ -413,6 +415,75 @@ static Measurement measure_allocation(AllocationTrial& trial, unsigned long call
         completed += count;
     }
     return MEASURE_OK;
+}
+
+// ------------------------------------------------------------
+// Warm heap lifecycles: keep one persistent allocation at a time.
+// Time complete operation pairs rather than one clock call per allocation.
+// ------------------------------------------------------------
+enum WarmKind { WARM_LIFETIME, WARM_NULL_ZERO, WARM_RESIZE, WARM_SAME };
+
+struct WarmTrial {
+    const Allocator* allocator;
+    WarmKind kind;
+    NUINT small;
+    NUINT large;
+};
+
+static Measurement measure_warm(WarmTrial& trial, unsigned long calls, unsigned long* ticks, catalyst::BOOL verify) {
+    const Allocator& allocator = *trial.allocator;
+    AllocationOperation volatile allocate = trial.kind == WARM_NULL_ZERO ? allocator.resize : allocator.allocate;
+    AllocationOperation volatile release = trial.kind == WARM_NULL_ZERO ? allocator.resize : allocator.release;
+    AllocationOperation volatile resize = allocator.resize;
+    CATMMLIB_POINTERW memory = 0;
+    NUINT owned = 0;
+    catalyst::BOOL ok = TRUE;
+    const catalyst::BOOL lifetime = trial.kind == WARM_LIFETIME || trial.kind == WARM_NULL_ZERO ? TRUE : FALSE;
+    if (!lifetime) {
+        ok = allocator.allocate(&memory, 0, trial.small);
+        if (ok) {
+            owned = trial.small;
+            ::memset(memory, 0xA5, (size_t) owned);
+        }
+    }
+    // Full byte verification is done in the one-cycle preflight. The measured
+    // samples use the same workload but only check outcomes and the endpoints.
+    const catalyst::BOOL full = verify && calls == 1 ? TRUE : FALSE;
+    const std::clock_t start = std::clock();
+    for (unsigned long i = 0; ok && i < calls; ++i) {
+        if (lifetime) {
+            if (!allocate(&memory, 0, trial.small)) { ok = FALSE; break; }
+            owned = trial.small;
+            if (memory == 0) { ok = FALSE; break; }
+            // Check representative bytes, then dirty them to exercise reuse.
+            if (!verify_allocation(memory, 0, owned, full)) { ok = FALSE; break; }
+            ((volatile unsigned char*) memory)[0] = 0xA5;
+            ((volatile unsigned char*) memory)[owned - (NUINT) 1] = 0xA5;
+            if (!release(&memory, owned, 0)) { ok = FALSE; break; }
+            owned = 0;
+            if (memory != 0) { ok = FALSE; break; }
+        } else if (trial.kind == WARM_RESIZE) {
+            if (!resize(&memory, owned, trial.large)) { ok = FALSE; break; }
+            if (!verify_allocation(memory, owned, trial.large, full)) {
+                owned = trial.large;
+                ok = FALSE;
+                break;
+            }
+            owned = trial.large;
+            ((volatile unsigned char*) memory)[owned - (NUINT) 1] = 0xA5;
+            if (!resize(&memory, owned, trial.small)) { ok = FALSE; break; }
+            owned = trial.small;
+            if (!verify_allocation(memory, owned, owned, full)) { ok = FALSE; break; }
+        } else {
+            if (!resize(&memory, owned, owned)) { ok = FALSE; break; }
+        }
+        observedResult = 0;
+    }
+    catalyst::BOOL clockOk = elapsed(start, ticks);
+    if (ok && !lifetime && verify && !verify_allocation(memory, owned, owned, TRUE)) ok = FALSE;
+    if (memory != 0 && !allocator.release(&memory, owned, 0)) ok = FALSE;
+    if (!ok) return MEASURE_FAIL;
+    return clockOk ? MEASURE_OK : MEASURE_CLOCK;
 }
 
 // ------------------------------------------------------------
@@ -505,44 +576,62 @@ static void report_failure(const char* label, Measurement result, Summary& summa
 
 template<typename Trial>
 static void benchmark_case(const char* label, Trial& native, Trial& comparison,
-                           Measurement (*measure)(Trial&, unsigned long, unsigned long*),
+                           Measurement (*measure)(Trial&, unsigned long, unsigned long*, catalyst::BOOL),
                            unsigned long maxCalls, Summary& summary) {
     unsigned long n = 0, c = 0;
-    Measurement result = measure(native, 1, &n);
-    if (result == MEASURE_OK) result = measure(comparison, 1, &c);
+    Measurement result = measure(native, 1, &n, TRUE);
+    if (result == MEASURE_OK) result = measure(comparison, 1, &c, TRUE);
     if (result != MEASURE_OK) { report_failure(label, result, summary); return; }
 
     const unsigned long frequency = (unsigned long) CLOCKS_PER_SEC;
-    unsigned long target = frequency / 40;
+    unsigned long target = frequency / 100; // 10 ms per path.
     if (target < 20) target = 20;
     unsigned long minimum = frequency / 1000;
     if (minimum < 20) minimum = 20;
-    unsigned long budget = frequency / 4;
+    unsigned long budget = frequency / 10; // 100 ms cumulative calibration CPU budget.
     if (budget < target) budget = target;
+    unsigned long sampleBudget = frequency / 10; // Bound full setup + timing + cleanup per pair.
+    if (sampleBudget < target) sampleBudget = target;
     unsigned long calls = 16;
+    const std::clock_t calibrationStart = std::clock();
 
     for (;;) {
-        const std::clock_t calibrationStart = std::clock();
-        result = measure(native, calls, &n);
-        if (result == MEASURE_OK) result = measure(comparison, calls, &c);
+        const std::clock_t attemptStart = std::clock();
+        result = measure(native, calls, &n, FALSE);
+        if (result == MEASURE_OK) result = measure(comparison, calls, &c, FALSE);
         if (result != MEASURE_OK) { report_failure(label, result, summary); return; }
-        unsigned long calibrationTicks = 0;
-        if (!elapsed(calibrationStart, &calibrationTicks)) {
+        unsigned long totalTicks = 0, attemptTicks = 0;
+        if (!elapsed(calibrationStart, &totalTicks) || !elapsed(attemptStart, &attemptTicks)) {
             report_failure(label, MEASURE_CLOCK, summary);
             return;
         }
-        if ((n >= target && c >= target) || calls == maxCalls ||
-            n >= budget || c >= budget || calibrationTicks >= budget) break;
-        calls *= 2;
+        unsigned long faster = n < c ? n : c;
+        if (faster >= target || calls >= maxCalls || totalTicks >= budget ||
+            attemptTicks >= sampleBudget) break;
+
+        // Estimate a bounded multiplier from the last observation. No
+        // unchecked multiplication, and zero-tick readings grow by eight.
+        unsigned long factor = faster == 0 ? 8 : target / faster;
+        if (factor < 2) factor = 2;
+        if (factor > 16) factor = 16;
+        if (attemptTicks != 0) {
+            unsigned long remaining = budget - totalTicks;
+            unsigned long allowed = remaining < sampleBudget ? remaining : sampleBudget;
+            unsigned long affordable = allowed / attemptTicks;
+            if (affordable < 2) break;
+            if (factor > affordable) factor = affordable;
+        }
+        if (factor > maxCalls / calls) calls = maxCalls;
+        else calls *= factor;
     }
     unsigned long nativeSamples[3], catalystSamples[3];
     for (catalyst::BYTE sample = 0; sample < 3; ++sample) {
         if (sample == 1) {
-            result = measure(comparison, calls, &catalystSamples[sample]);
-            if (result == MEASURE_OK) result = measure(native, calls, &nativeSamples[sample]);
+            result = measure(comparison, calls, &catalystSamples[sample], TRUE);
+            if (result == MEASURE_OK) result = measure(native, calls, &nativeSamples[sample], TRUE);
         } else {
-            result = measure(native, calls, &nativeSamples[sample]);
-            if (result == MEASURE_OK) result = measure(comparison, calls, &catalystSamples[sample]);
+            result = measure(native, calls, &nativeSamples[sample], TRUE);
+            if (result == MEASURE_OK) result = measure(comparison, calls, &catalystSamples[sample], TRUE);
         }
         if (result != MEASURE_OK) { report_failure(label, result, summary); return; }
     }
@@ -573,6 +662,7 @@ static void benchmark_case(const char* label, Trial& native, Trial& comparison,
         }
     }
     std::printf("\n");
+    std::fflush(stdout);
 }
 
 static void benchmark_allocations(const Allocator& baseline, const Allocator& allocator, catalyst::BOOL managed,
@@ -602,6 +692,31 @@ static void benchmark_allocations(const Allocator& baseline, const Allocator& al
             AllocationTrial comparison = { &allocator, benchmark.kind, oldSize, newSize };
             // Limit repeated allocation setup and page churn; timing is batched.
             benchmark_case(label, native, comparison, measure_allocation, 1048576UL, summary);
+        }
+    }
+}
+
+static void benchmark_warm_heap(Summary& summary) {
+    static const char* labels[] = {
+        "catmm_heap_alloc + catmm_heap_free (calloc + free)",
+        "catmm_heap_realloc from null + to zero (calloc + free)",
+        "catmm_heap_realloc grow + shrink (realloc + zero growth)",
+        "catmm_heap_realloc same size (realloc)"
+    };
+    for (catalyst::BYTE kind = 0; kind < 4; ++kind) {
+        std::printf("\n%s\n", labels[kind]);
+        for (catalyst::BYTE i = 0; i < sizeof(sizes) / sizeof(sizes[0]); ++i) {
+            NUINT size = sizes[i];
+            NUINT small = kind == WARM_RESIZE ? (NUINT) (size / (NUINT) 2) : size;
+            char label[40];
+            if (kind == WARM_RESIZE)
+                std::sprintf(label, "%lu -> %lu -> %lu B", (unsigned long) small,
+                    (unsigned long) size, (unsigned long) small);
+            else
+                std::sprintf(label, "%lu bytes", (unsigned long) size);
+            WarmTrial native = { &nativeAllocator, (WarmKind) kind, small, size };
+            WarmTrial comparison = { &heapAllocator, (WarmKind) kind, small, size };
+            benchmark_case(label, native, comparison, measure_warm, 1048576UL, summary);
         }
     }
 }
@@ -637,7 +752,7 @@ static void benchmark_memory(Summary& summary) {
 }
 #endif
 
-int main() {
+int main(int argc, char** argv) {
 #if defined(CLOCKS_PER_SEC)
     if (CLOCKS_PER_SEC <= 0 || std::clock() == (std::clock_t) -1) {
         std::printf("CATMMLIB performance unavailable: no usable standard C clock.\n");
@@ -646,11 +761,12 @@ int main() {
     std::printf("CATMMLIB Performance (Release recommended)\n");
     std::printf("Native-C is the benchmark. Lower time is better.\n");
     std::printf("Difference: +10%% means Catalyst takes 10%% longer; -10%% means 10%% less time.\n");
-    std::printf("Time per call: median of 3 paired samples; %lu clock ticks/second.\n", (unsigned long) CLOCKS_PER_SEC);
-    std::printf("Direct allocation: native OS backend vs CATMMLIB direct allocator.\n");
+    std::printf("Time per operation or pair: median of 3 paired samples; %lu clock ticks/second.\n", (unsigned long) CLOCKS_PER_SEC);
+    std::printf("Direct allocation: native OS backend vs CATMMLIB; mapping baseline touches its first page.\n");
     std::printf("Managed allocation: C heap (calloc/realloc + zero growth/free) vs CATMMLIB heap.\n");
-    std::printf("Allocation timing excludes fixture setup, cleanup and verification; includes batch clock overhead.\n");
-    std::printf("Allocation contents are fully checked in preflight and sampled in timed batches.\n");
+    std::printf("Direct/burst timing excludes setup, cleanup and verification; includes batch clock overhead.\n");
+    std::printf("Warm heap timings include both operations in each pair and identical endpoint checks.\n");
+    std::printf("Full allocation contents checked in preflight; measured batches sample endpoints.\n");
     std::printf("Memory: standard C memcpy/memmove/memcmp/memset vs CATMMLIB.\n");
     std::printf("Comparable = within 5%%; Review = at least 20%% slower. Decimal places are estimates.\n");
     std::printf("\n  %-28s %14s %14s %12s  %s\n", "Workload", "Native-C", "Catalyst", "Difference", "Assessment");
@@ -664,8 +780,15 @@ int main() {
     summary.unavailable += (sizeof(allocationBenchmarks) / sizeof(allocationBenchmarks[0])) *
         (sizeof(sizes) / sizeof(sizes[0]));
 #endif
-    std::printf("\nManaged allocation (standard C heap baseline)\n");
-    benchmark_allocations(nativeAllocator, heapAllocator, TRUE, "calloc", "realloc + zero growth", "free", summary);
+    std::printf("\nManaged allocation (warm reuse; one persistent block, standard C heap baseline)\n");
+    std::printf("Sizes outside managed size classes still use native backing allocation (including 64 KiB payloads).\n");
+    benchmark_warm_heap(summary);
+    if (argc > 1 && ::strcmp(argv[1], "--burst") == 0) {
+        std::printf("\nManaged allocation (burst; multiple live blocks, standard C heap baseline)\n");
+        benchmark_allocations(nativeAllocator, heapAllocator, TRUE, "calloc", "realloc + zero growth", "free", summary);
+    } else {
+        std::printf("\nUse --burst to include isolated managed allocation/resize/free batch timings.\n");
+    }
     std::printf("\nMemory operations (standard C baseline)\n");
     benchmark_memory(summary);
     std::printf("\nPerformance summary\n");
