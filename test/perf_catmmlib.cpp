@@ -670,6 +670,8 @@ static void benchmark_allocations(const Allocator& baseline, const Allocator& al
                                   Summary& summary) {
     for (catalyst::BYTE b = 0; b < sizeof(allocationBenchmarks) / sizeof(allocationBenchmarks[0]); ++b) {
         const AllocationBenchmark& benchmark = allocationBenchmarks[b];
+        if (!managed && benchmark.kind != ALLOCATE && benchmark.kind != GROW &&
+            benchmark.kind != SHRINK && benchmark.kind != RELEASE) continue;
         if (benchmark.kind == ALLOCATE)
             std::printf("\n%s (%s)\n", managed ? "catmm_heap_alloc" : "catmm_alloc", allocName);
         else if (benchmark.kind == GROW)
@@ -677,6 +679,8 @@ static void benchmark_allocations(const Allocator& baseline, const Allocator& al
         else if (benchmark.kind == RELEASE)
             std::printf("\n%s (%s)\n", managed ? "catmm_heap_free" : "catmm_free", freeName);
         for (catalyst::BYTE i = 0; i < sizeof(sizes) / sizeof(sizes[0]); ++i) {
+            // Direct OS calls need only a small and a large representative extent.
+            if (!managed && i != 0 && i != sizeof(sizes) / sizeof(sizes[0]) - 1) continue;
             NUINT size = sizes[i], oldSize = size, newSize = size;
             if (benchmark.kind == ALLOCATE || benchmark.kind == RESIZE_NULL) oldSize = 0;
             else if (benchmark.kind == GROW) oldSize = (NUINT) (size / (NUINT) 2);
@@ -752,7 +756,7 @@ static void benchmark_memory(Summary& summary) {
 }
 #endif
 
-int main(int argc, char** argv) {
+int main() {
 #if defined(CLOCKS_PER_SEC)
     if (CLOCKS_PER_SEC <= 0 || std::clock() == (std::clock_t) -1) {
         std::printf("CATMMLIB performance unavailable: no usable standard C clock.\n");
@@ -762,7 +766,7 @@ int main(int argc, char** argv) {
     std::printf("Native-C is the benchmark. Lower time is better.\n");
     std::printf("Difference: +10%% means Catalyst takes 10%% longer; -10%% means 10%% less time.\n");
     std::printf("Time per operation or pair: median of 3 paired samples; %lu clock ticks/second.\n", (unsigned long) CLOCKS_PER_SEC);
-    std::printf("Direct allocation: native OS backend vs CATMMLIB; mapping baseline touches its first page.\n");
+    std::printf("Direct allocation: two representative sizes; mapping baseline touches its first page.\n");
     std::printf("Managed allocation: C heap (calloc/realloc + zero growth/free) vs CATMMLIB heap.\n");
     std::printf("Direct/burst timing excludes setup, cleanup and verification; includes batch clock overhead.\n");
     std::printf("Warm heap timings include both operations in each pair and identical endpoint checks.\n");
@@ -777,18 +781,13 @@ int main(int argc, char** argv) {
     benchmark_allocations(osAllocator, directAllocator, FALSE, osAllocName, osResizeName, osFreeName, summary);
 #else
     std::printf("\nDirect allocation: no native OS baseline available on this target.\n");
-    summary.unavailable += (sizeof(allocationBenchmarks) / sizeof(allocationBenchmarks[0])) *
-        (sizeof(sizes) / sizeof(sizes[0]));
+    summary.unavailable += 8;
 #endif
     std::printf("\nManaged allocation (warm reuse; one persistent block, standard C heap baseline)\n");
     std::printf("Sizes outside managed size classes still use native backing allocation (including 64 KiB payloads).\n");
     benchmark_warm_heap(summary);
-    if (argc > 1 && ::strcmp(argv[1], "--burst") == 0) {
-        std::printf("\nManaged allocation (burst; multiple live blocks, standard C heap baseline)\n");
-        benchmark_allocations(nativeAllocator, heapAllocator, TRUE, "calloc", "realloc + zero growth", "free", summary);
-    } else {
-        std::printf("\nUse --burst to include isolated managed allocation/resize/free batch timings.\n");
-    }
+    std::printf("\nManaged allocation (burst; up to %u live blocks, standard C heap baseline)\n", (unsigned int) BATCH_CAPACITY);
+    benchmark_allocations(nativeAllocator, heapAllocator, TRUE, "calloc", "realloc + zero growth", "free", summary);
     std::printf("\nMemory operations (standard C baseline)\n");
     benchmark_memory(summary);
     std::printf("\nPerformance summary\n");
