@@ -24,10 +24,10 @@ extern "C" {
  * C API :: OPERATION STRUCTURES
  * ------------------------------------------------------------------------------------------------- */
 
-/** A reference to an executable array of instructions. */
+/** A reference to an executable array of instructions. For CATTRLIB entry and submitted procedures, restore void (*)(CATMMLIB_POINTERW) before invocation. */
 typedef void (*CATTRLIB_PROCEDURE)(void);
 
-/** A reference to a procedure whose execution produces a result. */
+/** A reference to a procedure whose execution produces a result. Submitted functions use CATMMLIB_POINTERW (*)(CATMMLIB_POINTERW); dispatch rules use CATMMLIB_POINTERW (*)(const CATRLLIB_SET*). */
 typedef CATMMLIB_POINTERW (*CATTRLIB_FUNCTION)(void);
 
 /* -------------------------------------------------------------------------------------------------
@@ -59,22 +59,22 @@ typedef struct CATTRLIB_DISPATCHER {
  * C API :: PROCESS OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Establish a process associated with the specified function. */
+/** Native process launch is not implemented; leaves a freeable empty process. */
 CATTRLIB_API CATALYST_RESULT cattr_process_create(CATTRLIB_PROCESS* process, CATTRLIB_FUNCTION function, CATMMLIB_POINTERW input);
 
-/** Retrieve the process associated with the current execution. */
+/** Capture the current native process into unused storage. Its function is unknown. */
 CATTRLIB_API CATALYST_RESULT cattr_process_current(CATTRLIB_PROCESS* process);
 
-/** Begin execution of a process. */
+/** Native process launch is not implemented. */
 CATTRLIB_API CATALYST_RESULT cattr_process_start(CATTRLIB_PROCESS* process);
 
-/** Wait for a process to complete execution. */
+/** Native process waiting is not implemented; waiting for the current process is invalid. */
 CATTRLIB_API CATALYST_RESULT cattr_process_wait(CATTRLIB_PROCESS* process);
 
 /** Determine whether two processes represent the same instance of execution. */
 CATTRLIB_API CATALYST_BOOL cattr_process_equals(const CATTRLIB_PROCESS* process1, const CATTRLIB_PROCESS* process2);
 
-/** Terminate execution of a process. */
+/** Native process termination is not implemented; terminating the captured current process is invalid. */
 CATTRLIB_API CATALYST_RESULT cattr_process_terminate(CATTRLIB_PROCESS* process);
 
 /** Release the resources associated with a process. */
@@ -84,50 +84,50 @@ CATTRLIB_API CATALYST_RESULT cattr_process_free(CATTRLIB_PROCESS* process);
  * C API :: THREAD OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Establish a thread within the specified process. */
+/** Establish a single-start thread in the current process. Keep process and arguments live through completion; failed creation permits free. */
 CATTRLIB_API CATALYST_RESULT cattr_thread_create(CATTRLIB_THREAD* thread, CATTRLIB_PROCESS* process, CATTRLIB_PROCEDURE procedure, CATMMLIB_POINTERW arguments);
 
-/** Retrieve the thread associated with the current execution. */
+/** Capture the current thread in the current process into unused storage; procedure is unknown. Keep the captured execution live when comparing or using its identity. Failed capture permits free. */
 CATTRLIB_API CATALYST_RESULT cattr_thread_current(CATTRLIB_THREAD* thread, CATTRLIB_PROCESS* process);
 
-/** Begin execution of a thread. */
+/** Start a created thread once. Serialize lifecycle changes and publish associated dispatchers before starting. Failed start permits free only. */
 CATTRLIB_API CATALYST_RESULT cattr_thread_start(CATTRLIB_THREAD* thread);
 
-/** Wait for a thread to complete execution. */
+/** Join a started thread from another thread. A previously joined thread is a no-op; serialize lifecycle changes. */
 CATTRLIB_API CATALYST_RESULT cattr_thread_wait(CATTRLIB_THREAD* thread);
 
-/** Determine whether two threads represent the same execution path. */
+/** Compare execution identity; distinct handles may be compared while their native identities remain live. Serialize lifecycle changes. */
 CATTRLIB_API CATALYST_BOOL cattr_thread_equals(const CATTRLIB_THREAD* thread1, const CATTRLIB_THREAD* thread2);
 
-/** Release the resources associated with a thread. */
+/** Release a captured, unstarted, joined or failed thread after all uses cease; does not terminate execution. */
 CATTRLIB_API CATALYST_RESULT cattr_thread_free(CATTRLIB_THREAD* thread);
 
 /* -------------------------------------------------------------------------------------------------
  * C API :: DISPATCHER OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Establish a dispatcher associated with the specified thread. */
+/** Establish bounded work storage of nonzero capacity in unused storage. Null rule selects FIFO; otherwise the rule returns the address of a member in the read-only set of CATTRLIB_PROCEDURE references. The rule must not reenter the dispatcher or retain member addresses. Failed creation permits free only. Keep the associated thread live. Serialize its start and lifecycle changes with external dispatcher access. */
 CATTRLIB_API CATALYST_RESULT cattr_dispatcher_create(CATTRLIB_DISPATCHER* dispatcher, CATTRLIB_THREAD* thread, CATTRLIB_FUNCTION rule, CATALYST_NUINT capacity);
 
-/** Submit a procedure for execution. */
+/** Submit or execute immediately on the associated thread. Timeout is milliseconds (NUINT_MAX means indefinite); pending timed-out awaited work is removed, running awaited work completes before return. Async arguments must live through execution or cancellation. Async duplicate pending operations are no-ops (arguments are not replaced); awaited duplicates are rejected. CATTRLIB does not retain arguments or output storage after a completed awaited call. */
 CATTRLIB_API CATALYST_RESULT cattr_dispatcher_submit_procedure(CATTRLIB_DISPATCHER* dispatcher, CATTRLIB_PROCEDURE procedure, CATMMLIB_POINTERW arguments, CATALYST_BOOL wait, CATALYST_NUINT timeout);
 
-/** Submit a function for execution. */
+/** As for procedure submission. Awaited calls require output storage, cleared on entry and written only on success; async calls require null output. Returned storage remains owned by the function/caller. */
 CATTRLIB_API CATALYST_RESULT cattr_dispatcher_submit_function(CATTRLIB_DISPATCHER* dispatcher, CATTRLIB_FUNCTION function, CATMMLIB_POINTERW arguments, CATALYST_BOOL wait, CATALYST_NUINT timeout, CATMMLIB_POINTERW* output);
 
-/** Retrieve the number of operations awaiting execution. */
+/** Return the synchronized pending work count; excludes executing and completed work. Do not access work/state directly during concurrent use. */
 CATTRLIB_API CATALYST_NUINT cattr_dispatcher_count(CATTRLIB_DISPATCHER* dispatcher);
 
-/** Wait until work becomes available for execution. */
+/** On the associated thread, wait for pending work; timeout is milliseconds (NUINT_MAX means indefinite). Close interrupts the wait. */
 CATTRLIB_API CATALYST_RESULT cattr_dispatcher_wait(CATTRLIB_DISPATCHER* dispatcher, CATALYST_NUINT timeout);
 
-/** Select and execute pending work according to the dispatch rule. */
+/** Execute one pending operation on the associated thread, or return SUCCESS_NOOP when empty. Non-reentrant; execute outside the monitor. Close interrupts polling. */
 CATTRLIB_API CATALYST_RESULT cattr_dispatcher_poll(CATTRLIB_DISPATCHER* dispatcher);
 
-/** Close the dispatcher to further submissions and awaken waiting threads. */
+/** Close to further submissions, cancel pending work and awaken waiters; running work completes. */
 CATTRLIB_API CATALYST_RESULT cattr_dispatcher_close(CATTRLIB_DISPATCHER* dispatcher);
 
-/** Release the resources associated with a dispatcher. */
+/** Release a closed or failed-init dispatcher after all users have returned. Failed release permits only a subsequent free. */
 CATTRLIB_API CATALYST_RESULT cattr_dispatcher_free(CATTRLIB_DISPATCHER* dispatcher);
 
 #ifdef __cplusplus

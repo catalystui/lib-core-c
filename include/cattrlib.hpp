@@ -9,10 +9,10 @@ namespace catalyst {
  * C++ API :: OPERATION STRUCTURES
  * ------------------------------------------------------------------------------------------------- */
 
-/** A reference to an executable array of instructions. */
+/** A reference to an executable array of instructions. For CATTRLIB entry and submitted procedures, restore void (*)(CATMMLIB_POINTERW) before invocation. */
 typedef ::CATTRLIB_PROCEDURE PROCEDURE;
 
-/** A reference to a procedure whose execution produces a result. */
+/** A reference to a procedure whose execution produces a result. Submitted functions use CATMMLIB_POINTERW (*)(CATMMLIB_POINTERW); dispatch rules use CATMMLIB_POINTERW (*)(const CATRLLIB_SET*). */
 typedef ::CATTRLIB_FUNCTION FUNCTION;
 
 /* -------------------------------------------------------------------------------------------------
@@ -32,22 +32,22 @@ typedef ::CATTRLIB_DISPATCHER DISPATCHER;
  * C++ API :: PROCESS OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Establish a process associated with the specified function. */
+/** Native process launch is not implemented; leaves a freeable empty process. */
 inline RESULT process_create(PROCESS* process, FUNCTION function, POINTERW input) {
     return ::cattr_process_create(process, function, input);
 }
 
-/** Retrieve the process associated with the current execution. */
+/** Capture the current native process into unused storage. Its function is unknown. */
 inline RESULT process_current(PROCESS* process) {
     return ::cattr_process_current(process);
 }
 
-/** Begin execution of a process. */
+/** Native process launch is not implemented. */
 inline RESULT process_start(PROCESS* process) {
     return ::cattr_process_start(process);
 }
 
-/** Wait for a process to complete execution. */
+/** Native process waiting is not implemented; waiting for the current process is invalid. */
 inline RESULT process_wait(PROCESS* process) {
     return ::cattr_process_wait(process);
 }
@@ -57,7 +57,7 @@ inline BOOL process_equals(const PROCESS* process1, const PROCESS* process2) {
     return ::cattr_process_equals(process1, process2);
 }
 
-/** Terminate execution of a process. */
+/** Native process termination is not implemented; terminating the captured current process is invalid. */
 inline RESULT process_terminate(PROCESS* process) {
     return ::cattr_process_terminate(process);
 }
@@ -71,32 +71,32 @@ inline RESULT process_free(PROCESS* process) {
  * C++ API :: THREAD OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Establish a thread within the specified process. */
+/** Establish a single-start thread in the current process. Keep process and arguments live through completion; failed creation permits free. */
 inline RESULT thread_create(THREAD* thread, PROCESS* process, PROCEDURE procedure, POINTERW arguments) {
     return ::cattr_thread_create(thread, process, procedure, arguments);
 }
 
-/** Retrieve the thread associated with the current execution. */
+/** Capture the current thread in the current process into unused storage; procedure is unknown. Keep the captured execution live when comparing or using its identity. Failed capture permits free. */
 inline RESULT thread_current(THREAD* thread, PROCESS* process) {
     return ::cattr_thread_current(thread, process);
 }
 
-/** Begin execution of a thread. */
+/** Start a created thread once. Serialize lifecycle changes and publish associated dispatchers before starting. Failed start permits free only. */
 inline RESULT thread_start(THREAD* thread) {
     return ::cattr_thread_start(thread);
 }
 
-/** Wait for a thread to complete execution. */
+/** Join a started thread from another thread. A previously joined thread is a no-op; serialize lifecycle changes. */
 inline RESULT thread_wait(THREAD* thread) {
     return ::cattr_thread_wait(thread);
 }
 
-/** Determine whether two threads represent the same execution path. */
+/** Compare execution identity; distinct handles may be compared while their native identities remain live. Serialize lifecycle changes. */
 inline BOOL thread_equals(const THREAD* thread1, const THREAD* thread2) {
     return ::cattr_thread_equals(thread1, thread2);
 }
 
-/** Release the resources associated with a thread. */
+/** Release a captured, unstarted, joined or failed thread after all uses cease; does not terminate execution. */
 inline RESULT thread_free(THREAD* thread) {
     return ::cattr_thread_free(thread);
 }
@@ -105,42 +105,42 @@ inline RESULT thread_free(THREAD* thread) {
  * C++ API :: DISPATCHER OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Establish a dispatcher associated with the specified thread. */
+/** Establish bounded work storage of nonzero capacity in unused storage. Null rule selects FIFO; otherwise the rule returns the address of a member in the read-only set of CATTRLIB_PROCEDURE references. The rule must not reenter the dispatcher or retain member addresses. Failed creation permits free only. Keep the associated thread live. Serialize its start and lifecycle changes with external dispatcher access. */
 inline RESULT dispatcher_create(DISPATCHER* dispatcher, THREAD* thread, FUNCTION rule, NUINT capacity) {
     return ::cattr_dispatcher_create(dispatcher, thread, rule, capacity);
 }
 
-/** Submit a procedure for execution. */
+/** Submit or execute immediately on the associated thread. Timeout is milliseconds (NUINT_MAX means indefinite); pending timed-out awaited work is removed, running awaited work completes before return. Async arguments must live through execution or cancellation. Async duplicate pending operations are no-ops (arguments are not replaced); awaited duplicates are rejected. CATTRLIB does not retain arguments or output storage after a completed awaited call. */
 inline RESULT dispatcher_submit_procedure(DISPATCHER* dispatcher, PROCEDURE procedure, POINTERW arguments, BOOL wait, NUINT timeout) {
     return ::cattr_dispatcher_submit_procedure(dispatcher, procedure, arguments, wait, timeout);
 }
 
-/** Submit a function for execution. */
+/** As for procedure submission. Awaited calls require output storage, cleared on entry and written only on success; async calls require null output. Returned storage remains owned by the function/caller. */
 inline RESULT dispatcher_submit_function(DISPATCHER* dispatcher, FUNCTION function, POINTERW arguments, BOOL wait, NUINT timeout, POINTERW* output) {
     return ::cattr_dispatcher_submit_function(dispatcher, function, arguments, wait, timeout, output);
 }
 
-/** Retrieve the number of operations awaiting execution. */
+/** Return the synchronized pending work count; excludes executing and completed work. Do not access work/state directly during concurrent use. */
 inline NUINT dispatcher_count(DISPATCHER* dispatcher) {
     return ::cattr_dispatcher_count(dispatcher);
 }
 
-/** Wait until work becomes available for execution. */
+/** On the associated thread, wait for pending work; timeout is milliseconds (NUINT_MAX means indefinite). Close interrupts the wait. */
 inline RESULT dispatcher_wait(DISPATCHER* dispatcher, NUINT timeout) {
     return ::cattr_dispatcher_wait(dispatcher, timeout);
 }
 
-/** Select and execute pending work according to the dispatch rule. */
+/** Execute one pending operation on the associated thread, or return SUCCESS_NOOP when empty. Non-reentrant; execute outside the monitor. Close interrupts polling. */
 inline RESULT dispatcher_poll(DISPATCHER* dispatcher) {
     return ::cattr_dispatcher_poll(dispatcher);
 }
 
-/** Close the dispatcher to further submissions and awaken waiting threads. */
+/** Close to further submissions, cancel pending work and awaken waiters; running work completes. */
 inline RESULT dispatcher_close(DISPATCHER* dispatcher) {
     return ::cattr_dispatcher_close(dispatcher);
 }
 
-/** Release the resources associated with a dispatcher. */
+/** Release a closed or failed-init dispatcher after all users have returned. Failed release permits only a subsequent free. */
 inline RESULT dispatcher_free(DISPATCHER* dispatcher) {
     return ::cattr_dispatcher_free(dispatcher);
 }
