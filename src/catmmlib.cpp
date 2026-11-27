@@ -426,6 +426,10 @@ static RESULT catmm_resize(CATMMLIB_POINTERW* memory, NUINT new_size, BOOL manag
                 header.requested_size = new_size;
                 header.backing_size = new_size;
                 catmm_copy(base, &header, (NUINT) sizeof(header));
+            } else if (!managed && catmm_platform_try_grow(base, oldExtent, newExtent)) {
+                header.requested_size = new_size;
+                header.backing_size = new_size;
+                catmm_copy(base, &header, (NUINT) sizeof(header));
 #endif
             } else {
                 CATMMLIB_POINTERW replacement = 0;

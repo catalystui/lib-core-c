@@ -106,7 +106,7 @@ static catalyst::BOOL os_resize(POINTERW* memory, NUINT oldSize, NUINT size) {
     *memory = replacement;
     return TRUE;
 #else
-    // Match the mapping-based resize strategy, including Darwin page reuse.
+    // Baseline mapping resize: reuse equal page extents, otherwise allocate/copy/free.
     // No private Core headers or prefix are needed for the native baseline.
 #if TARGET_PLATFORM_DARWIN
     if (vm_page_size != 0 &&
@@ -135,7 +135,7 @@ static const char* osResizeName = "HeapReAlloc";
 static const char* osFreeName = "HeapFree";
 #elif TARGET_PLATFORM_DARWIN
 static const char* osAllocName = "vm_allocate";
-static const char* osResizeName = "native page reuse / allocate-copy-free";
+static const char* osResizeName = "page reuse / allocate-copy-free baseline";
 static const char* osFreeName = "vm_deallocate";
 #elif TARGET_PLATFORM_LINUX
 static const char* osAllocName = "mmap";

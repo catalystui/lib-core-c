@@ -66,6 +66,9 @@ CATMMLIB_PRIVATE CATALYST_RESULT catmm_platform_alloc(CATMMLIB_POINTERW* memory,
  */
 CATMMLIB_PRIVATE CATALYST_BOOL catmm_platform_extent_matches(CATALYST_NUINT old_size, CATALYST_NUINT new_size);
 /* Shrink a live native mapping across a page boundary, preserving it on failure. */
+/* Attempt to extend a mapping without moving it. Failure leaves it unchanged;
+ * the caller falls back to allocation/copy/release. */
+CATMMLIB_PRIVATE CATALYST_BOOL catmm_platform_try_grow(CATMMLIB_POINTERW memory, CATALYST_NUINT old_size, CATALYST_NUINT new_size);
 CATMMLIB_PRIVATE CATALYST_RESULT catmm_platform_shrink(CATMMLIB_POINTERW memory, CATALYST_NUINT old_size, CATALYST_NUINT new_size);
 #endif
 #if TARGET_PLATFORM_WIN32

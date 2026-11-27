@@ -48,6 +48,24 @@ CATALYST_RESULT catmm_platform_shrink(CATMMLIB_POINTERW memory, CATALYST_NUINT o
     return RESULT(STATUS_CODE_SUCCESS, 0x02, 0x02, 0);
 }
 
+/* Fixed allocation without overwrite extends only into unoccupied pages.
+ * New pages are already zero-filled; only the old page tail may be dirty. */
+CATALYST_BOOL catmm_platform_try_grow(CATMMLIB_POINTERW memory, CATALYST_NUINT old_size, CATALYST_NUINT new_size) {
+    NUINT pageSize = (NUINT) vm_page_size;
+    NUINT oldRounded = (NUINT) (old_size + (NUINT) ((pageSize - old_size % pageSize) % pageSize));
+    NUINT padding = (NUINT) ((pageSize - new_size % pageSize) % pageSize);
+    if (new_size > (NUINT) (CATALYST_NUINT_MAX - padding)) return FALSE;
+    NUINT newRounded = (NUINT) (new_size + padding);
+    CATMMLIB_ADDRESS base = (CATMMLIB_ADDRESS) memory;
+    if (base > (CATMMLIB_ADDRESS) (CATALYST_NUINT_MAX - newRounded)) return FALSE;
+    vm_address_t address = (vm_address_t) (base + oldRounded);
+    if (vm_allocate(mach_task_self(), &address, (vm_size_t) (newRounded - oldRounded), VM_FLAGS_FIXED) != KERN_SUCCESS) {
+        return FALSE;
+    }
+    catmm_fill((BYTE*) memory + old_size, (BYTE) 0, (NUINT) (oldRounded - old_size));
+    return TRUE;
+}
+
 CATALYST_RESULT catmm_platform_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT size) {
     *memory = 0;
     /* Guard the native page-rounding addition before calling Mach. Read the
