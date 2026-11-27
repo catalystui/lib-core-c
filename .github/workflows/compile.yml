@@ -110,7 +110,7 @@ jobs:
         timeout-minutes: 2
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          cmake --build target/ci --parallel --target test_cattrlib
+          cmake --build target/ci --parallel --target test_cattrlib perf_cattrlib
           $output = 'build/linux/linux/${{ matrix.arch }}/release'
           & "$output/test_cattrlib"
 

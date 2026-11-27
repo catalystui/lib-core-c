@@ -101,6 +101,10 @@ target_link_libraries(test_catrllib PRIVATE catrllib_static)
 target_link_libraries(perf_catrllib PRIVATE catrllib_static)
 if(TARGET cattrlib_static)
     target_link_libraries(test_cattrlib PRIVATE cattrlib_static)
+    target_link_libraries(perf_cattrlib PRIVATE cattrlib_static)
+    if(TARGET_PLATFORM_LINUX)
+        target_link_libraries(perf_cattrlib PRIVATE Threads::Threads)
+    endif()
 endif()
 
 # Release optimization is local to Core; preserve Debug and the selected target ISA.
@@ -112,7 +116,7 @@ set(CATALYST_RELEASE_LIBRARIES
 set(CATALYST_RELEASE_EXECUTABLES test_cattelib test_catmmlib test_catrllib perf_cattelib perf_catmmlib perf_catrllib)
 if(TARGET cattrlib_static)
     list(APPEND CATALYST_RELEASE_LIBRARIES cattrlib_shared cattrlib_static)
-    list(APPEND CATALYST_RELEASE_EXECUTABLES test_cattrlib)
+    list(APPEND CATALYST_RELEASE_EXECUTABLES test_cattrlib perf_cattrlib)
 endif()
 
 foreach(TARGET_NAME IN LISTS CATALYST_RELEASE_LIBRARIES CATALYST_RELEASE_EXECUTABLES)
