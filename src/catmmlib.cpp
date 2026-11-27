@@ -5,7 +5,6 @@
  * compilers retain native allocation through the same heap API. */
 #if TARGET_SIZEOF_ADDRESS >= 2 && ((defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64) || defined(_M_ARM) || defined(_M_ARM64))) || (defined(__GCC_ATOMIC_CHAR_LOCK_FREE) && __GCC_ATOMIC_CHAR_LOCK_FREE == 2))
 #define CATMMLIB_MANAGED_HEAP 1
-#include <new>
 #if defined(_MSC_VER)
 #include <intrin.h>
 #endif
@@ -30,19 +29,23 @@ using namespace catalyst;
 static const NUINT catmm_slab_max = (NUINT) 32768;
 static const BYTE catmm_class_count = (BYTE) 16;
 
-struct CATMMLIB_HEAP_SLAB;
+/* Store metadata as bytes in native storage, just like allocation headers.
+ * Raw addresses identify metadata; only local objects are accessed as structs.
+ */
+struct CATMMLIB_HEAP_SLOT_HEADER {
+    BYTE* owner;
+    BYTE* next;
+};
+
 union CATMMLIB_HEAP_SLOT {
-    struct {
-        CATMMLIB_HEAP_SLAB* owner;
-        CATMMLIB_HEAP_SLOT* next;
-    } links;
+    CATMMLIB_HEAP_SLOT_HEADER header;
     CATMMLIB_NATIVE_PREFIX alignment;
 };
 
 struct CATMMLIB_HEAP_SLAB {
-    CATMMLIB_HEAP_SLAB* previous;
-    CATMMLIB_HEAP_SLAB* next;
-    CATMMLIB_HEAP_SLOT* available;
+    BYTE* previous;
+    BYTE* next;
+    BYTE* available;
     BYTE* next_unused;
     NUINT unused;
     NUINT live;
@@ -55,8 +58,8 @@ union CATMMLIB_HEAP_SLAB_PREFIX {
 };
 
 struct CATMMLIB_HEAP_CLASS {
-    CATMMLIB_HEAP_SLAB* partial;
-    CATMMLIB_HEAP_SLAB* empty;
+    BYTE* partial;
+    BYTE* empty;
     BYTE lock;
 };
 
@@ -137,21 +140,38 @@ static BYTE catmm_heap_class(NUINT size, NUINT* capacity, NUINT* extent) {
     return catmm_class_count;
 }
 
-/* Caller holds the lock; slab is not in the partial list. */
-static void catmm_heap_link(CATMMLIB_HEAP_CLASS* pool, CATMMLIB_HEAP_SLAB* slab) {
+/* Caller holds the lock; slab is not in the partial list. The caller writes
+ * the updated local header back to its storage. */
+static void catmm_heap_link(CATMMLIB_HEAP_CLASS* pool, BYTE* address, CATMMLIB_HEAP_SLAB* slab) {
     slab->previous = 0;
     slab->next = pool->partial;
-    if (pool->partial != 0) pool->partial->previous = slab;
-    pool->partial = slab;
+    if (pool->partial != 0) {
+        CATMMLIB_HEAP_SLAB next;
+        catmm_copy(&next, pool->partial, (NUINT) sizeof(next));
+        next.previous = address;
+        catmm_copy(pool->partial, &next, (NUINT) sizeof(next));
+    }
+    pool->partial = address;
 }
 
 /* Caller holds the lock; neighbors describe a member of the partial list.
  * Only neighbors are accessed, so this also works after successful unmapping.
  */
-static void catmm_heap_unlink(CATMMLIB_HEAP_CLASS* pool, CATMMLIB_HEAP_SLAB* previous, CATMMLIB_HEAP_SLAB* next) {
-    if (previous != 0) previous->next = next;
-    else pool->partial = next;
-    if (next != 0) next->previous = previous;
+static void catmm_heap_unlink(CATMMLIB_HEAP_CLASS* pool, BYTE* previous, BYTE* next) {
+    if (previous != 0) {
+        CATMMLIB_HEAP_SLAB header;
+        catmm_copy(&header, previous, (NUINT) sizeof(header));
+        header.next = next;
+        catmm_copy(previous, &header, (NUINT) sizeof(header));
+    } else {
+        pool->partial = next;
+    }
+    if (next != 0) {
+        CATMMLIB_HEAP_SLAB header;
+        catmm_copy(&header, next, (NUINT) sizeof(header));
+        header.previous = previous;
+        catmm_copy(next, &header, (NUINT) sizeof(header));
+    }
 }
 
 /* Only idle cached slabs are released at library teardown. This is best-effort:
@@ -172,8 +192,12 @@ static void __attribute__((destructor)) catmm_heap_dispose() {
      * that the operating system may already have terminated. */
     for (BYTE index = 0; index < catmm_class_count; ++index) {
         CATMMLIB_HEAP_CLASS* pool = &catmm_classes[index];
-        if (pool->empty != 0 && status_code_is_success(catmm_platform_free(pool->empty, pool->empty->extent).status)) {
-            pool->empty = 0;
+        if (pool->empty != 0) {
+            CATMMLIB_HEAP_SLAB slab;
+            catmm_copy(&slab, pool->empty, (NUINT) sizeof(slab));
+            if (status_code_is_success(catmm_platform_free(pool->empty, slab.extent).status)) {
+                pool->empty = 0;
+            }
         }
     }
 }
@@ -206,48 +230,53 @@ static RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT 
     if (index != catmm_class_count) {
         CATMMLIB_HEAP_CLASS* pool = &catmm_classes[index];
         catmm_heap_acquire(pool);
-        CATMMLIB_HEAP_SLAB* slab = pool->partial;
-        BOOL wasPartial = slab != 0 ? TRUE : FALSE;
-        if (slab == 0) {
-            slab = pool->empty;
-            if (slab != 0) {
-                pool->empty = 0;
-            } else {
-                allocation = catmm_platform_alloc(&base, extent);
-                if (status_code_is_success(allocation.status)) {
-                    /* Construct the slab in native storage without allocating again. */
-                    CATMMLIB_HEAP_SLAB_PREFIX* prefix = new (base) CATMMLIB_HEAP_SLAB_PREFIX;
-                    slab = &prefix->slab;
-                    slab->previous = 0;
-                    slab->next = 0;
-                    slab->available = 0;
-                    slab->next_unused = (BYTE*) base + catmm_slab_prefix;
-                    slab->unused = (NUINT) ((extent - catmm_slab_prefix) /
-                        (NUINT) (sizeof(CATMMLIB_HEAP_SLOT) + capacity));
-                    slab->live = 0;
-                    slab->extent = extent;
-                }
+        BYTE* address = pool->partial;
+        BOOL wasPartial = address != 0 ? TRUE : FALSE;
+        CATMMLIB_HEAP_SLAB slab;
+        if (address == 0) {
+            address = pool->empty;
+            if (address != 0) pool->empty = 0;
+        }
+        if (address != 0) {
+            catmm_copy(&slab, address, (NUINT) sizeof(slab));
+        } else {
+            allocation = catmm_platform_alloc(&base, extent);
+            if (status_code_is_success(allocation.status)) {
+                address = (BYTE*) base;
+                slab.previous = 0;
+                slab.next = 0;
+                slab.available = 0;
+                slab.next_unused = address + catmm_slab_prefix;
+                slab.unused = (NUINT) ((extent - catmm_slab_prefix) /
+                    (NUINT) (sizeof(CATMMLIB_HEAP_SLOT) + capacity));
+                slab.live = 0;
+                slab.extent = extent;
             }
         }
         BOOL reused = FALSE;
-        if (slab != 0) {
-            CATMMLIB_HEAP_SLOT* slot = slab->available;
+        if (address != 0) {
+            BYTE* slot = slab.available;
+            CATMMLIB_HEAP_SLOT_HEADER slotHeader;
             if (slot != 0) {
-                slab->available = slot->links.next;
+                catmm_copy(&slotHeader, slot, (NUINT) sizeof(slotHeader));
+                slab.available = slotHeader.next;
                 reused = TRUE;
             } else {
-                slot = new (slab->next_unused) CATMMLIB_HEAP_SLOT;
-                slot->links.owner = slab;
-                slab->next_unused += (NUINT) (sizeof(CATMMLIB_HEAP_SLOT) + capacity);
-                --slab->unused;
+                slot = slab.next_unused;
+                slotHeader.owner = address;
+                slotHeader.next = 0;
+                catmm_copy(slot, &slotHeader, (NUINT) sizeof(slotHeader));
+                slab.next_unused += (NUINT) (sizeof(CATMMLIB_HEAP_SLOT) + capacity);
+                --slab.unused;
             }
-            ++slab->live;
-            if (slab->available == 0 && slab->unused == 0) {
-                if (wasPartial) catmm_heap_unlink(pool, slab->previous, slab->next);
+            ++slab.live;
+            if (slab.available == 0 && slab.unused == 0) {
+                if (wasPartial) catmm_heap_unlink(pool, slab.previous, slab.next);
             } else if (!wasPartial) {
-                catmm_heap_link(pool, slab);
+                catmm_heap_link(pool, address, &slab);
             }
-            base = (BYTE*) slot + sizeof(CATMMLIB_HEAP_SLOT);
+            catmm_copy(address, &slab, (NUINT) sizeof(slab));
+            base = slot + sizeof(CATMMLIB_HEAP_SLOT);
         }
         catmm_heap_release(pool);
         /* The live slot now belongs exclusively to this allocation. Clear
@@ -272,31 +301,35 @@ static RESULT catmm_heap_extent_free(CATMMLIB_POINTERW memory, CATALYST_NUINT si
     NUINT capacity, extent;
     BYTE index = catmm_heap_class(size, &capacity, &extent);
     if (index != catmm_class_count) {
-        CATMMLIB_HEAP_SLOT* slot = (CATMMLIB_HEAP_SLOT*) ((BYTE*) memory - sizeof(CATMMLIB_HEAP_SLOT));
+        BYTE* slot = (BYTE*) memory - sizeof(CATMMLIB_HEAP_SLOT);
         CATMMLIB_HEAP_CLASS* pool = &catmm_classes[index];
         catmm_heap_acquire(pool);
-        CATMMLIB_HEAP_SLAB* slab = slot->links.owner;
-        BOOL wasPartial = slab->available != 0 || slab->unused != 0 ? TRUE : FALSE;
-        if (slab->live == (NUINT) 1 && pool->empty != 0) {
+        CATMMLIB_HEAP_SLOT_HEADER slotHeader;
+        catmm_copy(&slotHeader, slot, (NUINT) sizeof(slotHeader));
+        BYTE* address = slotHeader.owner;
+        CATMMLIB_HEAP_SLAB slab;
+        catmm_copy(&slab, address, (NUINT) sizeof(slab));
+        BOOL wasPartial = slab.available != 0 || slab.unused != 0 ? TRUE : FALSE;
+        if (slab.live == (NUINT) 1 && pool->empty != 0) {
             /* Reclaim a surplus empty slab. Do not modify the live allocation
              * or its list membership until native release succeeds.
              */
-            CATMMLIB_HEAP_SLAB* previous = slab->previous;
-            CATMMLIB_HEAP_SLAB* next = slab->next;
-            release = catmm_platform_free(slab, slab->extent);
+            release = catmm_platform_free(address, slab.extent);
             if (status_code_is_success(release.status) && wasPartial) {
-                catmm_heap_unlink(pool, previous, next);
+                catmm_heap_unlink(pool, slab.previous, slab.next);
             }
         } else {
-            slot->links.next = slab->available;
-            slab->available = slot;
-            --slab->live;
-            if (slab->live == 0) {
-                if (wasPartial) catmm_heap_unlink(pool, slab->previous, slab->next);
-                pool->empty = slab;
+            slotHeader.next = slab.available;
+            catmm_copy(slot, &slotHeader, (NUINT) sizeof(slotHeader));
+            slab.available = slot;
+            --slab.live;
+            if (slab.live == 0) {
+                if (wasPartial) catmm_heap_unlink(pool, slab.previous, slab.next);
+                pool->empty = address;
             } else if (!wasPartial) {
-                catmm_heap_link(pool, slab);
+                catmm_heap_link(pool, address, &slab);
             }
+            catmm_copy(address, &slab, (NUINT) sizeof(slab));
         }
         catmm_heap_release(pool);
     } else
