@@ -544,7 +544,7 @@ static int test_memory(BOOL managed) {
             std::printf("PASS: independent live allocations and zero-filled reuse\n");
         }
     }
-    // Exercise reusable native spans and transitions between extent classes.
+    // Exercise reusable slabs and transitions between capacity classes.
     {
         NUINT sizes[] = { 12000, 13000, 11000, 13000, 24000, 25000, 40000, 60000, 70000, 24000 };
         POINTERW blocks[3] = { 0 };
@@ -584,10 +584,10 @@ static int test_memory(BOOL managed) {
                 result.operation != 0x04 || result.detail != 0) passed = FALSE;
         }
         if (!passed) {
-            std::printf("FAIL: multi-block span growth, shrink and reuse\n");
+            std::printf("FAIL: multi-block slab growth, shrink and reuse\n");
             ++failed;
         } else {
-            std::printf("PASS: multi-block span growth, shrink and reuse\n");
+            std::printf("PASS: multi-block slab growth, shrink and reuse\n");
         }
     }
 #endif

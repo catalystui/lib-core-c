@@ -409,9 +409,14 @@ static RESULT catmm_resize(CATMMLIB_POINTERW* memory, NUINT new_size, BOOL manag
                 if (new_size > header.requested_size) {
                     catmm_fill((BYTE*) *memory + header.requested_size, (BYTE) 0, (NUINT) (new_size - header.requested_size));
                 }
-                header.requested_size = new_size;
-                if (!managed) header.backing_size = new_size;
-                catmm_copy(base, &header, (NUINT) sizeof(header));
+                if (managed) {
+                    /* Capacity and pending ownership are unchanged. */
+                    catmm_copy(base, &new_size, (NUINT) sizeof(new_size));
+                } else {
+                    header.requested_size = new_size;
+                    header.backing_size = new_size;
+                    catmm_copy(base, &header, (NUINT) sizeof(header));
+                }
 #if TARGET_PLATFORM_DARWIN
             } else if (!managed && new_size < header.requested_size) {
                 RESULT shrink = catmm_platform_shrink(base, oldExtent, newExtent);
@@ -672,6 +677,20 @@ CATALYST_SBYTE catmm_compare(CATMMLIB_POINTER memory1, CATMMLIB_POINTER memory2,
 
 void catmm_fill(CATMMLIB_POINTERW memory, CATMMLIB_WORD value, CATALYST_NUINT size) {
     BYTE* output = (BYTE*) memory;
+#if CATMMLIB_BLOCK_COPY && defined(__aarch64__)
+    /* Large zero-growth ranges use aligned fixed-size stores. */
+    if (value == 0 && size >= (NUINT) 256) {
+        while (((CATMMLIB_ADDRESS) output & (CATMMLIB_ADDRESS) 15) != 0) {
+            *output++ = 0;
+            --size;
+        }
+        while (size >= (NUINT) 64) {
+            __builtin_memset(output, 0, 64);
+            output += (NUINT) 64;
+            size = (NUINT) (size - (NUINT) 64);
+        }
+    }
+#endif
 #if CATMMLIB_BLOCK_COPY && defined(__OPTIMIZE_SIZE__)
     if (size >= (NUINT) 32) {
         BYTE chunk[32];
