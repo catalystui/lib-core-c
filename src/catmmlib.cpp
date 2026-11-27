@@ -505,6 +505,14 @@ static void catmm_copy_forward(BYTE* output, const BYTE* input, NUINT size) {
         input += (NUINT) 32;
         size = (NUINT) (size - (NUINT) 32);
     }
+    if (size >= (NUINT) 16) {
+        BYTE chunk[16];
+        __builtin_memcpy(chunk, input, sizeof(chunk));
+        __builtin_memcpy(output, chunk, sizeof(chunk));
+        output += (NUINT) 16;
+        input += (NUINT) 16;
+        size = (NUINT) (size - (NUINT) 16);
+    }
 #endif
     while (size != 0) {
         *output++ = *input++;
