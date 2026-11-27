@@ -773,6 +773,7 @@ int main() {
         return 2;
     }
     std::printf("CATMMLIB Performance (Release recommended)\n");
+    std::printf("Target: %s/%s/%s (%u-byte addresses)\n", TARGET_VENDOR, TARGET_SYSTEM, TARGET_ARCHITECTURE, (unsigned int) TARGET_SIZEOF_ADDRESS);
     std::printf("Standard C library / OS APIs are the baseline. Lower time is better.\n");
     std::printf("Difference: +10%% means Catalyst takes 10%% longer; -10%% means 10%% less time.\n");
     std::printf("Time per operation or pair: median of 3 paired samples; %lu clock ticks/second.\n", (unsigned long) CLOCKS_PER_SEC);

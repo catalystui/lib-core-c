@@ -494,50 +494,66 @@ CATALYST_RESULT catmm_heap_free(CATMMLIB_POINTERW memory) {
  * MEMORY OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/* Use fixed-size compiler copies only on known native ABIs. The byte loops
- * remain the complete implementation on other targets. */
-#if (defined(__GNUC__) || defined(__clang__)) && !defined(__CHERI__) && !defined(__CHERI_PURE_CAPABILITY__) && (defined(__i386__) || defined(__x86_64__) || defined(__arm__) || defined(__aarch64__))
+/* The configured target must have flat byte addresses. Block sizes derive
+ * from the address width, not the processor name. The byte loops remain the
+ * complete implementation when compiler block copies are unavailable. */
+#if CATMMLIB_FLAT_ADDRESS && (defined(__GNUC__) || defined(__clang__))
 #define CATMMLIB_BLOCK_COPY 1
+#define CATMMLIB_BLOCK_SIZE (TARGET_SIZEOF_ADDRESS * 4)
+#define CATMMLIB_BLOCK_ALIGNMENT (TARGET_SIZEOF_ADDRESS * 2)
+#define CATMMLIB_LARGE_BLOCK_SIZE (CATMMLIB_BLOCK_SIZE * 2)
+#define CATMMLIB_BLOCK_THRESHOLD (CATMMLIB_BLOCK_SIZE * 8)
 #else
 #define CATMMLIB_BLOCK_COPY 0
 #endif
 
-/* Copy forward when no unread source byte can be overwritten. */
-static void catmm_copy_forward(BYTE* output, const BYTE* input, NUINT size) {
 #if CATMMLIB_BLOCK_COPY
-#if defined(__aarch64__)
-    /* Align large destinations before copying cache-line-sized blocks. The
-     * temporary still makes each block safe for forward-overlapping moves. */
-    if (size >= (NUINT) 256) {
-        while (((CATMMLIB_ADDRESS) output & (CATMMLIB_ADDRESS) 15) != 0) {
+/* Read all units before writing. Fixed-size units let compilers retain the
+ * transfer in registers instead of spilling a single large temporary. */
+static inline void catmm_copy_block(BYTE* output, const BYTE* input, BOOL large) {
+    BYTE first[CATMMLIB_BLOCK_ALIGNMENT], second[CATMMLIB_BLOCK_ALIGNMENT];
+    __builtin_memcpy(first, input, sizeof(first));
+    __builtin_memcpy(second, input + (NUINT) CATMMLIB_BLOCK_ALIGNMENT, sizeof(second));
+    if (large) {
+        BYTE third[CATMMLIB_BLOCK_ALIGNMENT], fourth[CATMMLIB_BLOCK_ALIGNMENT];
+        __builtin_memcpy(third, input + (NUINT) CATMMLIB_BLOCK_SIZE, sizeof(third));
+        __builtin_memcpy(fourth, input + (NUINT) CATMMLIB_BLOCK_SIZE + (NUINT) CATMMLIB_BLOCK_ALIGNMENT, sizeof(fourth));
+        __builtin_memcpy(output + (NUINT) CATMMLIB_BLOCK_SIZE, third, sizeof(third));
+        __builtin_memcpy(output + (NUINT) CATMMLIB_BLOCK_SIZE + (NUINT) CATMMLIB_BLOCK_ALIGNMENT, fourth, sizeof(fourth));
+    }
+    __builtin_memcpy(output, first, sizeof(first));
+    __builtin_memcpy(output + (NUINT) CATMMLIB_BLOCK_ALIGNMENT, second, sizeof(second));
+}
+#endif
+
+/* Copy forward when no unread source byte can be overwritten. */
+static inline void catmm_copy_forward(BYTE* output, const BYTE* input, NUINT size) {
+#if CATMMLIB_BLOCK_COPY
+    if (size >= (NUINT) CATMMLIB_BLOCK_THRESHOLD) {
+        while (((CATMMLIB_ADDRESS) output % (CATMMLIB_ADDRESS) CATMMLIB_BLOCK_ALIGNMENT) != 0) {
             *output++ = *input++;
             --size;
         }
-        while (size >= (NUINT) 64) {
-            BYTE chunk[64];
-            __builtin_memcpy(chunk, input, sizeof(chunk));
-            __builtin_memcpy(output, chunk, sizeof(chunk));
-            output += (NUINT) 64;
-            input += (NUINT) 64;
-            size = (NUINT) (size - (NUINT) 64);
+        while (size >= (NUINT) CATMMLIB_LARGE_BLOCK_SIZE) {
+            catmm_copy_block(output, input, TRUE);
+            output += (NUINT) CATMMLIB_LARGE_BLOCK_SIZE;
+            input += (NUINT) CATMMLIB_LARGE_BLOCK_SIZE;
+            size = (NUINT) (size - (NUINT) CATMMLIB_LARGE_BLOCK_SIZE);
         }
     }
-#endif
-    while (size >= (NUINT) 32) {
-        BYTE chunk[32];
-        __builtin_memcpy(chunk, input, sizeof(chunk));
-        __builtin_memcpy(output, chunk, sizeof(chunk));
-        output += (NUINT) 32;
-        input += (NUINT) 32;
-        size = (NUINT) (size - (NUINT) 32);
+    while (size >= (NUINT) CATMMLIB_BLOCK_SIZE) {
+        catmm_copy_block(output, input, FALSE);
+        output += (NUINT) CATMMLIB_BLOCK_SIZE;
+        input += (NUINT) CATMMLIB_BLOCK_SIZE;
+        size = (NUINT) (size - (NUINT) CATMMLIB_BLOCK_SIZE);
     }
-    if (size >= (NUINT) 16) {
-        BYTE chunk[16];
+    if (size >= (NUINT) CATMMLIB_BLOCK_ALIGNMENT) {
+        BYTE chunk[CATMMLIB_BLOCK_ALIGNMENT];
         __builtin_memcpy(chunk, input, sizeof(chunk));
         __builtin_memcpy(output, chunk, sizeof(chunk));
-        output += (NUINT) 16;
-        input += (NUINT) 16;
-        size = (NUINT) (size - (NUINT) 16);
+        output += (NUINT) sizeof(chunk);
+        input += (NUINT) sizeof(chunk);
+        size = (NUINT) (size - (NUINT) sizeof(chunk));
     }
 #endif
     while (size != 0) {
@@ -556,7 +572,7 @@ void catmm_move(CATMMLIB_POINTERW destination, CATMMLIB_POINTER source, CATALYST
     BYTE* output = (BYTE*) destination;
     const BYTE* input = (const BYTE*) source;
     BOOL backward = FALSE;
-#if TARGET_SIZEOF_ADDRESS >= 4 && !defined(__CHERI__) && !defined(__CHERI_PURE_CAPABILITY__) && (defined(__i386__) || defined(__x86_64__) || defined(__arm__) || defined(__aarch64__) || defined(_M_IX86) || defined(_M_X64) || defined(_M_ARM) || defined(_M_ARM64))
+#if CATMMLIB_FLAT_ADDRESS
     /* These native ABIs have flat byte addresses. Subtract only in ascending
      * order; computing the end address could overflow the representation. */
     const CATMMLIB_ADDRESS outputAddress = (CATMMLIB_ADDRESS) destination;
@@ -583,35 +599,31 @@ void catmm_move(CATMMLIB_POINTERW destination, CATMMLIB_POINTER source, CATALYST
     output += size;
     input += size;
 #if CATMMLIB_BLOCK_COPY
-#if defined(__aarch64__)
-    /* Align the end of large destinations before walking backward. */
-    if (size >= (NUINT) 256) {
-        while (((CATMMLIB_ADDRESS) output & (CATMMLIB_ADDRESS) 15) != 0) {
+    if (size >= (NUINT) CATMMLIB_BLOCK_THRESHOLD) {
+        while (((CATMMLIB_ADDRESS) output % (CATMMLIB_ADDRESS) CATMMLIB_BLOCK_ALIGNMENT) != 0) {
             *--output = *--input;
             --size;
         }
-        while (size >= (NUINT) 64) {
-            BYTE chunk[64];
-            output -= (NUINT) 64;
-            input -= (NUINT) 64;
-            __builtin_memcpy(chunk, input, sizeof(chunk));
-            __builtin_memcpy(output, chunk, sizeof(chunk));
-            size = (NUINT) (size - (NUINT) 64);
+        while (size >= (NUINT) CATMMLIB_LARGE_BLOCK_SIZE) {
+            output -= (NUINT) CATMMLIB_LARGE_BLOCK_SIZE;
+            input -= (NUINT) CATMMLIB_LARGE_BLOCK_SIZE;
+            catmm_copy_block(output, input, TRUE);
+            size = (NUINT) (size - (NUINT) CATMMLIB_LARGE_BLOCK_SIZE);
         }
     }
-#endif
-#if defined(__aarch64__)
-    const BYTE block = (BYTE) 32;
-#else
-    const BYTE block = (BYTE) 16;
-#endif
-    while (size >= (NUINT) block) {
-        BYTE chunk[block];
-        output -= (NUINT) block;
-        input -= (NUINT) block;
+    while (size >= (NUINT) CATMMLIB_BLOCK_SIZE) {
+        output -= (NUINT) CATMMLIB_BLOCK_SIZE;
+        input -= (NUINT) CATMMLIB_BLOCK_SIZE;
+        catmm_copy_block(output, input, FALSE);
+        size = (NUINT) (size - (NUINT) CATMMLIB_BLOCK_SIZE);
+    }
+    if (size >= (NUINT) CATMMLIB_BLOCK_ALIGNMENT) {
+        BYTE chunk[CATMMLIB_BLOCK_ALIGNMENT];
+        output -= (NUINT) sizeof(chunk);
+        input -= (NUINT) sizeof(chunk);
         __builtin_memcpy(chunk, input, sizeof(chunk));
         __builtin_memcpy(output, chunk, sizeof(chunk));
-        size = (NUINT) (size - (NUINT) block);
+        size = (NUINT) (size - (NUINT) sizeof(chunk));
     }
 #endif
     while (size != 0) {
@@ -649,7 +661,7 @@ CATALYST_SBYTE catmm_compare(CATMMLIB_POINTER memory1, CATMMLIB_POINTER memory2,
         CATMMLIB_COMPARE_WORD firstChunk, secondChunk;
         __builtin_memcpy(&firstChunk, first, sizeof(firstChunk));
         __builtin_memcpy(&secondChunk, second, sizeof(secondChunk));
-        // Equality is independent of byte order; mismatches use the byte loop.
+        // Equality is independent of byte order; resolve mismatches in byte order.
         if (firstChunk != secondChunk) {
 #if CATALYST_SUPPORTS_64BIT && defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && defined(__ORDER_BIG_ENDIAN__)
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
@@ -681,29 +693,15 @@ CATALYST_SBYTE catmm_compare(CATMMLIB_POINTER memory1, CATMMLIB_POINTER memory2,
 
 void catmm_fill(CATMMLIB_POINTERW memory, CATMMLIB_WORD value, CATALYST_NUINT size) {
     BYTE* output = (BYTE*) memory;
-#if CATMMLIB_BLOCK_COPY && defined(__aarch64__)
-    /* Large zero-growth ranges use aligned fixed-size stores. */
-    if (value == 0 && size >= (NUINT) 256) {
-        while (((CATMMLIB_ADDRESS) output & (CATMMLIB_ADDRESS) 15) != 0) {
-            *output++ = 0;
-            --size;
-        }
-        while (size >= (NUINT) 64) {
-            __builtin_memset(output, 0, 64);
-            output += (NUINT) 64;
-            size = (NUINT) (size - (NUINT) 64);
-        }
-    }
-#endif
 #if CATMMLIB_BLOCK_COPY && defined(__OPTIMIZE_SIZE__)
-    if (size >= (NUINT) 32) {
-        BYTE chunk[32];
-        for (BYTE i = 0; i < (BYTE) 32; ++i) chunk[i] = value;
+    if (size >= (NUINT) CATMMLIB_BLOCK_SIZE) {
+        BYTE chunk[CATMMLIB_BLOCK_SIZE];
+        for (BYTE i = 0; i < (BYTE) CATMMLIB_BLOCK_SIZE; ++i) chunk[i] = value;
         do {
             __builtin_memcpy(output, chunk, sizeof(chunk));
-            output += (NUINT) 32;
-            size = (NUINT) (size - (NUINT) 32);
-        } while (size >= (NUINT) 32);
+            output += (NUINT) CATMMLIB_BLOCK_SIZE;
+            size = (NUINT) (size - (NUINT) CATMMLIB_BLOCK_SIZE);
+        } while (size >= (NUINT) CATMMLIB_BLOCK_SIZE);
     }
 #endif
     while (size != 0) {
