@@ -7,14 +7,20 @@ using namespace catalyst;
  * ------------------------------------------------------------------------------------------------- */
 
 #if CATMMLIB_MANAGED_HEAP
-/* Small classes share slabs; larger classes use native spans with one or two slots.
+/* Payload size classes share slabs with bounded backing extents.
  * Slots hold an aligned private header followed by the native extent
  * (including the shared Core prefix).
  * Only partially occupied slabs enter the available list; one empty slab per
  * class is retained separately. Full slabs remain reachable from their slots.
  * Virgin slots are carved lazily.
  */
+#if TARGET_SIZEOF_ADDRESS >= 4
+static const NUINT catmm_slab_max = (NUINT) 524288;
+static const NUINT catmm_payload_max = (NUINT) 65536;
+#else
 static const NUINT catmm_slab_max = (NUINT) 32768;
+static const NUINT catmm_payload_max = (NUINT) 16384;
+#endif
 static const BYTE catmm_class_count = (BYTE) 16;
 
 /* Store metadata as bytes in native storage, just like allocation headers.
@@ -53,8 +59,7 @@ struct CATMMLIB_HEAP_CLASS {
 
 typedef char CATMMLIB_slab_layout_fits[
     (sizeof(CATMMLIB_HEAP_SLAB_PREFIX) + sizeof(CATMMLIB_HEAP_SLOT) +
-        catmm_slab_max / (NUINT) 4 <= catmm_slab_max &&
-        sizeof(CATMMLIB_HEAP_SLAB_PREFIX) + sizeof(CATMMLIB_HEAP_SLOT) + 1024 <= 4096 &&
+        sizeof(CATMMLIB_NATIVE_PREFIX) * 2 <= 4096 &&
         sizeof(CATMMLIB_HEAP_SLOT) % sizeof(CATMMLIB_NATIVE_PREFIX) == 0) ? 1 : -1];
 
 static CATMMLIB_HEAP_CLASS catmm_classes[catmm_class_count];
@@ -64,40 +69,26 @@ static CATMMLIB_HEAP_CLASS catmm_classes[catmm_class_count];
 static const NUINT catmm_slab_prefix = (NUINT) (((sizeof(CATMMLIB_HEAP_SLAB_PREFIX) + sizeof(CATMMLIB_NATIVE_PREFIX) - 1) /
     sizeof(CATMMLIB_NATIVE_PREFIX)) * sizeof(CATMMLIB_NATIVE_PREFIX));
 
-/* Nonzero native extent. Return its class and layout, or class_count for
- * a direct mapping (zero outputs). No mutable heap state is read.
- */
+/* Classify the payload, then account for both aligned headers. Aim for 64
+ * slots per slab without exceeding the target's bounded backing extent. */
 static BYTE catmm_heap_class(NUINT size, NUINT* capacity, NUINT* extent) {
-    NUINT current = (NUINT) sizeof(CATMMLIB_NATIVE_PREFIX);
-    BYTE index = 0;
-    for (; index < catmm_class_count && current <= catmm_slab_max / (NUINT) 4; ++index) {
-        if (size <= current) {
-            *capacity = current;
-            NUINT slabSize = (NUINT) 4096;
-            while (current > slabSize / (NUINT) 4) slabSize = (NUINT) (slabSize + slabSize);
-            *extent = slabSize;
+    const NUINT prefix = (NUINT) sizeof(CATMMLIB_NATIVE_PREFIX);
+    const NUINT payload = (NUINT) (size - prefix);
+    NUINT current = (NUINT) 8;
+    for (BYTE index = 0; index < catmm_class_count && current <= catmm_payload_max; ++index) {
+        if (payload <= current) {
+            NUINT slotCapacity = (NUINT) (((current + prefix + prefix - (NUINT) 1) / prefix) * prefix);
+            NUINT stride = (NUINT) (slotCapacity + (NUINT) sizeof(CATMMLIB_HEAP_SLOT));
+            NUINT slots = (NUINT) ((catmm_slab_max - catmm_slab_prefix) / stride);
+            if (slots == 0) break;
+            if (slots > (NUINT) 64) slots = (NUINT) 64;
+            *capacity = slotCapacity;
+            *extent = (NUINT) (catmm_slab_prefix + stride * slots);
+            if (*extent < (NUINT) 4096) *extent = (NUINT) 4096;
             return index;
         }
+        if (current > catmm_payload_max / (NUINT) 2) break;
         current = (NUINT) (current + current);
-    }
-    /* Span classes hold one or two blocks of nominal 16, 32 or 64 KiB.
-     * Two medium blocks can share one mapping; the largest class retains one.
-     */
-    const NUINT overhead = (NUINT) (catmm_slab_prefix + (NUINT) sizeof(CATMMLIB_HEAP_SLOT));
-    NUINT span = (NUINT) 16384;
-    for (BYTE count = 0; count < (BYTE) 3 && index < catmm_class_count; ++count, ++index) {
-        NUINT spanCapacity = (NUINT) (span - overhead);
-        spanCapacity = (NUINT) (spanCapacity - (NUINT) (spanCapacity % (NUINT) sizeof(CATMMLIB_NATIVE_PREFIX)));
-        if (size <= spanCapacity) {
-            *capacity = spanCapacity;
-            *extent = span;
-            if (count < (BYTE) 2 && span <= CATALYST_NUINT_MAX / (NUINT) 2) {
-                *extent = (NUINT) (span + span);
-            }
-            return index;
-        }
-        if (count == (BYTE) 2 || span > CATALYST_NUINT_MAX / (NUINT) 2) break;
-        span = (NUINT) (span + span);
     }
     *capacity = 0;
     *extent = 0;
