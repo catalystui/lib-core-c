@@ -578,6 +578,17 @@ CATALYST_SBYTE catmm_compare(CATMMLIB_POINTER memory1, CATMMLIB_POINTER memory2,
 #endif
 #if CATALYST_SUPPORTS_64BIT || CATALYST_SUPPORTS_32BIT || CATALYST_SUPPORTS_16BIT
     const BYTE width = (BYTE) sizeof(CATMMLIB_COMPARE_WORD);
+    const BYTE block = (BYTE) (width * (BYTE) 4);
+    while (size >= (NUINT) block) {
+        CATMMLIB_COMPARE_WORD firstChunk[4], secondChunk[4];
+        __builtin_memcpy(firstChunk, first, sizeof(firstChunk));
+        __builtin_memcpy(secondChunk, second, sizeof(secondChunk));
+        if (((firstChunk[0] ^ secondChunk[0]) | (firstChunk[1] ^ secondChunk[1]) |
+            (firstChunk[2] ^ secondChunk[2]) | (firstChunk[3] ^ secondChunk[3])) != 0) break;
+        first += block;
+        second += block;
+        size = (NUINT) (size - (NUINT) block);
+    }
     while (size >= (NUINT) width) {
         CATMMLIB_COMPARE_WORD firstChunk, secondChunk;
         __builtin_memcpy(&firstChunk, first, sizeof(firstChunk));
