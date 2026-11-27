@@ -467,8 +467,6 @@ CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize,
             }
             capacity = (NUINT) (capacity * (NUINT) 2);
         }
-    }
-    if (capacity != memory.spare.capacity) {
         RESULT resize = catmm_heap_realloc(&memory.spare.data, capacity);
         if (!status_code_is_success(resize.status)) {
             return RESULT(resize.status, 0x22, 0x01, resize.detail);
@@ -487,20 +485,21 @@ CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize,
         memory.spare = expired;
         ++memory.cursor;
         if (memory.cursor == memory.lifetime) memory.cursor = 0;
-        catmm_copy(bookkeeping, &memory, (NUINT) sizeof(memory));
         /* Only the expired chunk is now scratch; never resize the published chunk or a retained slot. Quarter utilization provides hysteresis before halving. */
         if (required <= (NUINT) (memory.spare.capacity / (NUINT) 4)) {
             NUINT smaller = (NUINT) (memory.spare.capacity / (NUINT) 2);
             RESULT shrink = catmm_heap_realloc(&memory.spare.data, smaller);
             if (!status_code_is_success(shrink.status)) {
+                // Production is already published; commit the rotated state even on failure.
+                catmm_copy(bookkeeping, &memory, (NUINT) sizeof(memory));
                 if (status_code_is_fatal(shrink.status)) {
                     return RESULT(shrink.status, 0x22, 0x05, shrink.detail);
                 }
                 return RESULT(STATUS_CODE_WARNING, 0x22, 0x04, shrink.status);
             }
             memory.spare.capacity = smaller;
-            catmm_copy(bookkeeping, &memory, (NUINT) sizeof(memory));
         }
+        catmm_copy(bookkeeping, &memory, (NUINT) sizeof(memory));
     }
     /* Map producer csize to public argument 1; rejecting the managed chunk indicates invalid internal state. */
     if (production.status == STATUS_CODE_ERROR_INVALID_ARGUMENT) {
