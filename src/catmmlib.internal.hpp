@@ -17,7 +17,9 @@
 
 /* Private object representation copied to/from the allocation prefix. Never
  * interpret mapped bytes as a constructed or suitably aligned header object.
- * requested_size excludes the prefix. For managed allocations and mapping
+ * requested_size and backing_size exclude the prefix. backing_size identifies
+ * the original backing extent or nominal pooled capacity after resizing.
+ * For managed allocations and mapping
  * backends, pending is null unless both old-block release and replacement cleanup failed during
  * resize. Such a replacement remains owned and reachable from the old block.
  * Its own header supplies its extent; it must be released before another
@@ -25,6 +27,7 @@
  */
 typedef struct CATMMLIB_MEMORY_HEADER {
     CATALYST_NUINT requested_size;
+    CATALYST_NUINT backing_size;
     CATMMLIB_POINTERW pending;
 } CATMMLIB_MEMORY_HEADER;
 
@@ -62,6 +65,8 @@ CATMMLIB_PRIVATE CATALYST_RESULT catmm_platform_alloc(CATMMLIB_POINTERW* memory,
  * mutation occurs; representable page size was established on allocation.
  */
 CATMMLIB_PRIVATE CATALYST_BOOL catmm_platform_extent_matches(CATALYST_NUINT old_size, CATALYST_NUINT new_size);
+/* Shrink a live native mapping across a page boundary, preserving it on failure. */
+CATMMLIB_PRIVATE CATALYST_RESULT catmm_platform_shrink(CATMMLIB_POINTERW memory, CATALYST_NUINT old_size, CATALYST_NUINT new_size);
 #endif
 #if TARGET_PLATFORM_WIN32
 CATMMLIB_PRIVATE CATALYST_RESULT catmm_platform_realloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT size);

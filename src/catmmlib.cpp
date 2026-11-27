@@ -161,21 +161,7 @@ static void __attribute__((destructor)) catmm_heap_dispose() {
 #endif
 #endif /* CATMMLIB_MANAGED_HEAP */
 
-static BOOL catmm_heap_extent_matches(CATALYST_NUINT old_size, CATALYST_NUINT new_size) {
-#if CATMMLIB_MANAGED_HEAP
-    NUINT capacity, extent;
-    BYTE oldClass = catmm_heap_class(old_size, &capacity, &extent);
-    if (oldClass != catmm_class_count) {
-        return oldClass == catmm_heap_class(new_size, &capacity, &extent) ? TRUE : FALSE;
-    }
-#else
-    (void) old_size;
-    (void) new_size;
-#endif
-    return FALSE;
-}
-
-static RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT size) {
+static RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, NUINT size, NUINT* backing_size) {
     *memory = 0;
     CATMMLIB_POINTERW base = 0;
     RESULT allocation(STATUS_CODE_SUCCESS, 0x04, 0x02, 0);
@@ -232,6 +218,7 @@ static RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT 
             }
             catmm_copy(address, &slab, (NUINT) sizeof(slab));
             base = slot + sizeof(CATMMLIB_HEAP_SLOT);
+            *backing_size = (NUINT) ((NUINT) 8 << index);
         }
         catmm_platform_unlock(&pool->lock);
         /* The live slot now belongs exclusively to this allocation. Clear
@@ -318,14 +305,16 @@ static RESULT catmm_allocate(CATMMLIB_POINTERW* memory, NUINT size, BOOL managed
         return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, context, 0x03, 0);
     }
     CATMMLIB_POINTERW base = 0;
+    NUINT backingSize = size;
     RESULT allocation = managed
-        ? catmm_heap_extent_alloc(&base, (NUINT) (prefix + size))
+        ? catmm_heap_extent_alloc(&base, (NUINT) (prefix + size), &backingSize)
         : catmm_platform_alloc(&base, (NUINT) (prefix + size));
     if (!status_code_is_success(allocation.status)) {
         return RESULT(allocation.status, context, 0x04, allocation.detail);
     }
     CATMMLIB_MEMORY_HEADER header;
     header.requested_size = size;
+    header.backing_size = backingSize;
     header.pending = 0;
     catmm_copy(base, &header, (NUINT) sizeof(header));
     BYTE* payload = (BYTE*) base + prefix;
@@ -342,7 +331,7 @@ static RESULT catmm_release(CATMMLIB_POINTERW memory, BOOL managed) {
     if ((managed || !TARGET_PLATFORM_WIN32) && header.pending != 0) {
         CATMMLIB_MEMORY_HEADER pendingHeader;
         catmm_copy(&pendingHeader, header.pending, (NUINT) sizeof(pendingHeader));
-        NUINT pendingSize = (NUINT) (prefix + pendingHeader.requested_size);
+        NUINT pendingSize = (NUINT) (prefix + pendingHeader.backing_size);
         RESULT cleanup = managed ? catmm_heap_extent_free(header.pending, pendingSize)
             : catmm_platform_free(header.pending, pendingSize);
         if (!status_code_is_success(cleanup.status)) {
@@ -351,7 +340,7 @@ static RESULT catmm_release(CATMMLIB_POINTERW memory, BOOL managed) {
         header.pending = 0;
         catmm_copy(base, &header, (NUINT) sizeof(header));
     }
-    NUINT extent = (NUINT) (prefix + header.requested_size);
+    NUINT extent = (NUINT) (prefix + header.backing_size);
     RESULT release = managed ? catmm_heap_extent_free(base, extent) : catmm_platform_free(base, extent);
     if (!status_code_is_success(release.status)) {
         return RESULT(release.status, context, 0x03, release.detail);
@@ -387,6 +376,7 @@ static RESULT catmm_resize(CATMMLIB_POINTERW* memory, NUINT new_size, BOOL manag
                 return RESULT(resize.status, context, 0x06, resize.detail);
             }
             header.requested_size = new_size;
+            header.backing_size = new_size;
             catmm_copy(base, &header, (NUINT) sizeof(header));
             *memory = (BYTE*) base + prefix;
         }
@@ -396,7 +386,7 @@ static RESULT catmm_resize(CATMMLIB_POINTERW* memory, NUINT new_size, BOOL manag
         if (header.pending != 0) {
             CATMMLIB_MEMORY_HEADER pendingHeader;
             catmm_copy(&pendingHeader, header.pending, (NUINT) sizeof(pendingHeader));
-            NUINT pendingSize = (NUINT) (prefix + pendingHeader.requested_size);
+            NUINT pendingSize = (NUINT) (prefix + pendingHeader.backing_size);
             RESULT cleanup = managed ? catmm_heap_extent_free(header.pending, pendingSize)
                 : catmm_platform_free(header.pending, pendingSize);
             if (!status_code_is_success(cleanup.status)) {
@@ -406,9 +396,10 @@ static RESULT catmm_resize(CATMMLIB_POINTERW* memory, NUINT new_size, BOOL manag
             catmm_copy(base, &header, (NUINT) sizeof(header));
         }
         if (new_size != header.requested_size) {
-            NUINT oldExtent = (NUINT) (prefix + header.requested_size);
+            NUINT oldExtent = (NUINT) (prefix + header.backing_size);
             NUINT newExtent = (NUINT) (prefix + new_size);
-            BOOL matches = managed ? catmm_heap_extent_matches(oldExtent, newExtent) : FALSE;
+            BOOL matches = managed && new_size <= header.backing_size &&
+                (new_size >= header.backing_size / (NUINT) 2 || header.backing_size <= (NUINT) 8) ? TRUE : FALSE;
 #if TARGET_PLATFORM_DARWIN
             if (!managed) matches = catmm_platform_extent_matches(oldExtent, newExtent);
 #endif
@@ -420,7 +411,18 @@ static RESULT catmm_resize(CATMMLIB_POINTERW* memory, NUINT new_size, BOOL manag
                     catmm_fill((BYTE*) *memory + header.requested_size, (BYTE) 0, (NUINT) (new_size - header.requested_size));
                 }
                 header.requested_size = new_size;
+                if (!managed) header.backing_size = new_size;
                 catmm_copy(base, &header, (NUINT) sizeof(header));
+#if TARGET_PLATFORM_DARWIN
+            } else if (!managed && new_size < header.requested_size) {
+                RESULT shrink = catmm_platform_shrink(base, oldExtent, newExtent);
+                if (!status_code_is_success(shrink.status)) {
+                    return RESULT(shrink.status, context, 0x06, shrink.detail);
+                }
+                header.requested_size = new_size;
+                header.backing_size = new_size;
+                catmm_copy(base, &header, (NUINT) sizeof(header));
+#endif
             } else {
                 CATMMLIB_POINTERW replacement = 0;
                 RESULT allocation = catmm_allocate(&replacement, new_size, managed);

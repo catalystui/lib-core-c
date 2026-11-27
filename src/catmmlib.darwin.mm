@@ -34,6 +34,20 @@ CATALYST_BOOL catmm_platform_extent_matches(CATALYST_NUINT old_size, CATALYST_NU
         == (NUINT) ((NUINT) (new_size - (NUINT) 1) / pageSize) ? TRUE : FALSE;
 }
 
+/* Allocation already established representable page rounding. Both extents
+ * are nonzero, and the new one occupies fewer pages than the old one. */
+CATALYST_RESULT catmm_platform_shrink(CATMMLIB_POINTERW memory, CATALYST_NUINT old_size, CATALYST_NUINT new_size) {
+    NUINT pageSize = (NUINT) vm_page_size;
+    NUINT oldRounded = (NUINT) (old_size + (NUINT) ((pageSize - old_size % pageSize) % pageSize));
+    NUINT newRounded = (NUINT) (new_size + (NUINT) ((pageSize - new_size % pageSize) % pageSize));
+    kern_return_t release = vm_deallocate(mach_task_self(),
+        (vm_address_t) ((BYTE*) memory + newRounded), (vm_size_t) (oldRounded - newRounded));
+    if (release != KERN_SUCCESS) {
+        return RESULT(release == KERN_PROTECTION_FAILURE ? STATUS_CODE_ERROR_ACCESS_DENIED : STATUS_CODE_ERROR_INVALID_STATE, 0x02, 0x01, 0);
+    }
+    return RESULT(STATUS_CODE_SUCCESS, 0x02, 0x02, 0);
+}
+
 CATALYST_RESULT catmm_platform_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT size) {
     *memory = 0;
     /* Guard the native page-rounding addition before calling Mach. Read the
