@@ -499,6 +499,37 @@ int main() {
         check(&failed, passed, "linear searches preserve equality across block boundaries and late mismatches");
     }
 
+    // Small element stores must copy exact extents, including unaligned sources.
+    {
+        const BYTE widths[] = {1, 8};
+        BOOL passed = TRUE;
+        for (BYTE w = 0; w < (BYTE) (sizeof(widths) / sizeof(widths[0])); ++w) {
+            NUINT width = widths[w];
+            ARRAY array;
+            array_init(&array, width);
+            if (status_code_is_success(array_expand(&array, 4).status)) {
+                BYTE input[10];
+                BYTE original[8];
+                for (NUINT i = 0; i < width; ++i) {
+                    input[i + (NUINT) 1] = (BYTE) (0x10 + i);
+                    original[i] = (BYTE) (0x80 + i);
+                }
+                array_add(&array, original);
+                array_add(&array, original);
+                array_insert(&array, 1, input + 1);
+                if (!value_matches(array_get(&array, 0), original, width) ||
+                    !value_matches(array_get(&array, 1), input + 1, width) ||
+                    !value_matches(array_get(&array, 2), original, width)) passed = FALSE;
+                array_set(&array, 1, original);
+                if (!value_matches(array_get(&array, 1), original, width)) passed = FALSE;
+                array_remove(&array, 1);
+                if (array.length != 2 || !value_matches(array_get(&array, 1), original, width)) passed = FALSE;
+            } else passed = FALSE;
+            if (!status_code_is_success(array_free(&array).status)) passed = FALSE;
+        }
+        check(&failed, passed, "small element stores preserve neighbors and unaligned inputs");
+    }
+
     // ------------------------------------------------------------
     // Done
     // ------------------------------------------------------------

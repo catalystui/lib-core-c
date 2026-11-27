@@ -51,6 +51,20 @@ static NUINT catrl_find(POINTER data, NUINT count, NUINT size, POINTER element) 
     return count;
 }
 
+/* Store one small element without a general-purpose transfer call. All input
+ * and output bytes obey the same non-overlap contract as catmm_copy. */
+static inline void catrl_store(POINTERW destination, POINTER source, NUINT size) {
+    BYTE* output = (BYTE*) destination;
+    const BYTE* input = (const BYTE*) source;
+    if (size == (NUINT) 1) {
+        output[0] = input[0];
+    } else if (size == (NUINT) 8) {
+        for (BYTE i = 0; i < (BYTE) 8; ++i) output[i] = input[i];
+    } else {
+        catmm_copy(destination, source, size);
+    }
+}
+
 /* -------------------------------------------------------------------------------------------------
  * C API :: SET OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
@@ -64,7 +78,7 @@ void catrl_set_init(CATRLLIB_SET* set, CATALYST_NUINT size) {
 
 CATALYST_BOOL catrl_set_add(CATRLLIB_SET* set, CATMMLIB_POINTER element) {
     if (catrl_find(set->data, set->cardinality, set->size, element) != set->cardinality) return FALSE;
-    catmm_copy((BYTE*) set->data + (NUINT) (set->cardinality * set->size), element, set->size);
+    catrl_store((BYTE*) set->data + (NUINT) (set->cardinality * set->size), element, set->size);
     ++set->cardinality;
     return TRUE;
 }
@@ -74,7 +88,7 @@ CATALYST_BOOL catrl_set_remove(CATRLLIB_SET* set, CATMMLIB_POINTER element) {
     if (index == set->cardinality) return FALSE;
     --set->cardinality;
     if (index != set->cardinality) {
-        catmm_copy((BYTE*) set->data + (NUINT) (index * set->size), (const BYTE*) set->data + (NUINT) (set->cardinality * set->size), set->size);
+        catrl_store((BYTE*) set->data + (NUINT) (index * set->size), (const BYTE*) set->data + (NUINT) (set->cardinality * set->size), set->size);
     }
     return TRUE;
 }
@@ -145,8 +159,8 @@ void catrl_map_init(CATRLLIB_MAP* map, CATALYST_NUINT ksize, CATALYST_NUINT vsiz
 
 CATALYST_BOOL catrl_map_add(CATRLLIB_MAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTER value) {
     if (catrl_find(map->keys, map->cardinality, map->ksize, key) != map->cardinality) return FALSE;
-    catmm_copy((BYTE*) map->keys + (NUINT) (map->cardinality * map->ksize), key, map->ksize);
-    catmm_copy((BYTE*) map->values + (NUINT) (map->cardinality * map->vsize), value, map->vsize);
+    catrl_store((BYTE*) map->keys + (NUINT) (map->cardinality * map->ksize), key, map->ksize);
+    catrl_store((BYTE*) map->values + (NUINT) (map->cardinality * map->vsize), value, map->vsize);
     ++map->cardinality;
     return TRUE;
 }
@@ -156,8 +170,8 @@ CATALYST_BOOL catrl_map_remove(CATRLLIB_MAP* map, CATMMLIB_POINTER key) {
     if (index == map->cardinality) return FALSE;
     --map->cardinality;
     if (index != map->cardinality) {
-        catmm_copy((BYTE*) map->keys + (NUINT) (index * map->ksize), (const BYTE*) map->keys + (NUINT) (map->cardinality * map->ksize), map->ksize);
-        catmm_copy((BYTE*) map->values + (NUINT) (index * map->vsize), (const BYTE*) map->values + (NUINT) (map->cardinality * map->vsize), map->vsize);
+        catrl_store((BYTE*) map->keys + (NUINT) (index * map->ksize), (const BYTE*) map->keys + (NUINT) (map->cardinality * map->ksize), map->ksize);
+        catrl_store((BYTE*) map->values + (NUINT) (index * map->vsize), (const BYTE*) map->values + (NUINT) (map->cardinality * map->vsize), map->vsize);
     }
     return TRUE;
 }
@@ -175,7 +189,7 @@ CATMMLIB_POINTERW catrl_map_get(CATRLLIB_MAP* map, CATMMLIB_POINTER key) {
 CATALYST_BOOL catrl_map_set(CATRLLIB_MAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTER value) {
     NUINT index = catrl_find(map->keys, map->cardinality, map->ksize, key);
     if (index == map->cardinality) return FALSE;
-    catmm_copy((BYTE*) map->values + (NUINT) (index * map->vsize), value, map->vsize);
+    catrl_store((BYTE*) map->values + (NUINT) (index * map->vsize), value, map->vsize);
     return TRUE;
 }
 
@@ -264,7 +278,7 @@ void catrl_array_init(CATRLLIB_ARRAY* array, CATALYST_NUINT size) {
 }
 
 void catrl_array_add(CATRLLIB_ARRAY* array, CATMMLIB_POINTER element) {
-    catmm_copy((BYTE*) array->data + (NUINT) (array->length * array->size), element, array->size);
+    catrl_store((BYTE*) array->data + (NUINT) (array->length * array->size), element, array->size);
     ++array->length;
 }
 
@@ -274,7 +288,7 @@ void catrl_array_insert(CATRLLIB_ARRAY* array, CATALYST_NUINT index, CATMMLIB_PO
     if (index < array->length) {
         catmm_move(destination + array->size, destination, (NUINT) ((array->length - index) * array->size));
     }
-    catmm_copy(destination, element, array->size);
+    catrl_store(destination, element, array->size);
     ++array->length;
 }
 
@@ -295,7 +309,7 @@ CATMMLIB_POINTERW catrl_array_get(CATRLLIB_ARRAY* array, CATALYST_NUINT index) {
 }
 
 void catrl_array_set(CATRLLIB_ARRAY* array, CATALYST_NUINT index, CATMMLIB_POINTER element) {
-    catmm_copy((BYTE*) array->data + (NUINT) (index * array->size), element, array->size);
+    catrl_store((BYTE*) array->data + (NUINT) (index * array->size), element, array->size);
 }
 
 void catrl_array_clear(CATRLLIB_ARRAY* array) {
