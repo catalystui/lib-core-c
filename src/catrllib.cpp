@@ -108,7 +108,9 @@ CATALYST_RESULT catrl_set_expand(CATRLLIB_SET* set, CATALYST_NUINT capacity) {
     if (capacity > (NUINT) (CATALYST_NUINT_MAX / set->size)) {
         return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x06, 0x02, 0);
     }
-    RESULT resize = catmm_heap_realloc(&set->data, (NUINT) (capacity * set->size));
+    RESULT resize = set->data == 0
+        ? catmm_heap_alloc(&set->data, (NUINT) (capacity * set->size))
+        : catmm_heap_realloc(&set->data, (NUINT) (capacity * set->size));
     if (!status_code_is_success(resize.status)) {
         return RESULT(resize.status, 0x06, 0x03, resize.detail);
     }
@@ -207,14 +209,18 @@ CATALYST_RESULT catrl_map_expand(CATRLLIB_MAP* map, CATALYST_NUINT capacity) {
     if (capacity > (NUINT) (CATALYST_NUINT_MAX / map->vsize)) {
         return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x10, 0x03, 0);
     }
-    RESULT keys = catmm_heap_realloc(&map->keys, (NUINT) (capacity * map->ksize));
+    RESULT keys = map->keys == 0
+        ? catmm_heap_alloc(&map->keys, (NUINT) (capacity * map->ksize))
+        : catmm_heap_realloc(&map->keys, (NUINT) (capacity * map->ksize));
     if (!status_code_is_success(keys.status)) {
         return RESULT(keys.status, 0x10, 0x04, keys.detail);
     }
     /* Commit the logical capacity only when both buffers can hold it. If the
      * second resize fails, the larger key buffer is still owned by the map.
      */
-    RESULT values = catmm_heap_realloc(&map->values, (NUINT) (capacity * map->vsize));
+    RESULT values = map->values == 0
+        ? catmm_heap_alloc(&map->values, (NUINT) (capacity * map->vsize))
+        : catmm_heap_realloc(&map->values, (NUINT) (capacity * map->vsize));
     if (!status_code_is_success(values.status)) {
         return RESULT(values.status, 0x10, 0x05, values.detail);
     }
@@ -323,7 +329,9 @@ CATALYST_RESULT catrl_array_expand(CATRLLIB_ARRAY* array, CATALYST_NUINT capacit
     if (capacity > (NUINT) (CATALYST_NUINT_MAX / array->size)) {
         return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x1B, 0x02, 0);
     }
-    RESULT resize = catmm_heap_realloc(&array->data, (NUINT) (capacity * array->size));
+    RESULT resize = array->data == 0
+        ? catmm_heap_alloc(&array->data, (NUINT) (capacity * array->size))
+        : catmm_heap_realloc(&array->data, (NUINT) (capacity * array->size));
     if (!status_code_is_success(resize.status)) {
         return RESULT(resize.status, 0x1B, 0x03, resize.detail);
     }
