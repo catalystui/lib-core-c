@@ -23,10 +23,28 @@ using namespace catalyst;
 
 /* Nonzero size, count * size readable data bytes when count is nonzero, and size readable element bytes. Return count for absence; extents were checked when capacity was established. */
 static NUINT catrl_find(POINTER data, NUINT count, NUINT size, POINTER element) {
+    if (count == 0) return 0;
     const BYTE* current = (const BYTE*) data;
+    const BYTE* target = (const BYTE*) element;
+    const BYTE first = target[0];
     NUINT index = 0;
+    if (size == (NUINT) 1) {
+        while ((NUINT) (count - index) >= (NUINT) 4) {
+            if (current[0] == first) return index;
+            if (current[1] == first) return (NUINT) (index + (NUINT) 1);
+            if (current[2] == first) return (NUINT) (index + (NUINT) 2);
+            if (current[3] == first) return (NUINT) (index + (NUINT) 3);
+            current += 4;
+            index = (NUINT) (index + (NUINT) 4);
+        }
+        while (index < count) {
+            if (*current++ == first) return index;
+            ++index;
+        }
+        return count;
+    }
     while (index < count) {
-        if (catmm_compare(current, element, size) == 0) return index;
+        if (current[0] == first && catmm_compare(current + 1, target + 1, (NUINT) (size - (NUINT) 1)) == 0) return index;
         current += size;
         ++index;
     }

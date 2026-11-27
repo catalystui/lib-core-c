@@ -454,6 +454,51 @@ int main() {
         }
     }
 
+    // Search block boundaries, unaligned input, and late-byte mismatches.
+    {
+        const BYTE widths[] = {1, 2,
+#if TARGET_SIZEOF_ADDRESS >= 2
+            8, 16,
+#endif
+        };
+        BOOL passed = TRUE;
+        for (BYTE w = 0; w < (BYTE) (sizeof(widths) / sizeof(widths[0])); ++w) {
+            NUINT width = widths[w];
+            SET set;
+            MAP map;
+            ARRAY array;
+            set_init(&set, width);
+            map_init(&map, width, 1);
+            array_init(&array, width);
+            if (status_code_is_success(set_expand(&set, 9).status) &&
+                status_code_is_success(map_expand(&map, 9).status) &&
+                status_code_is_success(array_expand(&array, 9).status)) {
+                BYTE input[17];
+                BYTE* key = input + 1;
+                for (NUINT i = 0; i < width; ++i) key[i] = 0xA5;
+                for (BYTE n = 0; n < 10; ++n) {
+                    for (BYTE k = 0; k <= n; ++k) {
+                        key[width - (NUINT) 1] = k;
+                        BOOL expected = k < n ? TRUE : FALSE;
+                        POINTER value = map_get(&map, key);
+                        if (set_contains(&set, key) != expected || map_contains(&map, key) != expected ||
+                            array_contains(&array, key) != expected || (value != 0 ? TRUE : FALSE) != expected ||
+                            (value != 0 && *(const BYTE*) value != k)) passed = FALSE;
+                    }
+                    if (n < 9) {
+                        key[width - (NUINT) 1] = n;
+                        if (!set_add(&set, key) || !map_add(&map, key, &n)) passed = FALSE;
+                        array_add(&array, key);
+                    }
+                }
+            } else passed = FALSE;
+            if (!status_code_is_success(set_free(&set).status)) passed = FALSE;
+            if (!status_code_is_success(map_free(&map).status)) passed = FALSE;
+            if (!status_code_is_success(array_free(&array).status)) passed = FALSE;
+        }
+        check(&failed, passed, "linear searches preserve equality across block boundaries and late mismatches");
+    }
+
     // ------------------------------------------------------------
     // Done
     // ------------------------------------------------------------
