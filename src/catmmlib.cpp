@@ -497,6 +497,24 @@ CATALYST_RESULT catmm_heap_free(CATMMLIB_POINTERW memory) {
 /* Copy forward when no unread source byte can be overwritten. */
 static void catmm_copy_forward(BYTE* output, const BYTE* input, NUINT size) {
 #if CATMMLIB_BLOCK_COPY
+#if defined(__aarch64__)
+    /* Align large destinations before copying cache-line-sized blocks. The
+     * temporary still makes each block safe for forward-overlapping moves. */
+    if (size >= (NUINT) 256) {
+        while (((CATMMLIB_ADDRESS) output & (CATMMLIB_ADDRESS) 15) != 0) {
+            *output++ = *input++;
+            --size;
+        }
+        while (size >= (NUINT) 64) {
+            BYTE chunk[64];
+            __builtin_memcpy(chunk, input, sizeof(chunk));
+            __builtin_memcpy(output, chunk, sizeof(chunk));
+            output += (NUINT) 64;
+            input += (NUINT) 64;
+            size = (NUINT) (size - (NUINT) 64);
+        }
+    }
+#endif
     while (size >= (NUINT) 32) {
         BYTE chunk[32];
         __builtin_memcpy(chunk, input, sizeof(chunk));

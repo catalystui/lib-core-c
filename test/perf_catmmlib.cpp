@@ -255,6 +255,16 @@ static const NUINT sizes[] = {
 // Independent verification and timing of memory operations.
 // ------------------------------------------------------------
 enum Measurement { MEASURE_OK, MEASURE_CLOCK, MEASURE_FAIL };
+static const NUINT memorySizes[] = {
+    0, 1, 8, 16, 32,
+#if TARGET_SIZEOF_ADDRESS >= 2
+    128, 256, 1024,
+#endif
+#if TARGET_SIZEOF_ADDRESS >= 4
+    4096, 32768, 65536,
+#endif
+};
+
 static volatile SBYTE observedResult = 0;
 
 static catalyst::BOOL elapsed(std::clock_t start, unsigned long* ticks) {
@@ -733,8 +743,8 @@ static void benchmark_memory(Summary& summary) {
             std::printf("\n%s\n", benchmark.method);
             previous = benchmark.method;
         }
-        for (catalyst::BYTE i = 0; i < sizeof(sizes) / sizeof(sizes[0]) + 2; ++i) {
-            NUINT size = i < 2 ? (NUINT) i : sizes[i - 2];
+        for (catalyst::BYTE i = 0; i < sizeof(memorySizes) / sizeof(memorySizes[0]); ++i) {
+            NUINT size = memorySizes[i];
             if (size == 0 && (benchmark.kind == COMPARE_FIRST || benchmark.kind == COMPARE_LAST)) continue;
             char label[40];
             std::sprintf(label, "%lu B (%s)", (unsigned long) size, benchmark.workload);
