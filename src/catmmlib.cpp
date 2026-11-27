@@ -642,7 +642,18 @@ CATALYST_SBYTE catmm_compare(CATMMLIB_POINTER memory1, CATMMLIB_POINTER memory2,
         __builtin_memcpy(&firstChunk, first, sizeof(firstChunk));
         __builtin_memcpy(&secondChunk, second, sizeof(secondChunk));
         // Equality is independent of byte order; mismatches use the byte loop.
-        if (firstChunk != secondChunk) break;
+        if (firstChunk != secondChunk) {
+#if CATALYST_SUPPORTS_64BIT && defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && defined(__ORDER_BIG_ENDIAN__)
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+            firstChunk = (CATMMLIB_COMPARE_WORD) __builtin_bswap64(firstChunk);
+            secondChunk = (CATMMLIB_COMPARE_WORD) __builtin_bswap64(secondChunk);
+            return firstChunk < secondChunk ? (SBYTE) -1 : (SBYTE) 1;
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+            return firstChunk < secondChunk ? (SBYTE) -1 : (SBYTE) 1;
+#endif
+#endif
+            break;
+        }
         first += width;
         second += width;
         size = (NUINT) (size - (NUINT) width);
