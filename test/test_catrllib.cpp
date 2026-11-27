@@ -530,6 +530,41 @@ int main() {
         check(&failed, passed, "small element stores preserve neighbors and unaligned inputs");
     }
 
+    // Byte searches across wide blocks and tails, including every key value.
+    {
+        MAP map;
+        map_init(&map, 1, 1);
+#if TARGET_SIZEOF_ADDRESS >= 2
+        const BYTE capacity = 65;
+#else
+        const BYTE capacity = 17;
+#endif
+        BOOL passed = status_code_is_success(map_expand(&map, capacity).status);
+        if (passed) {
+            const BYTE starts[] = {0, 0x7F, 0x80, 0xF0, 0xFF};
+            for (BYTE s = 0; s < (BYTE) (sizeof(starts) / sizeof(starts[0])); ++s) {
+                map_clear(&map);
+                for (BYTE n = 0; n <= capacity; ++n) {
+                    BYTE key = 0;
+                    do {
+                        BYTE index = (BYTE) (key - starts[s]);
+                        const BYTE* value = (const BYTE*) map_get(&map, &key);
+                        if (index < n) {
+                            if (value == 0 || *value != index) passed = FALSE;
+                        } else if (value != 0) passed = FALSE;
+                        ++key;
+                    } while (key != 0);
+                    if (n < capacity) {
+                        key = (BYTE) (starts[s] + n);
+                        if (!map_add(&map, &key, &n)) passed = FALSE;
+                    }
+                }
+            }
+        }
+        if (!status_code_is_success(map_free(&map).status)) passed = FALSE;
+        check(&failed, passed, "single-byte searches preserve exact indices across block boundaries and byte values");
+    }
+
     // ------------------------------------------------------------
     // Done
     // ------------------------------------------------------------

@@ -29,6 +29,37 @@ static NUINT catrl_find(POINTER data, NUINT count, NUINT size, POINTER element) 
     const BYTE first = target[0];
     NUINT index = 0;
     if (size == (NUINT) 1) {
+#if CATALYST_SUPPORTS_64BIT || CATALYST_SUPPORTS_32BIT
+        if (count >= (NUINT) 32) {
+            if (current[0] == first) return 0;
+#if CATALYST_SUPPORTS_64BIT
+            typedef ULONG CATRL_SEARCH_WORD;
+            const CATRL_SEARCH_WORD ones = (CATRL_SEARCH_WORD) (CATALYST_ULONG_MAX / (ULONG) CATALYST_BYTE_MAX);
+#else
+            typedef UINT CATRL_SEARCH_WORD;
+            const CATRL_SEARCH_WORD ones = (CATRL_SEARCH_WORD) (CATALYST_UINT_MAX / (UINT) CATALYST_BYTE_MAX);
+#endif
+            const CATRL_SEARCH_WORD high = (CATRL_SEARCH_WORD) (ones << 7);
+            const CATRL_SEARCH_WORD pattern = (CATRL_SEARCH_WORD) (ones * (CATRL_SEARCH_WORD) first);
+            const NUINT width = (NUINT) sizeof(CATRL_SEARCH_WORD);
+            // XOR makes matching bytes zero. Subtracting the repeated 1 mask
+            // detects any zero byte via its high bit, regardless of byte order.
+            // Read through byte pointers for unaligned inputs; locate the first
+            // match in memory order with the original byte loop below.
+            while ((NUINT) (count - index) >= (NUINT) (width + width)) {
+                CATRL_SEARCH_WORD a, b;
+                for (BYTE i = 0; i < (BYTE) sizeof(a); ++i) {
+                    ((BYTE*) &a)[i] = current[i];
+                    ((BYTE*) &b)[i] = current[width + i];
+                }
+                a ^= pattern;
+                b ^= pattern;
+                if (((((a - ones) & ~a) | ((b - ones) & ~b)) & high) != 0) break;
+                current += (NUINT) (width + width);
+                index = (NUINT) (index + width + width);
+            }
+        }
+#endif
         while ((NUINT) (count - index) >= (NUINT) 4) {
             if (current[0] == first) return index;
             if (current[1] == first) return (NUINT) (index + (NUINT) 1);
