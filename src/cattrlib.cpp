@@ -6,6 +6,7 @@ using namespace catalyst;
  * dispatcher 0C-10 (create 0C, wait 0D, submits 0F/10), poll/close/free 11-13.
  * Non-reporting predicates/count have no context.
  * Native reporting sites use 01-05; portable sites begin at 10.
+ * Private clock read and initialization have contexts 14 and 15.
  * The public objects own their state and must not be shallow-copied. */
 
 static const BYTE THREAD_CREATED = 0;
@@ -42,9 +43,8 @@ CATALYST_RESULT cattr_process_create(PROCESS* process, FUNCTION function, POINTE
 
 CATALYST_RESULT cattr_process_current(PROCESS* process) {
     process->function = 0;
-    RESULT allocation = catmm_alloc(&process->state, (NUINT) sizeof(NUINT));
-    if (!status_code_is_success(allocation.status)) return RESULT(allocation.status, 0x02, 0x10, allocation.detail);
-    *(NUINT*) process->state = cattr_platform_pid();
+    RESULT capture = cattr_platform_process_capture(&process->state);
+    if (!status_code_is_success(capture.status)) return RESULT(capture.status, 0x02, 0x10, capture.detail);
     return RESULT(STATUS_CODE_SUCCESS, 0x02, 0x11, 0);
 }
 
@@ -60,7 +60,7 @@ CATALYST_RESULT cattr_process_wait(PROCESS* process) {
 
 CATALYST_BOOL cattr_process_equals(const PROCESS* process1, const PROCESS* process2) {
     if (process1->state == 0 || process2->state == 0) return FALSE;
-    return *(const NUINT*) process1->state == *(const NUINT*) process2->state ? TRUE : FALSE;
+    return cattr_platform_process_equals(process1->state, process2->state);
 }
 
 CATALYST_RESULT cattr_process_terminate(PROCESS* process) {
@@ -85,7 +85,7 @@ CATALYST_RESULT cattr_thread_create(THREAD* thread, PROCESS* process, PROCEDURE 
     thread->process = process;
     thread->procedure = procedure;
     thread->state = 0;
-    if (process->state == 0 || *(const NUINT*) process->state != cattr_platform_pid()) {
+    if (process->state == 0 || !cattr_platform_process_is_current(process->state)) {
         return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x07, 0x10, 0);
     }
     RESULT allocation = catmm_alloc(&thread->state, (NUINT) sizeof(CATTRLIB_THREAD_STATE));
@@ -101,7 +101,7 @@ CATALYST_RESULT cattr_thread_current(THREAD* thread, PROCESS* process) {
     thread->process = process;
     thread->procedure = 0;
     thread->state = 0;
-    if (process->state == 0 || *(const NUINT*) process->state != cattr_platform_pid()) {
+    if (process->state == 0 || !cattr_platform_process_is_current(process->state)) {
         return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x08, 0x10, 0);
     }
     RESULT allocation = catmm_alloc(&thread->state, (NUINT) sizeof(CATTRLIB_THREAD_STATE));
@@ -210,16 +210,21 @@ struct CATTRLIB_TIMEOUT {
     NUINT previous;
 };
 
-static void cattr_timeout_init(CATTRLIB_TIMEOUT* clock, NUINT timeout) {
+static RESULT cattr_timeout_init(CATTRLIB_TIMEOUT* clock, NUINT timeout) {
     clock->remaining = timeout;
-    clock->previous = timeout == CATALYST_NUINT_MAX ? (NUINT) 0 : cattr_platform_ticks();
+    clock->previous = 0;
+    if (timeout == CATALYST_NUINT_MAX) return RESULT(STATUS_CODE_SUCCESS, 0x15, 0x01, 0);
+    RESULT read = cattr_platform_ticks(&clock->previous);
+    return RESULT(read.status, 0x15, 0x02, read.detail);
 }
 
 static RESULT cattr_wait_change(CATTRLIB_DISPATCHER_STATE* state, CATTRLIB_TIMEOUT* clock) {
     if (clock->remaining == CATALYST_NUINT_MAX) {
         return cattr_platform_monitor_wait(state->monitor, CATALYST_NUINT_MAX);
     }
-    NUINT now = cattr_platform_ticks();
+    NUINT now = 0;
+    RESULT read = cattr_platform_ticks(&now);
+    if (!status_code_is_success(read.status)) return RESULT(read.status, 0x0D, 0x14, read.detail);
     NUINT elapsed = (NUINT) (now - clock->previous);
     clock->previous = now;
     if (elapsed >= clock->remaining) {
@@ -233,7 +238,8 @@ static RESULT cattr_wait_change(CATTRLIB_DISPATCHER_STATE* state, CATTRLIB_TIMEO
 #endif
     RESULT wait = cattr_platform_monitor_wait(state->monitor, slice);
     if (wait.status == STATUS_CODE_ERROR_TIMEOUT) {
-        now = cattr_platform_ticks();
+        read = cattr_platform_ticks(&now);
+        if (!status_code_is_success(read.status)) return RESULT(read.status, 0x0D, 0x15, read.detail);
         elapsed = (NUINT) (now - clock->previous);
         clock->previous = now;
         if (elapsed < slice) elapsed = slice;
@@ -327,7 +333,8 @@ static RESULT cattr_submit(DISPATCHER* dispatcher, PROCEDURE operation, BOOL fun
                            BOOL wait, NUINT timeout, POINTERW* output, CONTEXT_CODE context) {
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
     CATTRLIB_TIMEOUT clock;
-    cattr_timeout_init(&clock, timeout);
+    RESULT timer = cattr_timeout_init(&clock, timeout);
+    if (!status_code_is_success(timer.status)) return RESULT(timer.status, context, 0x1B, timer.detail);
     cattr_platform_monitor_lock(state->monitor);
     if (state->closed) {
         cattr_platform_monitor_unlock(state->monitor);
@@ -432,7 +439,8 @@ CATALYST_RESULT cattr_dispatcher_wait(DISPATCHER* dispatcher, NUINT timeout) {
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
     if (!cattr_thread_is_current(dispatcher->thread)) return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x0D, 0x20, 0);
     CATTRLIB_TIMEOUT clock;
-    cattr_timeout_init(&clock, timeout);
+    RESULT timer = cattr_timeout_init(&clock, timeout);
+    if (!status_code_is_success(timer.status)) return RESULT(timer.status, 0x0D, 0x24, timer.detail);
     cattr_platform_monitor_lock(state->monitor);
     while (!state->closed && dispatcher->work.cardinality == 0) {
         RESULT change = cattr_wait_change(state, &clock);

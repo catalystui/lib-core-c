@@ -5,7 +5,6 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
-#include <process.h>
 
 using namespace catalyst;
 
@@ -22,11 +21,22 @@ struct CATTRLIB_NATIVE_MONITOR {
     CONDITION_VARIABLE changed;
 };
 
-NUINT cattr_platform_pid() {
-    return (NUINT) GetCurrentProcessId();
+CATALYST_RESULT cattr_platform_process_capture(POINTERW* output) {
+    RESULT allocation = catmm_alloc(output, (NUINT) sizeof(DWORD));
+    if (!status_code_is_success(allocation.status)) return RESULT(allocation.status, 0x02, 0x01, allocation.detail);
+    *(DWORD*) *output = GetCurrentProcessId();
+    return RESULT(STATUS_CODE_SUCCESS, 0x02, 0x02, 0);
 }
 
-static unsigned __stdcall cattr_thread_entry(void* value) {
+CATALYST_BOOL cattr_platform_process_equals(POINTER first, POINTER second) {
+    return *(const DWORD*) first == *(const DWORD*) second ? CATALYST_TRUE : CATALYST_FALSE;
+}
+
+CATALYST_BOOL cattr_platform_process_is_current(POINTER value) {
+    return *(const DWORD*) value == GetCurrentProcessId() ? CATALYST_TRUE : CATALYST_FALSE;
+}
+
+static DWORD WINAPI cattr_thread_entry(LPVOID value) {
     CATTRLIB_NATIVE_THREAD* state = (CATTRLIB_NATIVE_THREAD*) value;
     AcquireSRWLockExclusive(&state->gate);
     ReleaseSRWLockExclusive(&state->gate);
@@ -54,9 +64,7 @@ CATALYST_RESULT cattr_platform_thread_start(POINTERW* output, PROCEDURE procedur
     state->arguments = arguments;
     InitializeSRWLock(&state->gate);
     AcquireSRWLockExclusive(&state->gate);
-    unsigned id = 0;
-    state->handle = (HANDLE) _beginthreadex(0, 0, cattr_thread_entry, state, 0, &id);
-    state->id = (DWORD) id;
+    state->handle = CreateThread(0, 0, cattr_thread_entry, state, 0, &state->id);
     ReleaseSRWLockExclusive(&state->gate);
     if (state->handle == 0) return RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0x09, 0x03, 0);
     return RESULT(STATUS_CODE_SUCCESS, 0x09, 0x04, 0);
@@ -130,7 +138,8 @@ void cattr_platform_yield() {
     SwitchToThread();
 }
 
-NUINT cattr_platform_ticks() {
-    return (NUINT) GetTickCount64();
+CATALYST_RESULT cattr_platform_ticks(NUINT* ticks) {
+    *ticks = (NUINT) GetTickCount64();
+    return RESULT(STATUS_CODE_SUCCESS, 0x14, 0x02, 0);
 }
 #endif /* TARGET_PLATFORM_WIN32 */

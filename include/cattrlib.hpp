@@ -81,7 +81,7 @@ inline RESULT thread_current(THREAD* thread, PROCESS* process) {
     return ::cattr_thread_current(thread, process);
 }
 
-/** Start a created thread once. Serialize lifecycle changes and publish associated dispatchers before starting. Failed start permits free only. */
+/** Start a created thread once. Serialize lifecycle changes and publish associated dispatchers before starting. Failed start permits free only. Windows uses native CreateThread without CRT-specific thread initialization; code requiring CRT-managed thread startup must arrange it outside CATTRLIB. */
 inline RESULT thread_start(THREAD* thread) {
     return ::cattr_thread_start(thread);
 }

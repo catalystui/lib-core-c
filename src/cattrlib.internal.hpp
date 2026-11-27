@@ -11,7 +11,11 @@
 #define CATTRLIB_PRIVATE
 #endif
 
-CATTRLIB_PRIVATE CATALYST_NUINT cattr_platform_pid();
+/* Capture a native process identity without narrowing it to a portable size
+ * or exposing a native handle/identifier in the public structure. */
+CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_process_capture(CATMMLIB_POINTERW* state);
+CATTRLIB_PRIVATE CATALYST_BOOL cattr_platform_process_equals(CATMMLIB_POINTER state1, CATMMLIB_POINTER state2);
+CATTRLIB_PRIVATE CATALYST_BOOL cattr_platform_process_is_current(CATMMLIB_POINTER state);
 CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_thread_capture(CATMMLIB_POINTERW* state);
 CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_thread_start(CATMMLIB_POINTERW* state, CATTRLIB_PROCEDURE procedure, CATMMLIB_POINTERW arguments);
 CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_thread_wait(CATMMLIB_POINTERW state);
@@ -24,7 +28,8 @@ CATTRLIB_PRIVATE void cattr_platform_monitor_unlock(CATMMLIB_POINTERW state);
 CATTRLIB_PRIVATE void cattr_platform_monitor_notify(CATMMLIB_POINTERW state);
 CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_monitor_wait(CATMMLIB_POINTERW state, CATALYST_NUINT timeout);
 CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_monitor_free(CATMMLIB_POINTERW state);
-CATTRLIB_PRIVATE CATALYST_NUINT cattr_platform_ticks();
+/* Read monotonic milliseconds modulo the Catalyst pointer-width range. */
+CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_ticks(CATALYST_NUINT* ticks);
 CATTRLIB_PRIVATE void cattr_platform_yield();
 
 #undef CATTRLIB_PRIVATE

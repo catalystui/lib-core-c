@@ -1,5 +1,10 @@
-#include "cmakecfg.h"
-#if TARGET_PLATFORM_LINUX || TARGET_PLATFORM_DARWIN
+#ifndef CATTRLIB_PTHREAD_HPP
+#define CATTRLIB_PTHREAD_HPP
+
+/* Private native implementation included only by cattrlib.linux.cpp and
+ * cattrlib.darwin.mm. Both systems expose pthreads as their supported
+ * user-space thread ABI. Platform-specific wait and condition setup are
+ * supplied by those files; no pthread types enter portable CATTRLIB. */
 #include "cattrlib.internal.hpp"
 #include <pthread.h>
 #include <unistd.h>
@@ -8,6 +13,9 @@
 #include <sched.h>
 
 using namespace catalyst;
+
+static RESULT cattr_native_condition_init(pthread_cond_t* condition);
+static RESULT cattr_native_condition_timedwait(pthread_cond_t* condition, pthread_mutex_t* lock, NUINT timeout);
 
 struct CATTRLIB_NATIVE_THREAD {
     pthread_t handle;
@@ -24,8 +32,19 @@ struct CATTRLIB_NATIVE_MONITOR {
     BOOL lock_live;
 };
 
-NUINT cattr_platform_pid() {
-    return (NUINT) getpid();
+CATALYST_RESULT cattr_platform_process_capture(POINTERW* output) {
+    RESULT allocation = catmm_alloc(output, (NUINT) sizeof(pid_t));
+    if (!status_code_is_success(allocation.status)) return RESULT(allocation.status, 0x02, 0x01, allocation.detail);
+    *(pid_t*) *output = getpid();
+    return RESULT(STATUS_CODE_SUCCESS, 0x02, 0x02, 0);
+}
+
+CATALYST_BOOL cattr_platform_process_equals(POINTER first, POINTER second) {
+    return *(const pid_t*) first == *(const pid_t*) second ? TRUE : FALSE;
+}
+
+CATALYST_BOOL cattr_platform_process_is_current(POINTER value) {
+    return *(const pid_t*) value == getpid() ? TRUE : FALSE;
 }
 
 /* The creation gate publishes the native handle before user code runs. */
@@ -95,16 +114,8 @@ CATALYST_RESULT cattr_platform_monitor_create(POINTERW* output) {
     CATTRLIB_NATIVE_MONITOR* state = (CATTRLIB_NATIVE_MONITOR*) *output;
     if (pthread_mutex_init(&state->lock, 0) != 0) return RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0x0C, 0x02, 0);
     state->lock_live = TRUE;
-#if TARGET_PLATFORM_LINUX
-    pthread_condattr_t attributes;
-    if (pthread_condattr_init(&attributes) != 0) return RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0x0C, 0x03, 0);
-    int error = pthread_condattr_setclock(&attributes, CLOCK_MONOTONIC);
-    if (error == 0) error = pthread_cond_init(&state->changed, &attributes);
-    pthread_condattr_destroy(&attributes);
-    if (error != 0) return RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0x0C, 0x04, 0);
-#else
-    if (pthread_cond_init(&state->changed, 0) != 0) return RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0x0C, 0x04, 0);
-#endif
+    RESULT condition = cattr_native_condition_init(&state->changed);
+    if (!status_code_is_success(condition.status)) return RESULT(condition.status, 0x0C, 0x06, condition.detail);
     state->condition_live = TRUE;
     return RESULT(STATUS_CODE_SUCCESS, 0x0C, 0x05, 0);
 }
@@ -123,24 +134,11 @@ void cattr_platform_monitor_notify(POINTERW value) {
 
 CATALYST_RESULT cattr_platform_monitor_wait(POINTERW value, NUINT timeout) {
     CATTRLIB_NATIVE_MONITOR* state = (CATTRLIB_NATIVE_MONITOR*) value;
-    int error;
-    if (timeout == CATALYST_NUINT_MAX) {
-        error = pthread_cond_wait(&state->changed, &state->lock);
-    } else {
-        /* The portable caller limits finite waits to short slices. */
-        struct timespec deadline;
-#if TARGET_PLATFORM_DARWIN
-        deadline.tv_sec = (time_t) (timeout / 1000);
-        deadline.tv_nsec = (long) (timeout % 1000) * 1000000L;
-        error = pthread_cond_timedwait_relative_np(&state->changed, &state->lock, &deadline);
-#else
-        if (clock_gettime(CLOCK_MONOTONIC, &deadline) != 0) return RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0x0D, 0x01, 0);
-        deadline.tv_nsec += (long) (timeout % 1000) * 1000000L;
-        deadline.tv_sec += (time_t) (timeout / 1000) + deadline.tv_nsec / 1000000000L;
-        deadline.tv_nsec %= 1000000000L;
-        error = pthread_cond_timedwait(&state->changed, &state->lock, &deadline);
-#endif
+    if (timeout != CATALYST_NUINT_MAX) {
+        RESULT wait = cattr_native_condition_timedwait(&state->changed, &state->lock, timeout);
+        return RESULT(wait.status, 0x0D, 0x06, wait.detail);
     }
+    int error = pthread_cond_wait(&state->changed, &state->lock);
     if (error == ETIMEDOUT) return RESULT(STATUS_CODE_ERROR_TIMEOUT, 0x0D, 0x02, 0);
     if (error != 0) return RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0x0D, 0x03, 0);
     return RESULT(STATUS_CODE_SUCCESS, 0x0D, 0x04, 0);
@@ -164,10 +162,14 @@ void cattr_platform_yield() {
     sched_yield();
 }
 
-NUINT cattr_platform_ticks() {
+CATALYST_RESULT cattr_platform_ticks(NUINT* ticks) {
     struct timespec now;
-    clock_gettime(CLOCK_MONOTONIC, &now);
-    /* Modulo pointer-width ticks; the portable caller measures short deltas. */
-    return (NUINT) ((NUINT) now.tv_sec * (NUINT) 1000 + (NUINT) (now.tv_nsec / 1000000L));
+    if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) {
+        return RESULT(STATUS_CODE_ERROR_DEPENDENCY_FAILURE, 0x14, 0x01, 0);
+    }
+    /* Native time fields are converted only here. The portable caller
+     * measures short deltas in modulo pointer-width milliseconds. */
+    *ticks = (NUINT) ((NUINT) now.tv_sec * (NUINT) 1000 + (NUINT) (now.tv_nsec / 1000000L));
+    return RESULT(STATUS_CODE_SUCCESS, 0x14, 0x02, 0);
 }
-#endif /* TARGET_PLATFORM_LINUX || TARGET_PLATFORM_DARWIN */
+#endif /* CATTRLIB_PTHREAD_HPP */

@@ -90,7 +90,7 @@ CATTRLIB_API CATALYST_RESULT cattr_thread_create(CATTRLIB_THREAD* thread, CATTRL
 /** Capture the current thread in the current process into unused storage; procedure is unknown. Keep the captured execution live when comparing or using its identity. Failed capture permits free. */
 CATTRLIB_API CATALYST_RESULT cattr_thread_current(CATTRLIB_THREAD* thread, CATTRLIB_PROCESS* process);
 
-/** Start a created thread once. Serialize lifecycle changes and publish associated dispatchers before starting. Failed start permits free only. */
+/** Start a created thread once. Serialize lifecycle changes and publish associated dispatchers before starting. Failed start permits free only. Windows uses native CreateThread without CRT-specific thread initialization; code requiring CRT-managed thread startup must arrange it outside CATTRLIB. */
 CATTRLIB_API CATALYST_RESULT cattr_thread_start(CATTRLIB_THREAD* thread);
 
 /** Join a started thread from another thread. A previously joined thread is a no-op; serialize lifecycle changes. */

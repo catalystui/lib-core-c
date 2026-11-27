@@ -54,10 +54,14 @@ target_link_libraries(catrllib_static PUBLIC catmmlib_static)
 if(TARGET_PLATFORM_WIN32 OR TARGET_PLATFORM_LINUX OR TARGET_PLATFORM_DARWIN)
     if(TARGET_PLATFORM_WIN32)
         set(CATTRLIB_PLATFORM_SOURCE src/cattrlib.win32.cpp)
-    else()
-        set(CATTRLIB_PLATFORM_SOURCE src/cattrlib.posix.cpp)
+    elseif(TARGET_PLATFORM_DARWIN)
+        set(CATTRLIB_PLATFORM_SOURCE src/cattrlib.darwin.mm src/cattrlib.pthread.hpp)
+    elseif(TARGET_PLATFORM_LINUX)
+        set(CATTRLIB_PLATFORM_SOURCE src/cattrlib.linux.cpp src/cattrlib.pthread.hpp)
+        # On Linux this supplies the native pthread compiler/linker flags
+        # when required by the selected system and toolchain.
+        find_package(Threads REQUIRED)
     endif()
-    find_package(Threads REQUIRED)
     add_library(cattrlib_shared SHARED)
     add_library(cattrlib_static STATIC)
     configure_target(
@@ -68,8 +72,12 @@ if(TARGET_PLATFORM_WIN32 OR TARGET_PLATFORM_LINUX OR TARGET_PLATFORM_DARWIN)
             src/cattrlib.internal.hpp
             ${CATTRLIB_PLATFORM_SOURCE}
     )
-    target_link_libraries(cattrlib_shared PUBLIC catrllib_shared PRIVATE Threads::Threads)
-    target_link_libraries(cattrlib_static PUBLIC catrllib_static PRIVATE Threads::Threads)
+    target_link_libraries(cattrlib_shared PUBLIC catrllib_shared)
+    target_link_libraries(cattrlib_static PUBLIC catrllib_static)
+    if(TARGET_PLATFORM_LINUX)
+        target_link_libraries(cattrlib_shared PRIVATE Threads::Threads)
+        target_link_libraries(cattrlib_static PRIVATE Threads::Threads)
+    endif()
     target_compile_definitions(cattrlib_shared PRIVATE CATTRLIB_EXPORTS INTERFACE CATTRLIB_USE_DLL)
 endif()
 
@@ -153,8 +161,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|MSVC)$")
                 continue()
             endif()
             # CheckIPOSupported does not probe Objective-C++; require the same
-            # toolchain and CMake's Objective-C++ IPO support for CATMMLIB.
-            if(TARGET_PLATFORM_DARWIN AND TARGET_NAME MATCHES "^catmmlib_" AND
+            # toolchain and CMake's Objective-C++ IPO support for native Core backends.
+            if(TARGET_PLATFORM_DARWIN AND TARGET_NAME MATCHES "^(catmmlib|cattrlib)_" AND
                (NOT CMAKE_OBJCXX_COMPILER_ID STREQUAL CMAKE_CXX_COMPILER_ID OR
                 NOT CMAKE_OBJCXX_COMPILER_VERSION STREQUAL CMAKE_CXX_COMPILER_VERSION OR
                 NOT CMAKE_OBJCXX_COMPILE_OPTIONS_IPO))
