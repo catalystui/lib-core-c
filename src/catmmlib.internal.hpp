@@ -59,15 +59,6 @@ CATMMLIB_PRIVATE CATALYST_BOOL catmm_platform_extent_matches(CATALYST_NUINT old_
 CATMMLIB_PRIVATE CATALYST_RESULT catmm_platform_realloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT size);
 #endif
 CATMMLIB_PRIVATE CATALYST_RESULT catmm_platform_free(CATMMLIB_POINTERW memory, CATALYST_NUINT size);
-/* Managed storage uses the same native extent and alignment contract.
- * Alloc/free have contexts 04/06; reserve operations 01/02 for the private
- * extent boundary, with the shared public operations beginning at 03.
- * Nonzero extents include the prefix; free and matches receive the original
- * extent of a live allocation. Matches is a non-mutating same-class test.
- */
-CATMMLIB_PRIVATE CATALYST_RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT size);
-CATMMLIB_PRIVATE CATALYST_RESULT catmm_heap_extent_free(CATMMLIB_POINTERW memory, CATALYST_NUINT size);
-CATMMLIB_PRIVATE CATALYST_BOOL catmm_heap_extent_matches(CATALYST_NUINT old_size, CATALYST_NUINT new_size);
 /* Yield the current thread during contention; no allocation or failure contract. */
 CATMMLIB_PRIVATE void catmm_platform_yield();
 #undef CATMMLIB_PRIVATE

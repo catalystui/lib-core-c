@@ -33,7 +33,6 @@ configure_target(
     TARGETS catmmlib_shared catmmlib_static
     SOURCES
         src/catmmlib.cpp
-        src/catmmlib.heap.cpp
         src/catmmlib.internal.hpp
         ${CATMMLIB_PLATFORM_SOURCE}
 )
