@@ -549,13 +549,18 @@ void catmm_move(CATMMLIB_POINTERW destination, CATMMLIB_POINTER source, CATALYST
     output += size;
     input += size;
 #if CATMMLIB_BLOCK_COPY
-    while (size >= (NUINT) 16) {
-        BYTE chunk[16];
-        output -= (NUINT) 16;
-        input -= (NUINT) 16;
+#if defined(__aarch64__)
+    const BYTE block = (BYTE) 32;
+#else
+    const BYTE block = (BYTE) 16;
+#endif
+    while (size >= (NUINT) block) {
+        BYTE chunk[block];
+        output -= (NUINT) block;
+        input -= (NUINT) block;
         __builtin_memcpy(chunk, input, sizeof(chunk));
         __builtin_memcpy(output, chunk, sizeof(chunk));
-        size = (NUINT) (size - (NUINT) 16);
+        size = (NUINT) (size - (NUINT) block);
     }
 #endif
     while (size != 0) {
