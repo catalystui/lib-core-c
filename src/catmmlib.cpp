@@ -497,7 +497,7 @@ CATALYST_RESULT catmm_heap_free(CATMMLIB_POINTERW memory) {
 /* The configured target must have flat byte addresses. Block sizes derive
  * from the address width, not the processor name. The byte loops remain the
  * complete implementation when compiler block copies are unavailable. */
-#if CATMMLIB_FLAT_ADDRESS && (defined(__GNUC__) || defined(__clang__))
+#if defined(__GNUC__) || defined(__clang__)
 #define CATMMLIB_BLOCK_COPY 1
 #define CATMMLIB_BLOCK_SIZE (TARGET_SIZEOF_ADDRESS * 4)
 #define CATMMLIB_BLOCK_ALIGNMENT (TARGET_SIZEOF_ADDRESS * 2)
@@ -571,27 +571,11 @@ void catmm_move(CATMMLIB_POINTERW destination, CATMMLIB_POINTER source, CATALYST
     if (size == 0 || destination == source) return;
     BYTE* output = (BYTE*) destination;
     const BYTE* input = (const BYTE*) source;
-    BOOL backward = FALSE;
-#if CATMMLIB_FLAT_ADDRESS
-    /* These native ABIs have flat byte addresses. Subtract only in ascending
+    /* Supported targets use flat byte addresses. Subtract only in ascending
      * order; computing the end address could overflow the representation. */
     const CATMMLIB_ADDRESS outputAddress = (CATMMLIB_ADDRESS) destination;
     const CATMMLIB_ADDRESS inputAddress = (CATMMLIB_ADDRESS) source;
-    backward = outputAddress > inputAddress && (CATMMLIB_ADDRESS) (outputAddress - inputAddress) < (CATMMLIB_ADDRESS) size;
-#else
-    /* On other representations, equality within the source extent avoids
-     * ordering unrelated pointers or assuming a flat address space. */
-    NUINT offset = size;
-    const BYTE* candidate = input;
-    while (offset != 0) {
-        if (output == candidate) {
-            backward = TRUE;
-            break;
-        }
-        ++candidate;
-        --offset;
-    }
-#endif
+    BOOL backward = outputAddress > inputAddress && (CATMMLIB_ADDRESS) (outputAddress - inputAddress) < (CATMMLIB_ADDRESS) size;
     if (!backward) {
         catmm_copy_forward(output, input, size);
         return;

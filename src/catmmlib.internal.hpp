@@ -7,19 +7,13 @@
 #error "CATMMLIB requires a supported native memory-management backend."
 #endif
 
-/* Build configuration opts known flat-address targets into integer address
- * arithmetic. Other targets use pointer equality and byte-only transfers. */
-#ifndef CATMMLIB_FLAT_ADDRESS
-#define CATMMLIB_FLAT_ADDRESS 0
-#endif
-#if TARGET_SIZEOF_ADDRESS < 4 || TARGET_SIZEOF_ADDRESS > 8 || TARGET_SIZEOF_ADDRESS != TARGET_SIZEOF_VOID_P
-#undef CATMMLIB_FLAT_ADDRESS
-#define CATMMLIB_FLAT_ADDRESS 0
-#endif
+/* Supported targets use flat byte addresses. The address representation must
+ * accommodate the full pointer-width extent. */
+typedef char CATMMLIB_address_extent_fits[(sizeof(CATMMLIB_ADDRESS) >= sizeof(CATALYST_NUINT)) ? 1 : -1];
 
 /* The managed heap requires a representable slab extent and lock-free byte
  * synchronization. Otherwise the heap API uses native allocation. */
-#if TARGET_SIZEOF_ADDRESS >= 2 && ((TARGET_PLATFORM_WIN32 && defined(_MSC_VER) && CATMMLIB_FLAT_ADDRESS) || (!defined(_MSC_VER) && defined(__GCC_ATOMIC_CHAR_LOCK_FREE) && __GCC_ATOMIC_CHAR_LOCK_FREE == 2))
+#if TARGET_SIZEOF_ADDRESS >= 2 && ((TARGET_PLATFORM_WIN32 && defined(_MSC_VER)) || (!defined(_MSC_VER) && defined(__GCC_ATOMIC_CHAR_LOCK_FREE) && __GCC_ATOMIC_CHAR_LOCK_FREE == 2))
 #define CATMMLIB_MANAGED_HEAP 1
 #else
 #define CATMMLIB_MANAGED_HEAP 0

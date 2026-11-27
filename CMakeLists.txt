@@ -37,13 +37,6 @@ configure_target(
         ${CATMMLIB_PLATFORM_SOURCE}
 )
 
-# Only opt established flat-address ABIs into address arithmetic. Transfer
-# sizes derive from cmakecfg.h rather than architecture-specific tuning.
-if(TARGET_ARCHITECTURE MATCHES "^(x86|x64|armv7|arm64)$")
-    target_compile_definitions(catmmlib_shared PRIVATE CATMMLIB_FLAT_ADDRESS=1)
-    target_compile_definitions(catmmlib_static PRIVATE CATMMLIB_FLAT_ADDRESS=1)
-endif()
-
 # catrllib
 add_library(catrllib_shared SHARED)
 add_library(catrllib_static STATIC)

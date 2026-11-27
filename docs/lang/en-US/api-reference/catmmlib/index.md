@@ -339,7 +339,7 @@ Copy bytes without allocation. Identical addresses and zero size are no-ops; oth
 void catmm_move(CATMMLIB_POINTERW destination, CATMMLIB_POINTER source, CATALYST_NUINT size);
 ```
 
-Move bytes as if through temporary storage, including overlapping extents. Identical addresses and zero size are no-ops. On supported flat-address native ABIs, the implementation determines overlap using integer addresses without ordering unrelated pointers; other representations use pointer equality within the source extent. No alignment beyond byte alignment is required.
+Move bytes as if through temporary storage, including overlapping extents. Identical addresses and zero size are no-ops. Supported targets use flat byte addresses; the implementation determines overlap using integer addresses without ordering unrelated pointers. No alignment beyond byte alignment is required.
 
 **Parameters:**
 
