@@ -14,9 +14,19 @@ using namespace catalyst;
 typedef char CATMMLIB_prefix_fits[(sizeof(CATMMLIB_NATIVE_PREFIX) <= CATALYST_NUINT_MAX) ? 1 : -1];
 typedef char CATMMLIB_native_extent_fits[(sizeof(size_t) >= sizeof(CATALYST_NUINT)) ? 1 : -1];
 
-void catmm_platform_yield() {
-    sched_yield();
+#if CATMMLIB_MANAGED_HEAP
+void catmm_platform_lock(CATALYST_BYTE* lock) {
+    while (__atomic_exchange_n(lock, (BYTE) 1, __ATOMIC_ACQUIRE) != 0) {
+        while (__atomic_load_n(lock, __ATOMIC_RELAXED) != 0) {
+            sched_yield();
+        }
+    }
 }
+
+void catmm_platform_unlock(CATALYST_BYTE* lock) {
+    __atomic_store_n(lock, (BYTE) 0, __ATOMIC_RELEASE);
+}
+#endif
 
 CATALYST_RESULT catmm_platform_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT size) {
     *memory = 0;

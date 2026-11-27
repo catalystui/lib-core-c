@@ -7,6 +7,14 @@
 #error "CATMMLIB requires a supported native memory-management backend."
 #endif
 
+/* The managed heap requires a representable slab extent and lock-free byte
+ * synchronization. Otherwise the heap API uses native allocation. */
+#if TARGET_SIZEOF_ADDRESS >= 2 && ((TARGET_PLATFORM_WIN32 && defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64) || defined(_M_ARM) || defined(_M_ARM64))) || (!defined(_MSC_VER) && defined(__GCC_ATOMIC_CHAR_LOCK_FREE) && __GCC_ATOMIC_CHAR_LOCK_FREE == 2))
+#define CATMMLIB_MANAGED_HEAP 1
+#else
+#define CATMMLIB_MANAGED_HEAP 0
+#endif
+
 /* Private object representation copied to/from the allocation prefix. Never
  * interpret mapped bytes as a constructed or suitably aligned header object.
  * requested_size excludes the prefix. For managed allocations and mapping
@@ -59,7 +67,11 @@ CATMMLIB_PRIVATE CATALYST_BOOL catmm_platform_extent_matches(CATALYST_NUINT old_
 CATMMLIB_PRIVATE CATALYST_RESULT catmm_platform_realloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT size);
 #endif
 CATMMLIB_PRIVATE CATALYST_RESULT catmm_platform_free(CATMMLIB_POINTERW memory, CATALYST_NUINT size);
-/* Yield the current thread during contention; no allocation or failure contract. */
-CATMMLIB_PRIVATE void catmm_platform_yield();
+#if CATMMLIB_MANAGED_HEAP
+/* Lock starts at zero. Acquire waits for exclusive ownership; release requires
+ * ownership. All accesses to the lock byte during use are atomic. */
+CATMMLIB_PRIVATE void catmm_platform_lock(CATALYST_BYTE* lock);
+CATMMLIB_PRIVATE void catmm_platform_unlock(CATALYST_BYTE* lock);
+#endif
 #undef CATMMLIB_PRIVATE
 #endif /* CATMMLIB_INTERNAL_HPP */

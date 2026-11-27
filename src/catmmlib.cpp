@@ -1,17 +1,5 @@
 #include "catmmlib.internal.hpp"
 
-/* The slab algorithm is platform-independent. Only native storage and
- * thread yielding use the platform backend. Unsupported address widths or
- * compilers retain native allocation through the same heap API. */
-#if TARGET_SIZEOF_ADDRESS >= 2 && ((defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64) || defined(_M_ARM) || defined(_M_ARM64))) || (defined(__GCC_ATOMIC_CHAR_LOCK_FREE) && __GCC_ATOMIC_CHAR_LOCK_FREE == 2))
-#define CATMMLIB_MANAGED_HEAP 1
-#if defined(_MSC_VER)
-#include <intrin.h>
-#endif
-#else
-#define CATMMLIB_MANAGED_HEAP 0
-#endif
-
 using namespace catalyst;
 
 /* -------------------------------------------------------------------------------------------------
@@ -75,30 +63,6 @@ static CATMMLIB_HEAP_CLASS catmm_classes[catmm_class_count];
  * This also preserves 16-byte native heap alignment on Windows x64. */
 static const NUINT catmm_slab_prefix = (NUINT) (((sizeof(CATMMLIB_HEAP_SLAB_PREFIX) + sizeof(CATMMLIB_NATIVE_PREFIX) - 1) /
     sizeof(CATMMLIB_NATIVE_PREFIX)) * sizeof(CATMMLIB_NATIVE_PREFIX));
-
-/* Each class protects its own lists and counts with a platform-local lock. */
-static void catmm_heap_acquire(CATMMLIB_HEAP_CLASS* pool) {
-#if defined(_MSC_VER)
-    while (_InterlockedExchange8((volatile char*) &pool->lock, 1) != 0) {
-        catmm_platform_yield();
-    }
-#else
-    while (__atomic_exchange_n(&pool->lock, (BYTE) 1, __ATOMIC_ACQUIRE) != 0) {
-        while (__atomic_load_n(&pool->lock, __ATOMIC_RELAXED) != 0) {
-            catmm_platform_yield();
-        }
-    }
-#endif
-}
-
-/* Caller holds the heap lock. */
-static void catmm_heap_release(CATMMLIB_HEAP_CLASS* pool) {
-#if defined(_MSC_VER)
-    _InterlockedExchange8((volatile char*) &pool->lock, 0);
-#else
-    __atomic_store_n(&pool->lock, (BYTE) 0, __ATOMIC_RELEASE);
-#endif
-}
 
 /* Nonzero native extent. Return its class and layout, or class_count for
  * a direct mapping (zero outputs). No mutable heap state is read.
@@ -229,7 +193,7 @@ static RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT 
     BYTE index = catmm_heap_class(size, &capacity, &extent);
     if (index != catmm_class_count) {
         CATMMLIB_HEAP_CLASS* pool = &catmm_classes[index];
-        catmm_heap_acquire(pool);
+        catmm_platform_lock(&pool->lock);
         BYTE* address = pool->partial;
         BOOL wasPartial = address != 0 ? TRUE : FALSE;
         CATMMLIB_HEAP_SLAB slab;
@@ -278,7 +242,7 @@ static RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT 
             catmm_copy(address, &slab, (NUINT) sizeof(slab));
             base = slot + sizeof(CATMMLIB_HEAP_SLOT);
         }
-        catmm_heap_release(pool);
+        catmm_platform_unlock(&pool->lock);
         /* The live slot now belongs exclusively to this allocation. Clear
          * reused storage outside the lock, before publishing the pointer.
          */
@@ -303,7 +267,7 @@ static RESULT catmm_heap_extent_free(CATMMLIB_POINTERW memory, CATALYST_NUINT si
     if (index != catmm_class_count) {
         BYTE* slot = (BYTE*) memory - sizeof(CATMMLIB_HEAP_SLOT);
         CATMMLIB_HEAP_CLASS* pool = &catmm_classes[index];
-        catmm_heap_acquire(pool);
+        catmm_platform_lock(&pool->lock);
         CATMMLIB_HEAP_SLOT_HEADER slotHeader;
         catmm_copy(&slotHeader, slot, (NUINT) sizeof(slotHeader));
         BYTE* address = slotHeader.owner;
@@ -331,7 +295,7 @@ static RESULT catmm_heap_extent_free(CATMMLIB_POINTERW memory, CATALYST_NUINT si
             }
             catmm_copy(address, &slab, (NUINT) sizeof(slab));
         }
-        catmm_heap_release(pool);
+        catmm_platform_unlock(&pool->lock);
     } else
 #endif
     {

@@ -14,9 +14,19 @@ typedef char CATMMLIB_native_extent_fits[(sizeof(vm_size_t) >= sizeof(CATALYST_N
 
 typedef char CATMMLIB_native_address_fits[(sizeof(vm_address_t) >= sizeof(void*)) ? 1 : -1];
 
-void catmm_platform_yield() {
-    sched_yield();
+#if CATMMLIB_MANAGED_HEAP
+void catmm_platform_lock(CATALYST_BYTE* lock) {
+    while (__atomic_exchange_n(lock, (BYTE) 1, __ATOMIC_ACQUIRE) != 0) {
+        while (__atomic_load_n(lock, __ATOMIC_RELAXED) != 0) {
+            sched_yield();
+        }
+    }
 }
+
+void catmm_platform_unlock(CATALYST_BYTE* lock) {
+    __atomic_store_n(lock, (BYTE) 0, __ATOMIC_RELEASE);
+}
+#endif
 
 CATALYST_BOOL catmm_platform_extent_matches(CATALYST_NUINT old_size, CATALYST_NUINT new_size) {
     NUINT pageSize = (NUINT) vm_page_size;
