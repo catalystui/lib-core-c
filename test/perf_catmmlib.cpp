@@ -794,7 +794,7 @@ int main() {
     summary.unavailable += 8;
 #endif
     std::printf("\nManaged allocation (warm reuse; one persistent block, standard C heap baseline)\n");
-    std::printf("Sizes outside managed size classes still use native backing allocation (including 64 KiB payloads).\n");
+    std::printf("Payloads outside supported size classes bypass pooling; 64 KiB payloads can be pooled on supported wide-address targets.\n");
     benchmark_warm_heap(summary);
     std::printf("\nManaged allocation (burst; up to %u live blocks, standard C heap baseline)\n", (unsigned int) BATCH_CAPACITY);
     benchmark_allocations(nativeAllocator, heapAllocator, TRUE, "calloc", "realloc + zero growth", "free", summary);

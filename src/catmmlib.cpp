@@ -69,29 +69,19 @@ static CATMMLIB_HEAP_CLASS catmm_classes[catmm_class_count];
 static const NUINT catmm_slab_prefix = (NUINT) (((sizeof(CATMMLIB_HEAP_SLAB_PREFIX) + sizeof(CATMMLIB_NATIVE_PREFIX) - 1) /
     sizeof(CATMMLIB_NATIVE_PREFIX)) * sizeof(CATMMLIB_NATIVE_PREFIX));
 
-/* Classify the payload, then account for both aligned headers. Aim for 64
- * slots per slab without exceeding the target's bounded backing extent. */
-static BYTE catmm_heap_class(NUINT size, NUINT* capacity, NUINT* extent) {
-    const NUINT prefix = (NUINT) sizeof(CATMMLIB_NATIVE_PREFIX);
-    const NUINT payload = (NUINT) (size - prefix);
+/* Classify the payload without calculating slab geometry on reuse or release. */
+static BYTE catmm_heap_class(NUINT payload, NUINT* capacity) {
     NUINT current = (NUINT) 8;
-    for (BYTE index = 0; index < catmm_class_count && current <= catmm_payload_max; ++index) {
-        if (payload <= current) {
-            NUINT slotCapacity = (NUINT) (((current + prefix + prefix - (NUINT) 1) / prefix) * prefix);
-            NUINT stride = (NUINT) (slotCapacity + (NUINT) sizeof(CATMMLIB_HEAP_SLOT));
-            NUINT slots = (NUINT) ((catmm_slab_max - catmm_slab_prefix) / stride);
-            if (slots == 0) break;
-            if (slots > (NUINT) 64) slots = (NUINT) 64;
-            *capacity = slotCapacity;
-            *extent = (NUINT) (catmm_slab_prefix + stride * slots);
-            if (*extent < (NUINT) 4096) *extent = (NUINT) 4096;
-            return index;
+    if (payload <= catmm_payload_max) {
+        BYTE index = 0;
+        while (payload > current) {
+            current = (NUINT) (current + current);
+            ++index;
         }
-        if (current > catmm_payload_max / (NUINT) 2) break;
-        current = (NUINT) (current + current);
+        *capacity = current;
+        return index;
     }
     *capacity = 0;
-    *extent = 0;
     return catmm_class_count;
 }
 
@@ -166,8 +156,9 @@ static RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, NUINT size, NUI
     CATMMLIB_POINTERW base = 0;
     RESULT allocation(STATUS_CODE_SUCCESS, 0x04, 0x02, 0);
 #if CATMMLIB_MANAGED_HEAP
-    NUINT capacity, extent;
-    BYTE index = catmm_heap_class(size, &capacity, &extent);
+    const NUINT prefix = (NUINT) sizeof(CATMMLIB_NATIVE_PREFIX);
+    NUINT capacity;
+    BYTE index = catmm_heap_class((NUINT) (size - prefix), &capacity);
     if (index != catmm_class_count) {
         CATMMLIB_HEAP_CLASS* pool = &catmm_classes[index];
         catmm_platform_lock(&pool->lock);
@@ -181,6 +172,12 @@ static RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, NUINT size, NUI
         if (address != 0) {
             catmm_copy(&slab, address, (NUINT) sizeof(slab));
         } else {
+            NUINT slotCapacity = (NUINT) (((capacity + prefix + prefix - (NUINT) 1) / prefix) * prefix);
+            NUINT stride = (NUINT) (slotCapacity + (NUINT) sizeof(CATMMLIB_HEAP_SLOT));
+            NUINT slots = (NUINT) ((catmm_slab_max - catmm_slab_prefix) / stride);
+            if (slots > (NUINT) 64) slots = (NUINT) 64;
+            NUINT extent = (NUINT) (catmm_slab_prefix + stride * slots);
+            if (extent < (NUINT) 4096) extent = (NUINT) 4096;
             allocation = catmm_platform_alloc(&base, extent);
             if (status_code_is_success(allocation.status)) {
                 address = (BYTE*) base;
@@ -189,7 +186,7 @@ static RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, NUINT size, NUI
                 slab.available = 0;
                 slab.next_unused = address + catmm_slab_prefix;
                 slab.unused = (NUINT) ((extent - catmm_slab_prefix) /
-                    (NUINT) (sizeof(CATMMLIB_HEAP_SLOT) + capacity));
+                    stride);
                 slab.live = 0;
                 slab.extent = extent;
             }
@@ -207,7 +204,8 @@ static RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, NUINT size, NUI
                 slotHeader.owner = address;
                 slotHeader.next = 0;
                 catmm_copy(slot, &slotHeader, (NUINT) sizeof(slotHeader));
-                slab.next_unused += (NUINT) (sizeof(CATMMLIB_HEAP_SLOT) + capacity);
+                NUINT slotCapacity = (NUINT) (((capacity + prefix + prefix - (NUINT) 1) / prefix) * prefix);
+                slab.next_unused += (NUINT) (sizeof(CATMMLIB_HEAP_SLOT) + slotCapacity);
                 --slab.unused;
             }
             ++slab.live;
@@ -218,13 +216,13 @@ static RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, NUINT size, NUI
             }
             catmm_copy(address, &slab, (NUINT) sizeof(slab));
             base = slot + sizeof(CATMMLIB_HEAP_SLOT);
-            *backing_size = (NUINT) ((NUINT) 8 << index);
+            *backing_size = capacity;
         }
         catmm_platform_unlock(&pool->lock);
         /* The live slot now belongs exclusively to this allocation. Clear
          * reused storage outside the lock, before publishing the pointer.
          */
-        if (reused) catmm_fill(base, (BYTE) 0, size);
+        if (reused) catmm_fill((BYTE*) base + prefix, (BYTE) 0, (NUINT) (size - prefix));
     } else
 #endif
     {
@@ -240,8 +238,9 @@ static RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, NUINT size, NUI
 static RESULT catmm_heap_extent_free(CATMMLIB_POINTERW memory, CATALYST_NUINT size) {
     RESULT release(STATUS_CODE_SUCCESS, 0x06, 0x02, 0);
 #if CATMMLIB_MANAGED_HEAP
-    NUINT capacity, extent;
-    BYTE index = catmm_heap_class(size, &capacity, &extent);
+    const NUINT prefix = (NUINT) sizeof(CATMMLIB_NATIVE_PREFIX);
+    NUINT capacity;
+    BYTE index = catmm_heap_class((NUINT) (size - prefix), &capacity);
     if (index != catmm_class_count) {
         BYTE* slot = (BYTE*) memory - sizeof(CATMMLIB_HEAP_SLOT);
         CATMMLIB_HEAP_CLASS* pool = &catmm_classes[index];
