@@ -576,6 +576,23 @@ void catmm_move(CATMMLIB_POINTERW destination, CATMMLIB_POINTER source, CATALYST
     input += size;
 #if CATMMLIB_BLOCK_COPY
 #if defined(__aarch64__)
+    /* Align the end of large destinations before walking backward. */
+    if (size >= (NUINT) 256) {
+        while (((CATMMLIB_ADDRESS) output & (CATMMLIB_ADDRESS) 15) != 0) {
+            *--output = *--input;
+            --size;
+        }
+        while (size >= (NUINT) 64) {
+            BYTE chunk[64];
+            output -= (NUINT) 64;
+            input -= (NUINT) 64;
+            __builtin_memcpy(chunk, input, sizeof(chunk));
+            __builtin_memcpy(output, chunk, sizeof(chunk));
+            size = (NUINT) (size - (NUINT) 64);
+        }
+    }
+#endif
+#if defined(__aarch64__)
     const BYTE block = (BYTE) 32;
 #else
     const BYTE block = (BYTE) 16;

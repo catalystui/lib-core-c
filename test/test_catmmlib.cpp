@@ -264,17 +264,26 @@ static int test_memory(BOOL managed) {
             { "one-byte backward overlap", 1, 2, 128 }, { "one-byte forward overlap", 2, 1, 128 },
             { "adjacent regions", 0, 66, 66 }, { "single byte", 4, 5, 1 },
             { "identical addresses", 3, 3, 97 }, { "zero length", 4, 9, 0 }
+#if TARGET_SIZEOF_ADDRESS >= 2
+            , { "large backward overlap", 1, 2, 511 }, { "large forward overlap", 2, 1, 511 },
+            { "large backward unaligned overlap", 3, 10, 257 }
+#endif
         };
+#if TARGET_SIZEOF_ADDRESS >= 2
+        const NUINT extent = 520;
+#else
+        const NUINT extent = 132;
+#endif
         for (NUINT test = 0; test < (NUINT) (sizeof(tests) / sizeof(tests[0])); ++test) {
-            BYTE bytes[132];
-            BYTE expected[132];
-            for (NUINT i = 0; i < (NUINT) 132; ++i) { bytes[i] = (BYTE) i; expected[i] = (BYTE) i; }
+            BYTE bytes[extent];
+            BYTE expected[extent];
+            for (NUINT i = 0; i < extent; ++i) { bytes[i] = (BYTE) i; expected[i] = (BYTE) i; }
             for (NUINT i = 0; i < tests[test].size; ++i) {
                 expected[tests[test].destination + i] = (BYTE) (tests[test].source + i);
             }
             catmm_move(bytes + tests[test].destination, bytes + tests[test].source, tests[test].size);
             BOOL passed = TRUE;
-            for (NUINT i = 0; i < (NUINT) 132; ++i) {
+            for (NUINT i = 0; i < extent; ++i) {
                 if (bytes[i] != expected[i]) passed = FALSE;
             }
             if (!passed) {
