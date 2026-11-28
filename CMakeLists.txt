@@ -81,6 +81,7 @@ target_link_libraries(perf_catmmlib PRIVATE catmmlib_static)
 target_link_libraries(test_catrllib PRIVATE catrllib_static)
 target_link_libraries(perf_catrllib PRIVATE catrllib_static)
 target_link_libraries(test_catoolib PRIVATE catoolib_static)
+target_link_libraries(perf_catoolib PRIVATE catoolib_static)
 
 # Release optimization is local to Core; preserve Debug and the selected target ISA.
 set(CATALYST_RELEASE_LIBRARIES
@@ -89,7 +90,7 @@ set(CATALYST_RELEASE_LIBRARIES
     catrllib_shared catrllib_static
     catoolib_shared catoolib_static
 )
-set(CATALYST_RELEASE_EXECUTABLES test_cattelib test_catmmlib test_catrllib test_catoolib perf_cattelib perf_catmmlib perf_catrllib)
+set(CATALYST_RELEASE_EXECUTABLES test_cattelib test_catmmlib test_catrllib test_catoolib perf_cattelib perf_catmmlib perf_catrllib perf_catoolib)
 
 foreach(TARGET_NAME IN LISTS CATALYST_RELEASE_LIBRARIES CATALYST_RELEASE_EXECUTABLES)
     get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
