@@ -20,8 +20,8 @@ static inline NUINT catrl_find_vector(const BYTE* current, CATRL_BYTE_VECTOR pat
     ULONG low, high;
     __builtin_memcpy(&low, &matches, sizeof(low));
     __builtin_memcpy(&high, (const BYTE*) &matches + sizeof(low), sizeof(high));
-    if (low != 0) return (NUINT) (__builtin_ctzll(low) / 8);
-    if (high != 0) return (NUINT) (8 + __builtin_ctzll(high) / 8);
+    if (low != 0) return (NUINT) ((NUINT) __builtin_ctzll(low) / (NUINT) 8);
+    if (high != 0) return (NUINT) ((NUINT) 8 + (NUINT) __builtin_ctzll(high) / (NUINT) 8);
     return (NUINT) 16;
 }
 #endif

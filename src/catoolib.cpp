@@ -57,7 +57,9 @@ void catoo_object_init(OBJECT* object, NUINT ksize) {
 }
 
 CATALYST_RESULT catoo_object_add(OBJECT* object, POINTER key, POINTER data, NUINT size) {
-    if (catrl_map_contains(&object->members, key)) return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x06, 0x01, 0);
+    const MAP* map = &object->members;
+    if (catrl_find(map->keys, map->cardinality, map->ksize, key) != map->cardinality)
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x06, 0x01, 0);
     if (size == 0) return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x06, 0x02, 3);
     if (object->members.cardinality == object->members.capacity) return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x06, 0x03, 0);
     MEMBER member;
@@ -82,11 +84,14 @@ CATALYST_RESULT catoo_object_remove(OBJECT* object, POINTER key) {
 }
 
 CATALYST_BOOL catoo_object_contains(const OBJECT* object, POINTER key) {
-    return catrl_map_contains(&object->members, key);
+    const MAP* map = &object->members;
+    return catrl_find(map->keys, map->cardinality, map->ksize, key) != map->cardinality ? TRUE : FALSE;
 }
 
 CATOOLIB_MEMBER* catoo_object_get(OBJECT* object, POINTER key) {
-    return (MEMBER*) catrl_map_get(&object->members, key);
+    MAP* map = &object->members;
+    NUINT index = catrl_find(map->keys, map->cardinality, map->ksize, key);
+    return index == map->cardinality ? 0 : (MEMBER*) map->values + index;
 }
 
 CATALYST_RESULT catoo_object_expand(OBJECT* object, NUINT capacity) {
