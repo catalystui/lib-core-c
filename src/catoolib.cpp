@@ -161,6 +161,17 @@ static RESULT catoo_clone_cleanup(OBJECT* destination, RESULT failure, CONTEXT_C
     return RESULT(failure.status, context, operation, failure.detail);
 }
 
+/* A distinct source key and spare destination capacity are established.
+ * Commit the owned record only after allocation and copying succeed. */
+static RESULT catoo_append_copy(OBJECT* destination, POINTER key, const MEMBER* source) {
+    MEMBER copy;
+    RESULT allocated = catoo_member_init(&copy, source->size);
+    if (!status_code_is_success(allocated.status)) return allocated;
+    catmm_copy(copy.data, source->data, source->size);
+    catrl_map_append_known(&destination->members, key, &copy);
+    return allocated;
+}
+
 static RESULT catoo_clone(OBJECT* destination, const OBJECT* source, CONTEXT_CODE context) {
     catoo_object_init(destination, source->members.ksize);
     RESULT expanded = catoo_object_expand(destination, source->members.cardinality);
@@ -168,7 +179,7 @@ static RESULT catoo_clone(OBJECT* destination, const OBJECT* source, CONTEXT_COD
     const BYTE* key = (const BYTE*) source->members.keys;
     const MEMBER* member = (const MEMBER*) source->members.values;
     for (NUINT i = 0; i < source->members.cardinality; ++i) {
-        RESULT added = catoo_object_add(destination, key, member->data, member->size);
+        RESULT added = catoo_append_copy(destination, key, member);
         if (!status_code_is_success(added.status)) return catoo_clone_cleanup(destination, added, context, 0x02, 0x04);
         key += source->members.ksize;
         ++member;
