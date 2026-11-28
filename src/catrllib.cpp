@@ -42,21 +42,35 @@ static NUINT catrl_find(POINTER data, NUINT count, NUINT size, POINTER element) 
             const CATRL_SEARCH_WORD high = (CATRL_SEARCH_WORD) (ones << 7);
             const CATRL_SEARCH_WORD pattern = (CATRL_SEARCH_WORD) (ones * (CATRL_SEARCH_WORD) first);
             const NUINT width = (NUINT) sizeof(CATRL_SEARCH_WORD);
-            // XOR makes matching bytes zero. Subtracting the repeated 1 mask
-            // detects any zero byte via its high bit, regardless of byte order.
-            // Read through byte pointers for unaligned inputs; locate the first
-            // match in memory order with the original byte loop below.
-            while ((NUINT) (count - index) >= (NUINT) (width + width)) {
-                CATRL_SEARCH_WORD a, b;
-                for (BYTE i = 0; i < (BYTE) sizeof(a); ++i) {
-                    ((BYTE*) &a)[i] = current[i];
-                    ((BYTE*) &b)[i] = current[width + i];
+            /* Detect zero bytes after XOR. Locate the match in the same
+             * word, not a second traversal of the remaining collection. */
+            while ((NUINT) (count - index) >= width) {
+                CATRL_SEARCH_WORD word;
+#if defined(__GNUC__) || defined(__clang__)
+                __builtin_memcpy(&word, current, sizeof(word));
+#else
+                for (BYTE i = 0; i < (BYTE) sizeof(word); ++i) ((BYTE*) &word)[i] = current[i];
+#endif
+                word ^= pattern;
+                CATRL_SEARCH_WORD matches = (CATRL_SEARCH_WORD) ((word - ones) & ~word & high);
+                if (matches != 0) {
+                    /* Borrow propagation may mark higher bytes, but never
+                     * changes the lowest match on little-endian targets. */
+#if (defined(__GNUC__) || defined(__clang__)) && defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if CATALYST_SUPPORTS_64BIT && defined(__SIZEOF_LONG_LONG__) && __SIZEOF_LONG_LONG__ == 8
+                    return (NUINT) (index + (NUINT) ((NUINT) __builtin_ctzll(matches) / (NUINT) 8));
+#elif !CATALYST_SUPPORTS_64BIT && CATALYST_SUPPORTS_32BIT && defined(__SIZEOF_INT__) && __SIZEOF_INT__ == 4
+                    return (NUINT) (index + (NUINT) ((NUINT) __builtin_ctz(matches) / (NUINT) 8));
+#endif
+#endif
+                    /* On any other representation, compare the candidate
+                     * bytes in memory order. */
+                    for (BYTE i = 0; i < (BYTE) sizeof(word); ++i) {
+                        if (current[i] == first) return (NUINT) (index + (NUINT) i);
+                    }
                 }
-                a ^= pattern;
-                b ^= pattern;
-                if (((((a - ones) & ~a) | ((b - ones) & ~b)) & high) != 0) break;
-                current += (NUINT) (width + width);
-                index = (NUINT) (index + width + width);
+                current += width;
+                index = (NUINT) (index + width);
             }
         }
 #endif
