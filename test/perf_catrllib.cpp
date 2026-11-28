@@ -202,6 +202,200 @@ struct CatalystMap {
     static BOOL released(const Data& c) { return keys(c) == 0 && values(c) == 0 ? TRUE : FALSE; }
 };
 
+// Independent C-storage hash reference. Match the public load factor,
+// dense storage, collision policy and hash width; use C allocation/copies.
+struct NativeHash : NativeCollection {
+    size_t* buckets;
+    size_t bucketCount;
+};
+
+static size_t native_hash(const unsigned char* key, size_t width) {
+#if TARGET_SIZEOF_VOID_P == 8
+    size_t hash = ((size_t) 0xCBF29CE4UL << 32) | (size_t) 0x84222325UL;
+    const size_t prime = ((size_t) 0x100UL << 32) | (size_t) 0x1B3UL;
+#elif TARGET_SIZEOF_VOID_P == 4
+    size_t hash = (size_t) 0x811C9DC5UL;
+    const size_t prime = (size_t) 0x01000193UL;
+#elif TARGET_SIZEOF_VOID_P == 2
+    size_t hash = (size_t) 0x9DC5;
+    const size_t prime = (size_t) 0x0193;
+#else
+    size_t hash = (size_t) 0xC5;
+    const size_t prime = (size_t) 0x13;
+#endif
+    for (size_t i = 0; i < width; ++i)
+        hash = (size_t) ((hash ^ key[i]) * prime);
+    return hash;
+}
+
+static size_t native_hash_probe(const NativeHash& c, const BYTE* key) {
+    size_t slot = native_hash(key, c.size) % c.bucketCount;
+    while (c.buckets[slot] != 0) {
+        const BYTE* candidate = c.keys + (c.buckets[slot] - 1) * c.size;
+        if (::memcmp(candidate, key, c.size) == 0) break;
+        if (++slot == c.bucketCount) slot = 0;
+    }
+    return slot;
+}
+
+static size_t native_hash_find(const NativeHash& c, const BYTE* key) {
+    if (c.count == 0) return 0;
+    size_t entry = c.buckets[native_hash_probe(c, key)];
+    return entry == 0 ? c.count : entry - 1;
+}
+
+static BOOL native_hash_capacity(NativeHash& c, size_t capacity) {
+    if (capacity == c.capacity) return TRUE;
+    if (capacity > (size_t) -1 / sizeof(size_t) / 2) return FALSE;
+    size_t buckets = capacity * 2;
+    if (!native_capacity(c, capacity)) return FALSE;
+    if (buckets == 0) {
+        ::free(c.buckets);
+        c.buckets = 0;
+        c.bucketCount = 0;
+        return TRUE;
+    }
+    void* replacement = ::realloc(c.buckets, buckets * sizeof(size_t));
+    if (replacement == 0) return FALSE;
+    c.buckets = (size_t*) replacement;
+    c.bucketCount = buckets;
+    ::memset(c.buckets, 0, buckets * sizeof(size_t));
+    for (size_t i = 0; i < c.count; ++i) {
+        size_t slot = native_hash_probe(c, c.keys + i * c.size);
+        c.buckets[slot] = i + 1;
+    }
+    return TRUE;
+}
+
+template<BOOL Mapped>
+struct NativeHashAPI {
+    typedef NativeHash Data;
+    static void init(Data& c, NUINT width) {
+        native_init(c, width, Mapped ? width : 0);
+        c.buckets = 0; c.bucketCount = 0;
+    }
+    static BOOL expand(Data& c, NUINT n) {
+        return n <= c.capacity ? TRUE : native_hash_capacity(c, n);
+    }
+    static BOOL shrink(Data& c) {
+        size_t target = c.capacity / 2;
+        return native_hash_capacity(c, target < c.count ? c.count : target);
+    }
+    static BOOL release(Data& c) {
+        ::free(c.buckets); c.buckets = 0; c.bucketCount = 0;
+        return native_free(c);
+    }
+    static NUINT count(const Data& c) { return (NUINT) c.count; }
+    static NUINT capacity(const Data& c) { return (NUINT) c.capacity; }
+    static const BYTE* keys(const Data& c) { return c.keys; }
+    static const BYTE* values(const Data& c) { return c.values; }
+    static void clear(Data& c) {
+        if (c.count != 0) ::memset(c.buckets, 0, c.bucketCount * sizeof(size_t));
+        c.count = 0;
+    }
+    static BOOL contains(Data& c, const BYTE* key) {
+        return native_hash_find(c, key) != c.count ? TRUE : FALSE;
+    }
+    static BOOL add(Data& c, const BYTE* key, const BYTE* value) {
+        size_t slot = native_hash_probe(c, key);
+        if (c.buckets[slot] != 0) return FALSE;
+        ::memcpy(c.keys + c.count * c.size, key, c.size);
+        if (Mapped) ::memcpy(c.values + c.count * c.valueSize, value, c.valueSize);
+        c.buckets[slot] = ++c.count;
+        return TRUE;
+    }
+    static BOOL remove(Data& c, const BYTE* key) {
+        if (c.count == 0) return FALSE;
+        size_t hole = native_hash_probe(c, key);
+        size_t entry = c.buckets[hole];
+        if (entry == 0) return FALSE;
+        size_t index = entry - 1;
+        size_t current = hole + 1 == c.bucketCount ? 0 : hole + 1;
+        while (c.buckets[current] != 0) {
+            size_t home = native_hash(c.keys + (c.buckets[current] - 1) * c.size, c.size) % c.bucketCount;
+            // The interval [home,current) in ring order must cross the hole.
+            if (home <= current ? (home <= hole && hole < current) :
+                    (home <= hole || hole < current)) {
+                c.buckets[hole] = c.buckets[current];
+                hole = current;
+            }
+            if (++current == c.bucketCount) current = 0;
+        }
+        c.buckets[hole] = 0;
+        size_t last = c.count - 1;
+        if (index != last) {
+            size_t moved = native_hash_probe(c, c.keys + last * c.size);
+            c.buckets[moved] = entry;
+            ::memcpy(c.keys + index * c.size, c.keys + last * c.size, c.size);
+            if (Mapped) ::memcpy(c.values + index * c.valueSize, c.values + last * c.valueSize, c.valueSize);
+        }
+        --c.count;
+        return TRUE;
+    }
+    static BYTE* get(Data& c, const BYTE* key) {
+        size_t i = native_hash_find(c, key);
+        return i == c.count ? 0 : c.values + i * c.valueSize;
+    }
+    static BOOL set(Data& c, const BYTE* key, const BYTE* value) {
+        BYTE* p = get(c, key);
+        if (p == 0) return FALSE;
+        ::memcpy(p, value, c.valueSize);
+        return TRUE;
+    }
+    static BOOL matches_item(Data& c, NUINT i, const BYTE* key, const BYTE* value, NUINT width) {
+        if (::memcmp(c.keys + i * width, key, width) != 0 || native_hash_find(c, key) != i) return FALSE;
+        return !Mapped || ::memcmp(c.values + i * width, value, width) == 0 ? TRUE : FALSE;
+    }
+    static BOOL released(const Data& c) {
+        return c.keys == 0 && c.values == 0 && c.buckets == 0 && c.bucketCount == 0 ? TRUE : FALSE;
+    }
+};
+
+struct CatalystHashSet {
+    typedef HASHSET Data;
+    static void init(Data& c, NUINT size) { catalyst::hashset_init(&c, size); }
+    static BOOL expand(Data& c, NUINT n) { return succeeded(catalyst::hashset_expand(&c, n)); }
+    static BOOL shrink(Data& c) { return succeeded(catalyst::hashset_shrink(&c)); }
+    static BOOL release(Data& c) { return succeeded(catalyst::hashset_free(&c)); }
+    static NUINT count(const Data& c) { return c.cardinality; }
+    static NUINT capacity(const Data& c) { return c.capacity; }
+    static const BYTE* keys(const Data& c) { return (const BYTE*) c.data; }
+    static const BYTE* values(const Data& c) { (void) c; return 0; }
+    static void clear(Data& c) { catalyst::hashset_clear(&c); }
+    static BOOL contains(Data& c, const BYTE* k) { return catalyst::hashset_contains(&c, k); }
+    static BOOL add(Data& c, const BYTE* k, const BYTE* v) { (void) v; return catalyst::hashset_add(&c, k); }
+    static BOOL remove(Data& c, const BYTE* k) { return catalyst::hashset_remove(&c, k); }
+    static BOOL matches_item(Data& c, NUINT i, const BYTE* key, const BYTE* value, NUINT width) {
+        if (::memcmp(keys(c) + i * width, key, width) != 0 || !contains(c, key)) return FALSE;
+        (void) value; return TRUE;
+    }
+    static BOOL released(const Data& c) { return keys(c) == 0 && values(c) == 0 && c.buckets == 0 && c.bcapacity == 0 ? TRUE : FALSE; }
+};
+
+struct CatalystHashMap {
+    typedef HASHMAP Data;
+    static void init(Data& c, NUINT size) { catalyst::hashmap_init(&c, size, size); }
+    static BOOL expand(Data& c, NUINT n) { return succeeded(catalyst::hashmap_expand(&c, n)); }
+    static BOOL shrink(Data& c) { return succeeded(catalyst::hashmap_shrink(&c)); }
+    static BOOL release(Data& c) { return succeeded(catalyst::hashmap_free(&c)); }
+    static NUINT count(const Data& c) { return c.cardinality; }
+    static NUINT capacity(const Data& c) { return c.capacity; }
+    static const BYTE* keys(const Data& c) { return (const BYTE*) c.keys; }
+    static const BYTE* values(const Data& c) { return (const BYTE*) c.values; }
+    static void clear(Data& c) { catalyst::hashmap_clear(&c); }
+    static BOOL contains(Data& c, const BYTE* k) { return catalyst::hashmap_contains(&c, k); }
+    static BOOL add(Data& c, const BYTE* k, const BYTE* v) { return catalyst::hashmap_add(&c, k, v); }
+    static BOOL remove(Data& c, const BYTE* k) { return catalyst::hashmap_remove(&c, k); }
+    static BYTE* get(Data& c, const BYTE* k) { return (BYTE*) catalyst::hashmap_get(&c, k); }
+    static BOOL set(Data& c, const BYTE* k, const BYTE* v) { return catalyst::hashmap_set(&c, k, v); }
+    static BOOL matches_item(Data& c, NUINT i, const BYTE* key, const BYTE* value, NUINT width) {
+        if (::memcmp(keys(c) + i * width, key, width) != 0 || !contains(c, key)) return FALSE;
+        return get(c, key) == (BYTE*) c.values + i * width &&
+            ::memcmp(values(c) + i * width, value, width) == 0 ? TRUE : FALSE;
+    }
+    static BOOL released(const Data& c) { return keys(c) == 0 && values(c) == 0 && c.buckets == 0 && c.bcapacity == 0 ? TRUE : FALSE; }
+};
+
 struct NativeArray {
     typedef NativeCollection Data;
     static void init(Data& c, NUINT size) { native_init(c, size, 0); }
@@ -278,6 +472,14 @@ static void element(BYTE* bytes, NUINT size, BYTE key) {
             ? (BYTE) i : (BYTE) (key ^ (BYTE) i);
 }
 
+static void collection_key(BYTE* bytes, NUINT width, NUINT index) {
+    element(bytes, width, (BYTE) index);
+#if TARGET_SIZEOF_ADDRESS >= 2
+    if (width > (NUINT) 1)
+        bytes[0] = (BYTE) (bytes[0] ^ (BYTE) (index / (NUINT) 256));
+#endif
+}
+
 template<typename API>
 struct CollectionTrial {
     typename API::Data data;
@@ -293,7 +495,7 @@ template<typename API>
 static BOOL populate(CollectionTrial<API>* t) {
     BYTE key[16], value[16];
     for (NUINT i = 0; i < t->n; ++i) {
-        element(key, t->width, (BYTE) i);
+        collection_key(key, t->width, i);
         element(value, t->width, (BYTE) ((BYTE) i ^ (BYTE) 0xA5));
         if (!API::add(t->data, key, value)) return FALSE;
     }
@@ -308,7 +510,7 @@ static BOOL verify_collection(CollectionTrial<API>& t) {
     for (NUINT i = 0; i < n; ++i) {
         NUINT expected = t.flipped && i == 0 ? (NUINT) (n - 1) :
             t.flipped && i == n - 1 ? (NUINT) 0 : i;
-        element(key, t.width, (BYTE) expected);
+        collection_key(key, t.width, expected);
         element(value, t.width, (BYTE) ((BYTE) expected ^ (BYTE) 0xA5));
         if (!API::matches_item(t.data, i, key, value, t.width)) return FALSE;
     }
@@ -815,11 +1017,11 @@ static void benchmark_case(const char* label, Native& native, Catalyst& comparis
     if (result != MEASURE_OK) { report_failure(label, result, summary); return; }
 
     const unsigned long frequency = (unsigned long) CLOCKS_PER_SEC;
-    unsigned long target = frequency / 100; // 10 ms per path.
+    unsigned long target = frequency / 200; // 5 ms per path.
     if (target < 20) target = 20;
     unsigned long minimum = frequency / 1000;
     if (minimum < 20) minimum = 20;
-    unsigned long budget = frequency / 10; // 100 ms cumulative calibration CPU budget.
+    unsigned long budget = frequency / 20; // 50 ms cumulative calibration CPU budget.
     if (budget < target) budget = target;
     unsigned long sampleBudget = frequency / 10; // Bound full setup + timing + cleanup per pair.
     if (sampleBudget < target) sampleBudget = target;
@@ -924,10 +1126,10 @@ static void collection_fixture(CollectionTrial<API>& t, NUINT n, NUINT width, Po
     t.n = n; t.width = width; t.mapped = mapped; t.populate = populated; t.operation = operation;
     t.index = position == FIRST ? 0 : position == MIDDLE ? (NUINT) (n / 2) :
         position == LAST ? (NUINT) (n - 1) : n;
-    element(t.key, width, (BYTE) t.index);
+    collection_key(t.key, width, t.index);
     element(t.value, width, (BYTE) ((BYTE) t.index ^ (BYTE) 0xA5));
     element(t.alternate, width, (BYTE) ((BYTE) t.index ^ (BYTE) 0xFF));
-    element(t.lastKey, width, (BYTE) (n - 1));
+    collection_key(t.lastKey, width, (NUINT) (n - 1));
     element(t.lastValue, width, (BYTE) ((BYTE) (n - 1) ^ (BYTE) 0xA5));
 }
 
@@ -989,6 +1191,85 @@ static void benchmark_map(Summary& summary) {
     collection_cases<NativeMap, CatalystMap>("catrl_map_get (absent)", ABSENT, TRUE, TRUE, op_map_get_miss<NativeMap>, op_map_get_miss<CatalystMap>, summary);
     collection_cases<NativeMap, CatalystMap>("catrl_map_set + restore (last)", LAST, TRUE, TRUE, op_map_set<NativeMap>, op_map_set<CatalystMap>, summary);
     collection_cases<NativeMap, CatalystMap>("catrl_map_set (absent)", ABSENT, TRUE, TRUE, op_map_set_miss<NativeMap>, op_map_set_miss<CatalystMap>, summary);
+}
+
+static void benchmark_hashset(Summary& summary) {
+    std::printf("\nHashSet (C hashed reference)\n");
+    collection_cases<NativeHashAPI<FALSE>, CatalystHashSet>("catrl_hashset_init + free (empty)", FIRST, FALSE, FALSE, op_empty_lifecycle<NativeHashAPI<FALSE> >, op_empty_lifecycle<CatalystHashSet>, summary);
+    collection_cases<NativeHashAPI<FALSE>, CatalystHashSet>("catrl_hashset_init + expand + free", FIRST, FALSE, FALSE, op_lifecycle<NativeHashAPI<FALSE> >, op_lifecycle<CatalystHashSet>, summary);
+    collection_cases<NativeHashAPI<FALSE>, CatalystHashSet>("catrl_hashset_expand + shrink (preserve contents)", FIRST, FALSE, TRUE, op_capacity<NativeHashAPI<FALSE> >, op_capacity<CatalystHashSet>, summary);
+    collection_cases<NativeHashAPI<FALSE>, CatalystHashSet>("catrl_hashset_expand (no-op)", FIRST, FALSE, TRUE, op_expand_noop<NativeHashAPI<FALSE> >, op_expand_noop<CatalystHashSet>, summary);
+    collection_cases<NativeHashAPI<FALSE>, CatalystHashSet>("catrl_hashset_clear + refill", FIRST, FALSE, TRUE, op_clear<NativeHashAPI<FALSE> >, op_clear<CatalystHashSet>, summary);
+    collection_cases<NativeHashAPI<FALSE>, CatalystHashSet>("catrl_hashset_contains (first)", FIRST, FALSE, TRUE, op_contains_hit<NativeHashAPI<FALSE> >, op_contains_hit<CatalystHashSet>, summary);
+    collection_cases<NativeHashAPI<FALSE>, CatalystHashSet>("catrl_hashset_contains (last)", LAST, FALSE, TRUE, op_contains_hit<NativeHashAPI<FALSE> >, op_contains_hit<CatalystHashSet>, summary);
+    collection_cases<NativeHashAPI<FALSE>, CatalystHashSet>("catrl_hashset_contains (absent)", ABSENT, FALSE, TRUE, op_contains_miss<NativeHashAPI<FALSE> >, op_contains_miss<CatalystHashSet>, summary);
+    collection_cases<NativeHashAPI<FALSE>, CatalystHashSet>("catrl_hashset_add + remove (new key)", ABSENT, FALSE, TRUE, op_add_remove<NativeHashAPI<FALSE> >, op_add_remove<CatalystHashSet>, summary);
+    collection_cases<NativeHashAPI<FALSE>, CatalystHashSet>("catrl_hashset_remove + add (first)", FIRST, FALSE, TRUE, op_remove_front<NativeHashAPI<FALSE> >, op_remove_front<CatalystHashSet>, summary);
+    collection_cases<NativeHashAPI<FALSE>, CatalystHashSet>("catrl_hashset_add (duplicate)", LAST, FALSE, TRUE, op_add_duplicate<NativeHashAPI<FALSE> >, op_add_duplicate<CatalystHashSet>, summary);
+    collection_cases<NativeHashAPI<FALSE>, CatalystHashSet>("catrl_hashset_remove (absent)", ABSENT, FALSE, TRUE, op_remove_missing<NativeHashAPI<FALSE> >, op_remove_missing<CatalystHashSet>, summary);
+}
+
+static void benchmark_hashmap(Summary& summary) {
+    std::printf("\nHashMap (C hashed reference)\n");
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_init + free (empty)", FIRST, TRUE, FALSE, op_empty_lifecycle<NativeHashAPI<TRUE> >, op_empty_lifecycle<CatalystHashMap>, summary);
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_init + expand + free", FIRST, TRUE, FALSE, op_lifecycle<NativeHashAPI<TRUE> >, op_lifecycle<CatalystHashMap>, summary);
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_expand + shrink (preserve contents)", FIRST, TRUE, TRUE, op_capacity<NativeHashAPI<TRUE> >, op_capacity<CatalystHashMap>, summary);
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_expand (no-op)", FIRST, TRUE, TRUE, op_expand_noop<NativeHashAPI<TRUE> >, op_expand_noop<CatalystHashMap>, summary);
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_clear + refill", FIRST, TRUE, TRUE, op_clear<NativeHashAPI<TRUE> >, op_clear<CatalystHashMap>, summary);
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_contains (first)", FIRST, TRUE, TRUE, op_contains_hit<NativeHashAPI<TRUE> >, op_contains_hit<CatalystHashMap>, summary);
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_contains (last)", LAST, TRUE, TRUE, op_contains_hit<NativeHashAPI<TRUE> >, op_contains_hit<CatalystHashMap>, summary);
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_contains (absent)", ABSENT, TRUE, TRUE, op_contains_miss<NativeHashAPI<TRUE> >, op_contains_miss<CatalystHashMap>, summary);
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_add + remove (new key)", ABSENT, TRUE, TRUE, op_add_remove<NativeHashAPI<TRUE> >, op_add_remove<CatalystHashMap>, summary);
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_remove + add (first)", FIRST, TRUE, TRUE, op_remove_front<NativeHashAPI<TRUE> >, op_remove_front<CatalystHashMap>, summary);
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_add (duplicate)", LAST, TRUE, TRUE, op_add_duplicate<NativeHashAPI<TRUE> >, op_add_duplicate<CatalystHashMap>, summary);
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_remove (absent)", ABSENT, TRUE, TRUE, op_remove_missing<NativeHashAPI<TRUE> >, op_remove_missing<CatalystHashMap>, summary);
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_get (first)", FIRST, TRUE, TRUE, op_map_get<NativeHashAPI<TRUE> >, op_map_get<CatalystHashMap>, summary);
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_get (last)", LAST, TRUE, TRUE, op_map_get<NativeHashAPI<TRUE> >, op_map_get<CatalystHashMap>, summary);
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_get (absent)", ABSENT, TRUE, TRUE, op_map_get_miss<NativeHashAPI<TRUE> >, op_map_get_miss<CatalystHashMap>, summary);
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_set + restore (last)", LAST, TRUE, TRUE, op_map_set<NativeHashAPI<TRUE> >, op_map_set<CatalystHashMap>, summary);
+    collection_cases<NativeHashAPI<TRUE>, CatalystHashMap>("catrl_hashmap_set (absent)", ABSENT, TRUE, TRUE, op_map_set_miss<NativeHashAPI<TRUE> >, op_map_set_miss<CatalystHashMap>, summary);
+}
+
+template<typename Native, typename Catalyst>
+static void hash_scaling_cases(const char* heading, Position position, BOOL mapped,
+    BOOL (*nOp)(CollectionTrial<Native>*), BOOL (*cOp)(CollectionTrial<Catalyst>*), Summary& summary) {
+#if TARGET_SIZEOF_ADDRESS >= 2
+    const NUINT sizes[] = {1024,
+#if TARGET_SIZEOF_ADDRESS >= 4
+        4096
+#endif
+    };
+    std::printf("\n%s\n", heading);
+    for (BYTE i = 0; i < sizeof(sizes) / sizeof(sizes[0]); ++i) {
+        for (BYTE w = 1; w < sizeof(widths) / sizeof(widths[0]); ++w) {
+            NUINT n = sizes[i], width = widths[w];
+            if (n + (NUINT) 1 > (NUINT) (CATALYST_NUINT_MAX / (NUINT) sizeof(NUINT) / (NUINT) 2) ||
+                n + (NUINT) 1 > (NUINT) (CATALYST_NUINT_MAX / width)) continue;
+            CollectionTrial<Native> native;
+            CollectionTrial<Catalyst> comparison;
+            collection_fixture(native, n, width, position, mapped, TRUE, nOp);
+            collection_fixture(comparison, n, width, position, mapped, TRUE, cOp);
+            char label[48];
+            std::sprintf(label, "%lu elements x %lu B", (unsigned long) n, (unsigned long) width);
+            benchmark_case(label, native, comparison, measure_collection<Native>, measure_collection<Catalyst>, 67108864UL, summary);
+        }
+    }
+#else
+    (void) heading; (void) position; (void) mapped; (void) nOp; (void) cOp; (void) summary;
+#endif
+}
+
+static void benchmark_hash_scaling(Summary& native, Summary& linear) {
+    std::printf("\nHash scaling (native hashed reference)\n");
+    hash_scaling_cases<NativeHashAPI<FALSE>, CatalystHashSet>("hashset contains (last)", LAST, FALSE, op_contains_hit<NativeHashAPI<FALSE> >, op_contains_hit<CatalystHashSet>, native);
+    hash_scaling_cases<NativeHashAPI<FALSE>, CatalystHashSet>("hashset contains (absent)", ABSENT, FALSE, op_contains_miss<NativeHashAPI<FALSE> >, op_contains_miss<CatalystHashSet>, native);
+    hash_scaling_cases<NativeHashAPI<TRUE>, CatalystHashMap>("hashmap get (last)", LAST, TRUE, op_map_get<NativeHashAPI<TRUE> >, op_map_get<CatalystHashMap>, native);
+    hash_scaling_cases<NativeHashAPI<TRUE>, CatalystHashMap>("hashmap add + remove", ABSENT, TRUE, op_add_remove<NativeHashAPI<TRUE> >, op_add_remove<CatalystHashMap>, native);
+    std::printf("\nHash scaling (Catalyst linear baseline, hashed comparison)\n");
+    hash_scaling_cases<CatalystSet, CatalystHashSet>("set vs hashset contains (last)", LAST, FALSE, op_contains_hit<CatalystSet>, op_contains_hit<CatalystHashSet>, linear);
+    hash_scaling_cases<CatalystSet, CatalystHashSet>("set vs hashset contains (absent)", ABSENT, FALSE, op_contains_miss<CatalystSet>, op_contains_miss<CatalystHashSet>, linear);
+    hash_scaling_cases<CatalystMap, CatalystHashMap>("map vs hashmap get (last)", LAST, TRUE, op_map_get<CatalystMap>, op_map_get<CatalystHashMap>, linear);
+    hash_scaling_cases<CatalystMap, CatalystHashMap>("map vs hashmap add + remove", ABSENT, TRUE, op_add_remove<CatalystMap>, op_add_remove<CatalystHashMap>, linear);
 }
 
 static void benchmark_array(Summary& summary) {
@@ -1587,12 +1868,12 @@ int main() {
         return 2;
     }
     std::printf("CATRLLIB Performance (Release recommended)\n");
-    std::printf("Independent contiguous C reference is the baseline. Lower time is better.\n");
+    std::printf("Independent C reference is the baseline unless labeled otherwise. Lower time is better.\n");
     std::printf("Difference: +10%% means Catalyst takes 10%% longer; -10%% means 10%% less time.\n");
     std::printf("Time per operation or named cycle: median of 3 paired samples; %lu clock ticks/second.\n", (unsigned long) CLOCKS_PER_SEC);
-    std::printf("All collection references use linear search, exact requested capacity and zeroed growth.\n");
+    std::printf("Set/Map/Array references use linear search; hashed references use linear probing at up to 50% load.\n");
     std::printf("Collection counts/widths vary; map keys and values have the same width.\n");
-    std::printf("16-byte search fixtures share a prefix and differ at the last byte.\n");
+    std::printf("16-byte search fixtures share a prefix at small counts; large keys encode additional index bytes.\n");
     std::printf("Set/restore cycles observe the intermediate stored value before restoring it.\n");
     std::printf("Allocation lifecycle cycles escape storage and read its endpoints before release.\n");
     std::printf("Named cycles include every listed operation; fixtures and final verification are untimed.\n");
@@ -1610,6 +1891,10 @@ int main() {
     benchmark_sequence<NativeSequenceAPI<TRUE>, CatalystQueueAPI>("Queue (C circular-buffer reference)", TRUE, summary);
     benchmark_sequence<NativeSequenceAPI<FALSE>, CatalystStackAPI>("Stack (C contiguous reference)", FALSE, summary);
     benchmark_pools(summary);
+    benchmark_hashset(summary);
+    benchmark_hashmap(summary);
+    Summary linear = { 0, 0, 0, 0, 0, 0, 0 };
+    benchmark_hash_scaling(summary, linear);
     std::printf("\nPerformance summary\n");
     std::printf("  Faster (>5%%):                  %3lu\n", summary.faster);
     std::printf("  Comparable (within 5%%):        %3lu\n", summary.similar);
@@ -1620,9 +1905,11 @@ int main() {
     std::printf("  Verification failures:         %3lu\n", summary.failed);
     if (summary.shortSamples != 0)
         std::printf("  * Less than 1 ms or 20 ticks; excluded from performance classification.\n");
-    if (summary.failed != 0) return 1;
+    std::printf("\nHashed vs Catalyst linear scaling: %lu faster, %lu comparable, %lu slower (%lu review), %lu short, %lu unavailable, %lu failed.\n",
+        linear.faster, linear.similar, linear.slower, linear.review, linear.shortSamples, linear.unavailable, linear.failed);
+    if (summary.failed != 0 || linear.failed != 0) return 1;
     std::printf("\nAll CATRLLIB performance comparisons verified.\n");
-    return summary.unavailable != 0 ? 2 : 0;
+    return summary.unavailable != 0 || linear.unavailable != 0 ? 2 : 0;
 #else
     std::printf("CATRLLIB performance unavailable: standard C clock not provided.\n");
     return 2;
