@@ -139,7 +139,7 @@ CATALYST_RESULT cattr_thread_free(THREAD* thread) {
 
 /* Provisional private representation. The fixed-capacity Pool owns records;
  * the public Set stores distinct POINTERW references to pending records.
- * FIFO uses an Array of the same references only when no rule is supplied.
+ * FIFO uses a Queue of the same references only when no rule is supplied.
  * Set order is not relied upon. An awaited record stays acquired until its
  * submitting caller observes completion or cancellation.
  */
@@ -160,7 +160,7 @@ struct CATTRLIB_INVOCATION {
 struct CATTRLIB_DISPATCHER_STATE {
     POINTERW monitor;
     POOL pool;
-    ARRAY order;
+    QUEUE order;
     BOOL closed;
     BOOL polling;
 };
@@ -175,16 +175,21 @@ static CATTRLIB_INVOCATION* cattr_invocation_at(POINTER member) {
 
 /* Monitor held. Invocation is pending and belongs to this dispatcher.
  * Remove using the exact identity representation originally inserted. */
-static void cattr_remove_pending(DISPATCHER* dispatcher, CATTRLIB_INVOCATION* invocation) {
+static void cattr_remove_pending(DISPATCHER* dispatcher, CATTRLIB_INVOCATION* invocation, BOOL selected) {
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
     catrl_set_remove(&dispatcher->work, &invocation->identity);
-    if (dispatcher->rule == 0) {
-        for (NUINT i = 0; i < state->order.length; ++i) {
-            if (cattr_invocation_at(catrl_array_get(&state->order, i)) == invocation) {
-                catrl_array_remove(&state->order, i);
-                break;
-            }
-        }
+    if (dispatcher->rule != 0) return;
+    if (selected) {
+        catrl_queue_dequeue(&state->order, 0);
+        return;
+    }
+    /* Cancellation is uncommon and may target any pending member. Rotate
+     * exactly the original queue length, retaining relative FIFO order. */
+    NUINT length = state->order.length;
+    for (NUINT i = 0; i < length; ++i) {
+        POINTERW member;
+        catrl_queue_dequeue(&state->order, &member);
+        if (member != invocation) catrl_queue_enqueue(&state->order, &member);
     }
 }
 
@@ -193,7 +198,7 @@ static void cattr_remove_pending(DISPATCHER* dispatcher, CATTRLIB_INVOCATION* in
  * Validate membership before dereferencing a rule result. */
 static CATTRLIB_INVOCATION* cattr_select(DISPATCHER* dispatcher) {
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
-    if (dispatcher->rule == 0) return cattr_invocation_at(catrl_array_get(&state->order, 0));
+    if (dispatcher->rule == 0) return cattr_invocation_at(catrl_queue_peek(&state->order));
     POINTER selected = dispatcher->rule(&dispatcher->work);
     const BYTE* members = (const BYTE*) dispatcher->work.data;
     for (NUINT i = 0; i < dispatcher->work.cardinality; ++i) {
@@ -216,13 +221,13 @@ CATALYST_RESULT cattr_dispatcher_create(DISPATCHER* dispatcher, THREAD* thread, 
     state->closed = TRUE;
     state->polling = FALSE;
     catrl_pool_init(&state->pool, (NUINT) sizeof(CATTRLIB_INVOCATION));
-    catrl_array_init(&state->order, (NUINT) sizeof(POINTERW));
+    catrl_queue_init(&state->order, (NUINT) sizeof(POINTERW));
     RESULT pool = catrl_pool_expand(&state->pool, capacity);
     if (!status_code_is_success(pool.status)) return RESULT(pool.status, 0x0A, 0x03, pool.detail);
     RESULT set = catrl_set_expand(&dispatcher->work, capacity);
     if (!status_code_is_success(set.status)) return RESULT(set.status, 0x0A, 0x04, set.detail);
     if (rule == 0) {
-        RESULT order = catrl_array_expand(&state->order, capacity);
+        RESULT order = catrl_queue_expand(&state->order, capacity);
         if (!status_code_is_success(order.status)) return RESULT(order.status, 0x0A, 0x05, order.detail);
     }
     RESULT monitor = cattr_platform_monitor_create(&state->monitor);
@@ -261,7 +266,7 @@ static BOOL cattr_submission_ready(POINTERW arguments) {
         submission->invocation = invocation;
         BOOL was_empty = dispatcher->work.cardinality == 0 ? TRUE : FALSE;
         catrl_set_add(&dispatcher->work, &invocation->identity);
-        if (dispatcher->rule == 0) catrl_array_add(&state->order, &invocation->identity);
+        if (dispatcher->rule == 0) catrl_queue_enqueue(&state->order, &invocation->identity);
         if (was_empty) cattr_platform_monitor_notify(state->monitor);
     }
     return !submission->awaited || submission->invocation->stage != INVOCATION_PENDING ? TRUE : FALSE;
@@ -307,7 +312,7 @@ CATALYST_RESULT cattr_dispatcher_submit(DISPATCHER* dispatcher, POINTERX operati
         return RESULT(STATUS_CODE_SUCCESS, 0x0B, 0x05, 0);
     }
     if (invocation->stage == INVOCATION_PENDING) {
-        cattr_remove_pending(dispatcher, invocation);
+        cattr_remove_pending(dispatcher, invocation, FALSE);
         BOOL was_full = state->pool.cardinality == state->pool.capacity ? TRUE : FALSE;
         catrl_pool_release(&state->pool, invocation->index);
         if (was_full) cattr_platform_monitor_notify(state->monitor);
@@ -391,7 +396,7 @@ CATALYST_RESULT cattr_dispatcher_poll(DISPATCHER* dispatcher) {
         cattr_platform_monitor_unlock(state->monitor);
         return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x0E, 0x05, 0);
     }
-    cattr_remove_pending(dispatcher, invocation);
+    cattr_remove_pending(dispatcher, invocation, TRUE);
     invocation->stage = INVOCATION_RUNNING;
     state->polling = TRUE;
     /* Completion or the original deadline will wake the awaited caller.
@@ -426,7 +431,7 @@ CATALYST_RESULT cattr_dispatcher_close(DISPATCHER* dispatcher) {
         else catrl_pool_release(&state->pool, invocation->index);
     }
     catrl_set_clear(&dispatcher->work);
-    catrl_array_clear(&state->order);
+    catrl_queue_clear(&state->order);
     cattr_platform_monitor_notify(state->monitor);
     cattr_platform_monitor_unlock(state->monitor);
     return RESULT(STATUS_CODE_SUCCESS, 0x0F, 0x02, 0);
@@ -444,7 +449,7 @@ CATALYST_RESULT cattr_dispatcher_free(DISPATCHER* dispatcher) {
     }
     RESULT set = catrl_set_free(&dispatcher->work);
     if (!status_code_is_success(set.status)) return RESULT(set.status, 0x10, 0x04, set.detail);
-    RESULT order = catrl_array_free(&state->order);
+    RESULT order = catrl_queue_free(&state->order);
     if (!status_code_is_success(order.status)) return RESULT(order.status, 0x10, 0x05, order.detail);
     RESULT pool = catrl_pool_free(&state->pool);
     if (!status_code_is_success(pool.status)) return RESULT(pool.status, 0x10, 0x06, pool.detail);

@@ -134,6 +134,9 @@ static BOOL test_order(int* failed, PROCESS* process, POINTER (*rule)(const SET*
 
     check(failed, matches(cattr_dispatcher_submit(&dispatcher, (POINTERX) append_value, &items[0], FALSE, 0),
         STATUS_CODE_SUCCESS, 0x0B, 0x05), "enqueue first value");
+    check(failed, matches(dispatcher_submit(&dispatcher, (POINTERX) append_value, &items[1], TRUE, 0),
+        STATUS_CODE_ERROR_TIMEOUT, 0x0B, 0x06), "cancel pending tail with earlier work retained");
+    check(failed, dispatcher_count(&dispatcher) == 1, "cancellation preserves earlier pending work");
     check(failed, matches(dispatcher_submit(&dispatcher, (POINTERX) append_value, &items[1], FALSE, 0),
         STATUS_CODE_SUCCESS, 0x0B, 0x05), "enqueue second value");
     check(failed, matches(dispatcher_submit(&dispatcher, (POINTERX) append_value, &items[2], FALSE, 0),
