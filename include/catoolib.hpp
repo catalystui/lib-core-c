@@ -95,7 +95,7 @@ inline RESULT object_free(OBJECT* object) {
  * C++ API :: FIELD OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Resolve a borrowed field from an initialized object using a readable key. The caller retains the key; reacquire after invalidating map operations. Absence clears the field and returns FALSE. */
+/** Resolve a borrowed field from an initialized object using a readable key. The field borrows the object's stored key and member; input key storage is not retained. Reacquire after invalidating map operations. Absence clears the field and returns FALSE. */
 inline BOOL field_init(FIELD* field, OBJECT* object, POINTER key) {
     return ::catoo_field_init(field, object, key);
 }

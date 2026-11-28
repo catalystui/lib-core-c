@@ -13,7 +13,7 @@ The Object-Oriented Library represents the composite relationships defined by FR
 
 Objects own their CATRLLIB map records and each nonzero-size member's separately allocated payload (CATMMLIB managed heap). A member copies bytes, not objects or resources referenced by those bytes. Initialize unused, disjoint storage, do not shallow-copy owning objects or members, and release resources through their corresponding free operations. An object can be reused after successful free. After failed free, retry free only. Synchronize accesses and lifecycle operations externally.
 
-Keys have a single nonzero byte width per object and are compared as bytes. Expand capacity before adding; a duplicate is a no-op. The map's exposed fields are not an alternative mutation API. Borrowed members and fields are invalidated by removal, clear, resize or free attempts. Field keys additionally borrow the caller's key storage. Do not independently free borrowed members or change their ownership or size.
+Keys have a single nonzero byte width per object and are compared as bytes. Expand capacity before adding; a duplicate is a no-op. The map's exposed fields are not an alternative mutation API. Borrowed members and fields are invalidated by removal, clear, resize or free attempts. Fields borrow the object's stored keys, not the caller's lookup buffers. Do not independently free borrowed members or change their ownership or size.
 
 A method is stored by copying the bytes of a native `CATOOLIB_METHOD` function pointer; a property is stored by copying a `CATOOLIB_PROPERTY`. Callers establish the exact callable types and callback contracts before invoking; no runtime type metadata is introduced. Callback results preserve status/detail under CATOOLIB context/operation codes, except interface validation remaps invalid-argument details. A callback may invalidate a resolved field by mutating its object.
 
@@ -49,7 +49,7 @@ Interfaces require a subset of the object's keys and validate each corresponding
 | [`catoo_object_shrink`](#catoo_object_shrink) | Halve capacity without dropping members; failure may retain a smaller logical capacity. Reacquire borrowed fields after resize attempts. |
 | [`catoo_object_clear`](#catoo_object_clear) | Release and remove all members, retaining map capacity. On failure, already removed members remain removed; remaining members are live. |
 | [`catoo_object_free`](#catoo_object_free) | Release all members then map storage. Failure retains unreleased resources for retry with object_free; success leaves a reusable empty object. |
-| [`catoo_field_init`](#catoo_field_init) | Resolve a borrowed field from an initialized object using a readable key. The caller retains the key; reacquire after invalidating map operations. Absence clears the field and returns FALSE. |
+| [`catoo_field_init`](#catoo_field_init) | Resolve a borrowed field from an initialized object using a readable key. The field borrows the object's stored key and member; input key storage is not retained. Reacquire after invalidating map operations. Absence clears the field and returns FALSE. |
 | [`catoo_field_get`](#catoo_field_get) | Copy a live resolved member into sufficient writable output storage outside its descriptor. |
 | [`catoo_field_set`](#catoo_field_set) | Copy size readable bytes into a live resolved member without changing its size or key. |
 | [`catoo_method_invoke`](#catoo_method_invoke) | Invoke a live field containing a CATOOLIB_METHOD value with the exact callable type. Caller supplies valid arguments/output per callback; callback defines output validity and may invalidate the field. |
@@ -273,7 +273,7 @@ Release all members then map storage. Failure retains unreleased resources for r
 CATALYST_BOOL catoo_field_init(CATOOLIB_FIELD* field, CATOOLIB_OBJECT* object, CATMMLIB_POINTER key);
 ```
 
-Resolve a borrowed field from an initialized object using a readable key. The caller retains the key; reacquire after invalidating map operations. Absence clears the field and returns FALSE.
+Resolve a borrowed field from an initialized object using a readable key. The field borrows the object's stored key and member; input key storage is not retained. Reacquire after invalidating map operations. Absence clears the field and returns FALSE.
 
 **C++:** `field_init`
 

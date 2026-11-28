@@ -108,16 +108,17 @@ CATALYST_RESULT catoo_object_free(OBJECT* object) {
 }
 
 CATALYST_BOOL catoo_field_init(FIELD* field, OBJECT* object, POINTER key) {
-    MEMBER* member = catoo_object_get(object, key);
-    if (member == 0) {
+    MAP* map = &object->members;
+    NUINT index = catrl_find(map->keys, map->cardinality, map->ksize, key);
+    if (index == map->cardinality) {
         field->object = 0;
         field->key = 0;
         field->member = 0;
         return FALSE;
     }
     field->object = object;
-    field->key = key;
-    field->member = member;
+    field->key = (const BYTE*) map->keys + (NUINT) (index * map->ksize);
+    field->member = (MEMBER*) map->values + index;
     return TRUE;
 }
 

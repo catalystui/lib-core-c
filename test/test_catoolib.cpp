@@ -85,7 +85,12 @@ static int test_object_lifecycle() {
 
     FIELD field;
     CHECK(catoo_field_init(&field, &object, third_key));
-    CHECK(field.object == &object && field.key == third_key);
+    CHECK(field.object == &object && field.key != third_key);
+    CHECK(catmm_compare(field.key, third_key, 2) == 0);
+    BYTE query[] = { 1, 1 };
+    CHECK(field_init(&field, &object, query));
+    query[1] = 2;
+    CHECK(catmm_compare(field.key, third_key, 2) == 0);
     CHECK(field.member == object_get(&object, third_key));
     catoo_field_get(&field, output);
     CHECK(catmm_compare(output, expected, 3) == 0);
