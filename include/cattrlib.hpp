@@ -80,12 +80,12 @@ inline RESULT thread_free(THREAD* thread) {
  * C++ API :: DISPATCHER OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Establish a dispatcher with nonzero capacity and a dispatch rule. A null rule selects FIFO order. The rule receives a nonempty Set of opaque submission references and returns one member (not its storage address). */
+/** Establish a dispatcher with nonzero capacity and a dispatch rule. A null rule selects FIFO order. The rule receives a nonempty Set of opaque submission references and returns one member (not its storage address). It runs under the monitor and must not reenter the dispatcher or block on it. */
 inline RESULT dispatcher_create(DISPATCHER* dispatcher, THREAD* thread, POINTER (*rule)(const SET*), NUINT capacity) {
     return ::cattr_dispatcher_create(dispatcher, thread, rule, capacity);
 }
 
-/** Submit an independent invocation for execution. Operation must reference a void (CATMMLIB_POINTERW) function. On the associated thread, awaited submission is invalid and asynchronous admission is nonblocking. */
+/** Submit an independent invocation for execution. Operation must reference a void (CATMMLIB_POINTERW) function. On the associated thread, awaited submission is invalid and asynchronous admission is nonblocking. Callers must avoid cyclic awaited dependencies between execution threads. */
 inline RESULT dispatcher_submit(DISPATCHER* dispatcher, POINTERX operation, POINTERW arguments, BOOL wait, NUINT timeout) {
     return ::cattr_dispatcher_submit(dispatcher, operation, arguments, wait, timeout);
 }
@@ -100,7 +100,7 @@ inline NUINT dispatcher_count(const DISPATCHER* dispatcher) {
     return ::cattr_dispatcher_count(dispatcher);
 }
 
-/** Wait until work becomes available for execution. */
+/** Wait on the associated thread until work becomes available or the dispatcher closes. Do not wait on work that requires the waiting callback to finish. */
 inline RESULT dispatcher_wait(DISPATCHER* dispatcher, NUINT timeout) {
     return ::cattr_dispatcher_wait(dispatcher, timeout);
 }
