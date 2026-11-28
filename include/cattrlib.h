@@ -44,7 +44,7 @@ typedef struct CATTRLIB_THREAD {
     CATMMLIB_POINTERW state;
 } CATTRLIB_THREAD;
 
-/** A mechanism which selects work for execution on an associated thread. */
+/** A mechanism which selects work for execution on an associated thread. Owns its internal storage; borrows the thread until free. Do not copy an initialized dispatcher or mutate its work directly. */
 typedef struct CATTRLIB_DISPATCHER {
     CATTRLIB_THREAD* thread;
     CATRLLIB_SET work;
@@ -106,10 +106,10 @@ CATTRLIB_API CATALYST_RESULT cattr_dispatcher_wait(CATTRLIB_DISPATCHER* dispatch
 /** Select and execute pending work according to the dispatch rule. */
 CATTRLIB_API CATALYST_RESULT cattr_dispatcher_poll(CATTRLIB_DISPATCHER* dispatcher);
 
-/** Close the dispatcher to further submissions and awaken waiting threads. */
+/** Close admission, cancel pending submissions and awaken waiters. Running callbacks are not interrupted; close does not establish quiescence. */
 CATTRLIB_API CATALYST_RESULT cattr_dispatcher_close(CATTRLIB_DISPATCHER* dispatcher);
 
-/** Release the resources associated with a dispatcher. */
+/** Release the resources associated with a closed dispatcher after all submissions, waits, polls and other accesses have returned. Failed creation or release permits a subsequent free. */
 CATTRLIB_API CATALYST_RESULT cattr_dispatcher_free(CATTRLIB_DISPATCHER* dispatcher);
 
 #ifdef __cplusplus

@@ -20,7 +20,7 @@ typedef ::CATTRLIB_POINTERX POINTERX;
 typedef ::CATTRLIB_PROCESS PROCESS;
 /** A path of execution contained within a process. */
 typedef ::CATTRLIB_THREAD THREAD;
-/** A mechanism which selects work for execution on an associated thread. */
+/** A mechanism which selects work for execution on an associated thread. Owns its internal storage; borrows the thread until free. Do not copy an initialized dispatcher or mutate its work directly. */
 typedef ::CATTRLIB_DISPATCHER DISPATCHER;
 
 /* -------------------------------------------------------------------------------------------------
@@ -105,12 +105,12 @@ inline RESULT dispatcher_poll(DISPATCHER* dispatcher) {
     return ::cattr_dispatcher_poll(dispatcher);
 }
 
-/** Close the dispatcher to further submissions and awaken waiting threads. */
+/** Close admission, cancel pending submissions and awaken waiters. Running callbacks are not interrupted; close does not establish quiescence. */
 inline RESULT dispatcher_close(DISPATCHER* dispatcher) {
     return ::cattr_dispatcher_close(dispatcher);
 }
 
-/** Release the resources associated with a dispatcher. */
+/** Release the resources associated with a closed dispatcher after all submissions, waits, polls and other accesses have returned. Failed creation or release permits a subsequent free. */
 inline RESULT dispatcher_free(DISPATCHER* dispatcher) {
     return ::cattr_dispatcher_free(dispatcher);
 }
