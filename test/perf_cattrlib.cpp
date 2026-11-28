@@ -285,9 +285,11 @@ struct Native {
             return STATUS_CODE_ERROR_INVALID_STATE;
         }
         if (native_is_current(d->thread)) {
-            monitor_unlock(&d->monitor);
-            entry(args);
-            return STATUS_CODE_SUCCESS;
+            if (wait) {
+                monitor_unlock(&d->monitor);
+                return STATUS_CODE_ERROR_INVALID_STATE;
+            }
+            timeout = 0;
         }
         while (d->occupied == d->capacity && !d->closed) {
             if (timeout == 0) {
@@ -497,7 +499,7 @@ static const Benchmark benchmarks[] = {
     { "dispatcher count (empty)", COUNT_EMPTY, 1, 1, 262144UL },
     { "dispatcher wait (zero timeout)", WAIT_EMPTY, 1, 1, 262144UL },
     { "dispatcher poll (empty)", POLL_EMPTY, 1, 1, 262144UL },
-    { "dispatcher submit (same thread)", INLINE_SUBMIT, 1, 1, 262144UL },
+    { "dispatcher submit/poll (same thread)", INLINE_SUBMIT, 1, 1, 262144UL },
     { "dispatcher submit (pending timeout)", PENDING_TIMEOUT, 1, 1, 32768UL },
     { "dispatcher submit (full, zero wait)", FULL_ADMISSION, 1, 1, 32768UL },
     { "dispatcher synchronous round trip", SYNC_ROUNDTRIP, 1, 1, 4096UL },
@@ -615,7 +617,8 @@ template<class API> static double measure(const Benchmark* b, unsigned long call
                     expect(API::dispatcher_poll(&dispatcher), STATUS_CODE_SUCCESS_NOOP);
                     break;
                 case INLINE_SUBMIT:
-                    expect(API::dispatcher_submit(&dispatcher, increment, &value, TRUE, 0), STATUS_CODE_SUCCESS);
+                    expect(API::dispatcher_submit(&dispatcher, increment, &value, FALSE, 0), STATUS_CODE_SUCCESS);
+                    expect(API::dispatcher_poll(&dispatcher), STATUS_CODE_SUCCESS);
                     break;
                 case PENDING_TIMEOUT:
                     expect(API::dispatcher_submit(&dispatcher, increment, &value, TRUE, 0), STATUS_CODE_ERROR_TIMEOUT);

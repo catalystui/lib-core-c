@@ -234,7 +234,7 @@ int main() {
     }
 
     /* A captured current thread can wait and poll without starting a worker.
-     * Exercise a real finite timeout, empty polling, and inline execution. */
+     * Exercise a real finite timeout, empty polling, and queued self-submission. */
     {
         THREAD current;
         result = thread_current(&current, &process);
@@ -247,7 +247,17 @@ int main() {
                 TEST_STATE local_state;
                 local_state.executed = 0;
                 check(&failed, matches(dispatcher_submit(&local, (POINTERX) increment, &local_state, TRUE, 0),
-                    STATUS_CODE_SUCCESS, 0x0B, 0x02) && local_state.executed == 1, "same-thread submission");
+                    STATUS_CODE_ERROR_INVALID_STATE, 0x0B, 0x02), "same-thread awaited submission rejected");
+                check(&failed, matches(dispatcher_submit(&local, (POINTERX) increment, &local_state, FALSE, CATALYST_NUINT_MAX),
+                    STATUS_CODE_SUCCESS, 0x0B, 0x05), "same-thread asynchronous submission");
+                check(&failed, matches(dispatcher_submit(&local, (POINTERX) increment, &local_state, FALSE, 0),
+                    STATUS_CODE_SUCCESS, 0x0B, 0x05), "second same-thread submission");
+                check(&failed, matches(dispatcher_submit(&local, (POINTERX) increment, &local_state, FALSE, CATALYST_NUINT_MAX),
+                    STATUS_CODE_ERROR_TIMEOUT, 0x0B, 0x03), "same-thread full admission never blocks");
+                check(&failed, dispatcher_count(&local) == 2 && local_state.executed == 0, "self-submissions remain pending");
+                check(&failed, matches(dispatcher_poll(&local), STATUS_CODE_SUCCESS, 0x0E, 0x06), "poll first self-submission");
+                check(&failed, matches(dispatcher_poll(&local), STATUS_CODE_SUCCESS, 0x0E, 0x06) &&
+                    local_state.executed == 2, "poll second self-submission");
                 check(&failed, status_code_is_success(dispatcher_close(&local).status), "close local dispatcher");
             }
             check(&failed, status_code_is_success(dispatcher_free(&local).status), "release local dispatcher");

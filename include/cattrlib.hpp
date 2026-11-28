@@ -85,7 +85,7 @@ inline RESULT dispatcher_create(DISPATCHER* dispatcher, THREAD* thread, POINTER 
     return ::cattr_dispatcher_create(dispatcher, thread, rule, capacity);
 }
 
-/** Submit an independent invocation for execution. Operation must reference a void (CATMMLIB_POINTERW) function. */
+/** Submit an independent invocation for execution. Operation must reference a void (CATMMLIB_POINTERW) function. On the associated thread, awaited submission is invalid and asynchronous admission is nonblocking. */
 inline RESULT dispatcher_submit(DISPATCHER* dispatcher, POINTERX operation, POINTERW arguments, BOOL wait, NUINT timeout) {
     return ::cattr_dispatcher_submit(dispatcher, operation, arguments, wait, timeout);
 }

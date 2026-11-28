@@ -279,12 +279,14 @@ CATALYST_RESULT cattr_dispatcher_submit(DISPATCHER* dispatcher, POINTERX operati
         cattr_platform_monitor_unlock(state->monitor);
         return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x0B, 0x01, 0);
     }
-    /* Retain the previous same-thread immediate execution policy pending
-     * review of reentrancy. It avoids awaiting work on the calling thread. */
+    /* The associated thread cannot block awaiting its own dispatch.
+     * Asynchronous submissions still enter the Set and obey the rule. */
     if (cattr_thread_is_current(dispatcher->thread)) {
-        cattr_platform_monitor_unlock(state->monitor);
-        ((void (*)(POINTERW)) operation)(arguments);
-        return RESULT(STATUS_CODE_SUCCESS, 0x0B, 0x02, 0);
+        if (wait) {
+            cattr_platform_monitor_unlock(state->monitor);
+            return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x0B, 0x02, 0);
+        }
+        timeout = 0;
     }
     CATTRLIB_SUBMISSION submission;
     submission.dispatcher = dispatcher;

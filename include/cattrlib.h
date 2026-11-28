@@ -94,7 +94,7 @@ CATTRLIB_API CATALYST_RESULT cattr_thread_free(CATTRLIB_THREAD* thread);
 /** Establish a dispatcher with the specified capacity and dispatch rule. A null rule selects FIFO order. */
 CATTRLIB_API CATALYST_RESULT cattr_dispatcher_create(CATTRLIB_DISPATCHER* dispatcher, CATTRLIB_THREAD* thread, CATMMLIB_POINTER (*rule)(const CATRLLIB_SET*), CATALYST_NUINT capacity);
 
-/** Submit an independent invocation for execution. Operation must reference a void (CATMMLIB_POINTERW) function. */
+/** Submit an independent invocation for execution. Operation must reference a void (CATMMLIB_POINTERW) function. On the associated thread, awaited submission is invalid and asynchronous admission is nonblocking. */
 CATTRLIB_API CATALYST_RESULT cattr_dispatcher_submit(CATTRLIB_DISPATCHER* dispatcher, CATTRLIB_POINTERX operation, CATMMLIB_POINTERW arguments, CATALYST_BOOL wait, CATALYST_NUINT timeout);
 
 /** Retrieve the number of submissions awaiting execution. */
