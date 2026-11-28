@@ -268,8 +268,16 @@ static int test_memory(BOOL managed) {
             , { "large backward overlap", 1, 2, 511 }, { "large forward overlap", 2, 1, 511 },
             { "large backward unaligned overlap", 3, 10, 257 }
 #endif
+#if TARGET_SIZEOF_ADDRESS >= 4
+            , { "multiple large blocks right", 3, 18, 1023 },
+            { "multiple large blocks left", 18, 3, 1023 },
+            { "large odd tail right", 1, 2, 1025 },
+            { "large odd tail left", 2, 1, 1025 }
+#endif
         };
-#if TARGET_SIZEOF_ADDRESS >= 2
+#if TARGET_SIZEOF_ADDRESS >= 4
+        const NUINT extent = 1050;
+#elif TARGET_SIZEOF_ADDRESS >= 2
         const NUINT extent = 520;
 #else
         const NUINT extent = 132;

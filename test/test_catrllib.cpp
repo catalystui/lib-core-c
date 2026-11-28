@@ -740,6 +740,134 @@ int main() {
         check(&failed, status_code_is_success(pool_free(&pool).status), "pool cleanup");
     }
 
+
+    // Verify dependent allocation failures, not merely collection arithmetic.
+    {
+        QUEUE queue;
+        STACK stack;
+        BYTE value = 0xA5;
+        queue_init(&queue, 1);
+        stack_init(&stack, 1);
+        if (check(&failed, matches(queue_expand(&queue, 2), STATUS_CODE_SUCCESS, 0x29, 4), "queue dependency failure setup")) {
+            queue_enqueue(&queue, &value);
+            POINTERW original = queue.data;
+            check(&failed, matches(queue_expand(&queue, CATALYST_NUINT_MAX), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x29, 3) &&
+                queue.data == original && queue.head == 0 && queue.length == 1 && queue.capacity == 2 &&
+                value_matches(queue_peek(&queue), &value, 1), "queue dependent overflow retains ring");
+        }
+        if (check(&failed, matches(stack_expand(&stack, 2), STATUS_CODE_SUCCESS, 0x31, 4), "stack dependency failure setup")) {
+            stack_push(&stack, &value);
+            POINTERW original = stack.data;
+            check(&failed, matches(stack_expand(&stack, CATALYST_NUINT_MAX), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x31, 3) &&
+                stack.data == original && stack.length == 1 && stack.capacity == 2 &&
+                value_matches(stack_peek(&stack), &value, 1), "stack dependent overflow retains elements");
+        }
+        check(&failed, status_code_is_success(queue_free(&queue).status), "queue dependency failure cleanup");
+        check(&failed, status_code_is_success(stack_free(&stack).status), "stack dependency failure cleanup");
+
+        // A one-slot bitmap fits; its maximum-size payload cannot include the
+        // allocator's private prefix. Retry expansion and release retained ownership.
+        POOL pool;
+        pool_init(&pool, CATALYST_NUINT_MAX);
+        result = pool_expand(&pool, 1);
+        if (check(&failed, matches(result, STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x3A, 4) &&
+                pool.occupied != 0 && pool.data == 0 && pool.capacity == 0 && pool.cardinality == 0,
+                "pool data allocation failure retains bitmap ownership")) {
+            NUINT index = CATALYST_NUINT_MAX;
+            check(&failed, !pool_acquire(&pool, &index) && index == CATALYST_NUINT_MAX &&
+                !pool_contains(&pool, 0) && pool_get(&pool, 0) == 0 &&
+                matches(pool_expand(&pool, 1), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x3A, 4),
+                "pool partial expansion remains logically empty on retry");
+            check(&failed, matches(pool_shrink(&pool), STATUS_CODE_SUCCESS_NOOP, 0x3B, 1),
+                "pool zero logical capacity shrink after partial expansion");
+        }
+        check(&failed, status_code_is_success(pool_free(&pool).status) && pool.occupied == 0 &&
+            pool.data == 0 && pool.capacity == 0 && pool.cardinality == 0, "pool partial expansion cleanup");
+        check(&failed, matches(pool_free(&pool), STATUS_CODE_SUCCESS_NOOP, 0x3C, 1), "pool retry cleanup no-op");
+    }
+
+    // Exercise both scratch-assisted expansion and bounded rotations of a
+    // wrapped ring, including gaps, equal ranges, and unequal large ranges.
+    {
+#if TARGET_SIZEOF_ADDRESS >= 2
+        const NUINT capacity = 128;
+        const NUINT heads[] = {1, 17, 40, 64, 87, 127};
+#else
+        const NUINT capacity = 8;
+        const NUINT heads[] = {1, 3, 4, 7};
+#endif
+        BOOL passed = TRUE;
+        for (NUINT h = 0; h < (NUINT) (sizeof(heads) / sizeof(heads[0])) && passed; ++h) {
+            for (BYTE mode = 0; mode < (BYTE) 3 && passed; ++mode) {
+                for (BYTE gap = 0; gap < (BYTE) 2 && passed; ++gap) {
+                    QUEUE queue;
+                    queue_init(&queue, 1);
+                    passed = matches(queue_expand(&queue, capacity), STATUS_CODE_SUCCESS, 0x29, 4);
+                    if (passed) {
+                        for (NUINT i = 0; i < capacity; ++i) {
+                            BYTE v = (BYTE) i;
+                            queue_enqueue(&queue, &v);
+                        }
+                        BYTE output;
+                        for (NUINT i = 0; i < heads[h]; ++i)
+                            if (!queue_dequeue(&queue, &output) || output != (BYTE) i) passed = FALSE;
+                        NUINT added = gap == 0 ? heads[h] : (NUINT) (heads[h] / (NUINT) 2);
+                        for (NUINT i = 0; i < added; ++i) {
+                            BYTE v = (BYTE) (capacity + i);
+                            queue_enqueue(&queue, &v);
+                        }
+                        NUINT live = (NUINT) (capacity - heads[h] + added);
+                        if (mode == 0) {
+                            passed = matches(queue_expand(&queue, (NUINT) (capacity + (NUINT) 1)), STATUS_CODE_SUCCESS, 0x29, 4) && passed;
+                        } else if (mode == 1) {
+                            NUINT expanded = (NUINT) (capacity + (NUINT) (capacity / (NUINT) 2));
+                            passed = matches(queue_expand(&queue, expanded), STATUS_CODE_SUCCESS, 0x29, 4) && passed;
+                        } else {
+                            result = queue_shrink(&queue);
+                            NUINT expected = live > capacity / (NUINT) 2 ? live : (NUINT) (capacity / (NUINT) 2);
+                            passed = matches(result, expected == capacity ? STATUS_CODE_SUCCESS_NOOP : STATUS_CODE_SUCCESS,
+                                0x2A, expected == capacity ? 1 : 3) && queue.capacity == expected && passed;
+                        }
+                        for (NUINT i = 0; i < live && passed; ++i)
+                            if (!queue_dequeue(&queue, &output) || output != (BYTE) (heads[h] + i)) passed = FALSE;
+                        if (queue.length != 0 || queue.head != 0) passed = FALSE;
+                    }
+                    if (!status_code_is_success(queue_free(&queue).status)) passed = FALSE;
+                }
+            }
+        }
+        check(&failed, passed, "queue normalization preserves wrapped and gapped sequences through resize");
+    }
+
+    // Force the bitmap word scan, every first-zero-bit position, and padding.
+    {
+#if TARGET_SIZEOF_ADDRESS >= 2
+        const NUINT capacity = 129;
+#else
+        const NUINT capacity = 17;
+#endif
+        POOL pool;
+        pool_init(&pool, 1);
+        BOOL passed = matches(pool_expand(&pool, capacity), STATUS_CODE_SUCCESS, 0x3A, 5);
+        for (NUINT i = 0; i < capacity && passed; ++i) {
+            NUINT index;
+            passed = pool_acquire(&pool, &index) && index == i;
+        }
+        for (NUINT i = 0; i < capacity && passed; ++i) {
+            NUINT index = CATALYST_NUINT_MAX;
+            passed = pool_release(&pool, i) && pool_acquire(&pool, &index) && index == i;
+        }
+        if (passed) {
+            NUINT index = CATALYST_NUINT_MAX;
+            passed = !pool_acquire(&pool, &index) && index == CATALYST_NUINT_MAX;
+            pool_clear(&pool);
+            pool_clear(&pool);
+            passed = pool.cardinality == 0 && pool_acquire(&pool, &index) && index == 0 && passed;
+        }
+        if (!status_code_is_success(pool_free(&pool).status)) passed = FALSE;
+        check(&failed, passed, "pool bitmap scans all bit positions, word boundaries and padding");
+    }
+
     // ------------------------------------------------------------
     // Done
     // ------------------------------------------------------------

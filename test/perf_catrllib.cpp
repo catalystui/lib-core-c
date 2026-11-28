@@ -1068,11 +1068,31 @@ struct NativeSequence {
     size_t head;
 };
 
-static void native_reverse_bytes(unsigned char* data, size_t size) {
-    for (size_t i = 0; i < size / 2; ++i) {
-        unsigned char v = data[i];
-        data[i] = data[size - 1 - i];
-        data[size - 1 - i] = v;
+static void native_rotate_bytes(unsigned char* data, size_t left, size_t right) {
+    unsigned char scratch[32];
+    while (left > sizeof(scratch) && right > sizeof(scratch)) {
+        size_t count = left < right ? left : right;
+        unsigned char* other = data + (left < right ? right : left);
+        for (size_t offset = 0; offset < count;) {
+            size_t size = count - offset;
+            if (size > sizeof(scratch)) size = sizeof(scratch);
+            ::memcpy(scratch, data + offset, size);
+            ::memcpy(data + offset, other + offset, size);
+            ::memcpy(other + offset, scratch, size);
+            offset += size;
+        }
+        if (left == right) return;
+        if (left < right) right -= left;
+        else { data += right; left -= right; }
+    }
+    if (left <= right) {
+        ::memcpy(scratch, data, left);
+        ::memmove(data, data + left, right);
+        ::memcpy(data + right, scratch, left);
+    } else {
+        ::memcpy(scratch, data + left, right);
+        ::memmove(data + right, data, left);
+        ::memcpy(data, scratch, right);
     }
 }
 
@@ -1082,32 +1102,43 @@ struct NativeSequenceAPI {
     static void init(Data& c, NUINT width) {
         native_init(c.storage, width, 0); c.head = 0;
     }
-    static void normalize(Data& c) {
+    static void normalize(Data& c, size_t oldCapacity, size_t extra) {
         NativeCollection& a = c.storage;
         if (c.head == 0) return;
-        size_t offset = c.head * a.size;
-        if (a.count <= a.capacity - c.head)
-            ::memmove(a.keys, a.keys + offset, a.count * a.size);
+        size_t offset = c.head * a.size, extent = oldCapacity * a.size;
+        size_t live = a.count * a.size, tail = extent - offset;
+        if (live <= tail) ::memmove(a.keys, a.keys + offset, live);
         else {
-            size_t extent = a.capacity * a.size;
-            native_reverse_bytes(a.keys, offset);
-            native_reverse_bytes(a.keys + offset, extent - offset);
-            native_reverse_bytes(a.keys, extent);
+            size_t prefix = live - tail;
+            if (prefix <= extra && (prefix <= tail || tail > extra)) {
+                ::memcpy(a.keys + extent, a.keys, prefix);
+                ::memmove(a.keys, a.keys + offset, tail);
+                ::memcpy(a.keys + tail, a.keys + extent, prefix);
+            } else if (tail <= extra) {
+                ::memcpy(a.keys + extent, a.keys + offset, tail);
+                ::memmove(a.keys + tail, a.keys, prefix);
+                ::memcpy(a.keys, a.keys + extent, tail);
+            } else {
+                if (prefix != offset) ::memmove(a.keys + prefix, a.keys + offset, tail);
+                native_rotate_bytes(a.keys, prefix, tail);
+            }
         }
         c.head = 0;
     }
     static BOOL expand(Data& c, NUINT n) {
         NativeCollection& a = c.storage;
         if (n <= a.capacity) return TRUE;
-        if (Queue) normalize(c);
-        return native_expand(a, n);
+        size_t old = a.capacity;
+        if (!native_expand(a, n)) return FALSE;
+        if (Queue) normalize(c, old, (n - old) * a.size);
+        return TRUE;
     }
     static BOOL shrink(Data& c) {
         NativeCollection& a = c.storage;
         size_t target = a.capacity / 2;
         if (target < a.count) target = a.count;
         if (target == a.capacity) return TRUE;
-        if (Queue) normalize(c);
+        if (Queue) normalize(c, a.capacity, 0);
         return native_capacity(a, target);
     }
     static BOOL release(Data& c) { c.head = 0; return native_free(c.storage); }
@@ -1171,7 +1202,7 @@ struct CatalystStackAPI {
     static const BYTE* peek(Data& c) { return (const BYTE*) stack_peek(&c); }
 };
 
-enum SequenceKind { SEQ_LIFECYCLE, SEQ_PEEK, SEQ_EMPTY, SEQ_CYCLE, SEQ_RESIZE, SEQ_NOOP, SEQ_CLEAR };
+enum SequenceKind { SEQ_LIFECYCLE, SEQ_PEEK, SEQ_EMPTY, SEQ_CYCLE, SEQ_RESIZE, SEQ_RESIZE_STRAIGHT, SEQ_NOOP, SEQ_CLEAR };
 template<typename API>
 struct SequenceTrial { SequenceKind kind; NUINT n, width; BOOL fifo; };
 
@@ -1196,6 +1227,49 @@ static BOOL sequence_lifecycle(SequenceTrial<API>* t) {
 }
 
 template<typename API>
+static BOOL sequence_step(SequenceTrial<API>& t, typename API::Data& c, NUINT* head, BYTE* output) {
+    BOOL ok = TRUE;
+    switch (t.kind) {
+    case SEQ_LIFECYCLE:
+        ok = sequence_lifecycle<API>(&t);
+        break;
+    case SEQ_PEEK: {
+        const BYTE* p = API::peek(c);
+        ok = p != 0 ? TRUE : FALSE;
+        if (ok) observed = p[t.width - 1];
+        break;
+    }
+    case SEQ_EMPTY:
+        output[0] = 0xA5;
+        ok = !API::take(c, output) && output[0] == 0xA5 && API::peek(c) == 0 ? TRUE : FALSE;
+        break;
+    case SEQ_CYCLE:
+    case SEQ_RESIZE:
+        ok = API::take(c, output);
+        if (ok) {
+            observed = output[t.width - 1];
+            API::put(c, output);
+            if (t.fifo && ++*head == t.n) *head = 0;
+            if (t.kind == SEQ_RESIZE)
+                ok = API::expand(c, (NUINT) (t.n * (NUINT) 2)) && API::shrink(c) ? TRUE : FALSE;
+        }
+        break;
+    case SEQ_RESIZE_STRAIGHT:
+        ok = API::expand(c, (NUINT) (t.n * (NUINT) 2)) && API::shrink(c) ? TRUE : FALSE;
+        break;
+    case SEQ_NOOP:
+        ok = API::expand(c, t.n) && API::shrink(c) ? TRUE : FALSE;
+        break;
+    case SEQ_CLEAR:
+        API::clear(c);
+        sequence_fill<API>(c, t.n, t.width);
+        *head = 0;
+        break;
+    }
+    return ok;
+}
+
+template<typename API>
 static Measurement measure_sequence(SequenceTrial<API>& t, unsigned long calls, unsigned long* ticks, BOOL verify) {
     typename API::Data c;
     API::init(c, t.width);
@@ -1208,43 +1282,10 @@ static Measurement measure_sequence(SequenceTrial<API>& t, unsigned long calls, 
     NUINT head = 0;
     BYTE output[16] = {0};
     BYTE expected[16];
-    BOOL (*volatile lifecycle)(SequenceTrial<API>*) = sequence_lifecycle<API>;
+    BOOL (*volatile operation)(SequenceTrial<API>&, typename API::Data&, NUINT*, BYTE*) = sequence_step<API>;
     const std::clock_t start = std::clock();
     for (unsigned long i = 0; ok && i < calls; ++i) {
-        switch (t.kind) {
-        case SEQ_LIFECYCLE:
-            ok = lifecycle(&t);
-            break;
-        case SEQ_PEEK: {
-            const BYTE* p = API::peek(c);
-            ok = p != 0 ? TRUE : FALSE;
-            if (ok) observed = p[t.width - 1];
-            break;
-        }
-        case SEQ_EMPTY:
-            output[0] = 0xA5;
-            ok = !API::take(c, output) && output[0] == 0xA5 && API::peek(c) == 0 ? TRUE : FALSE;
-            break;
-        case SEQ_CYCLE:
-        case SEQ_RESIZE:
-            ok = API::take(c, output);
-            if (ok) {
-                observed = output[t.width - 1];
-                API::put(c, output);
-                if (t.fifo && ++head == t.n) head = 0;
-                if (t.kind == SEQ_RESIZE)
-                    ok = API::expand(c, (NUINT) (t.n * (NUINT) 2)) && API::shrink(c) ? TRUE : FALSE;
-            }
-            break;
-        case SEQ_NOOP:
-            ok = API::expand(c, t.n) && API::shrink(c) ? TRUE : FALSE;
-            break;
-        case SEQ_CLEAR:
-            API::clear(c);
-            sequence_fill<API>(c, t.n, t.width);
-            head = 0;
-            break;
-        }
+        ok = operation(t, c, &head, output);
         observed = (BYTE) ok;
     }
     BOOL clockOk = elapsed(start, ticks);
@@ -1359,7 +1400,7 @@ struct CatalystPoolAPI {
     static const BYTE* bits(const Data& p) { return (const BYTE*) p.occupied; }
 };
 
-enum PoolKind { POOL_LIFECYCLE, POOL_CYCLE, POOL_HIT, POOL_MISS, POOL_FULL, POOL_RESIZE, POOL_NOOP, POOL_CLEAR };
+enum PoolKind { POOL_LIFECYCLE, POOL_CYCLE, POOL_CYCLE_FIRST, POOL_CYCLE_MIDDLE, POOL_HIT, POOL_MISS, POOL_FULL, POOL_RESIZE, POOL_NOOP, POOL_CLEAR };
 template<typename API>
 struct PoolTrial { PoolKind kind; NUINT n, width; };
 
@@ -1390,58 +1431,68 @@ static BOOL pool_lifecycle(PoolTrial<API>* t) {
 }
 
 template<typename API>
+static BOOL pool_step(PoolTrial<API>& t, typename API::Data& p, NUINT last, NUINT freeIndex) {
+    BOOL ok = TRUE;
+    NUINT index = CATALYST_NUINT_MAX;
+    switch (t.kind) {
+    case POOL_LIFECYCLE:
+        ok = pool_lifecycle<API>(&t);
+        break;
+    case POOL_CYCLE:
+    case POOL_CYCLE_FIRST:
+    case POOL_CYCLE_MIDDLE:
+        ok = API::acquire(p, &index) && index == freeIndex;
+        if (ok) {
+            observed = (BYTE) index;
+            ok = API::relinquish(p, index);
+        }
+        break;
+    case POOL_HIT: {
+        const BYTE* slot = API::get(p, last);
+        ok = API::contains(p, last) && slot != 0 ? TRUE : FALSE;
+        if (ok) observed = slot[t.width - 1];
+        break;
+    }
+    case POOL_MISS:
+        ok = !API::contains(p, last) && API::get(p, last) == 0 && !API::relinquish(p, last) ? TRUE : FALSE;
+        break;
+    case POOL_FULL:
+        ok = !API::acquire(p, &index) && index == CATALYST_NUINT_MAX ? TRUE : FALSE;
+        break;
+    case POOL_RESIZE:
+        ok = API::expand(p, (NUINT) (t.n * (NUINT) 2)) && API::shrink(p) ? TRUE : FALSE;
+        break;
+    case POOL_NOOP:
+        ok = API::expand(p, t.n) && API::shrink(p) ? TRUE : FALSE;
+        break;
+    case POOL_CLEAR:
+        API::clear(p);
+        ok = pool_fill<API>(p, t.n, t.width);
+        break;
+    }
+    return ok;
+}
+
+template<typename API>
 static Measurement measure_pool(PoolTrial<API>& t, unsigned long calls, unsigned long* ticks, BOOL verify) {
     typename API::Data p;
     API::init(p, t.width);
     BOOL active = t.kind != POOL_LIFECYCLE ? TRUE : FALSE;
     NUINT last = (NUINT) (t.n - 1);
     BOOL sparse = t.kind == POOL_RESIZE ? TRUE : FALSE;
-    BOOL missing = t.kind == POOL_CYCLE || t.kind == POOL_MISS ? TRUE : FALSE;
+    BOOL missing = t.kind == POOL_CYCLE || t.kind == POOL_CYCLE_FIRST || t.kind == POOL_CYCLE_MIDDLE || t.kind == POOL_MISS ? TRUE : FALSE;
+    NUINT freeIndex = t.kind == POOL_CYCLE_FIRST ? (NUINT) 0 : t.kind == POOL_CYCLE_MIDDLE ? (NUINT) (t.n / (NUINT) 2) : last;
     BOOL ok = TRUE;
     if (active) {
         ok = API::expand(p, t.n) && pool_fill<API>(p, t.n, t.width) ? TRUE : FALSE;
         if (ok && sparse) {
             for (NUINT i = 0; ok && i < last; ++i) ok = API::relinquish(p, i);
-        } else if (ok && missing) ok = API::relinquish(p, last);
+        } else if (ok && missing) ok = API::relinquish(p, freeIndex);
     }
-    BOOL (*volatile lifecycle)(PoolTrial<API>*) = pool_lifecycle<API>;
+    BOOL (*volatile operation)(PoolTrial<API>&, typename API::Data&, NUINT, NUINT) = pool_step<API>;
     const std::clock_t start = std::clock();
     for (unsigned long i = 0; ok && i < calls; ++i) {
-        NUINT index = CATALYST_NUINT_MAX;
-        switch (t.kind) {
-        case POOL_LIFECYCLE:
-            ok = lifecycle(&t);
-            break;
-        case POOL_CYCLE:
-            ok = API::acquire(p, &index) && index == last;
-            if (ok) {
-                observed = (BYTE) index;
-                ok = API::relinquish(p, index);
-            }
-            break;
-        case POOL_HIT: {
-            const BYTE* slot = API::get(p, last);
-            ok = API::contains(p, last) && slot != 0 ? TRUE : FALSE;
-            if (ok) observed = slot[t.width - 1];
-            break;
-        }
-        case POOL_MISS:
-            ok = !API::contains(p, last) && API::get(p, last) == 0 && !API::relinquish(p, last) ? TRUE : FALSE;
-            break;
-        case POOL_FULL:
-            ok = !API::acquire(p, &index) && index == CATALYST_NUINT_MAX ? TRUE : FALSE;
-            break;
-        case POOL_RESIZE:
-            ok = API::expand(p, (NUINT) (t.n * (NUINT) 2)) && API::shrink(p) ? TRUE : FALSE;
-            break;
-        case POOL_NOOP:
-            ok = API::expand(p, t.n) && API::shrink(p) ? TRUE : FALSE;
-            break;
-        case POOL_CLEAR:
-            API::clear(p);
-            ok = pool_fill<API>(p, t.n, t.width);
-            break;
-        }
+        ok = operation(t, p, last, freeIndex);
         observed = (BYTE) ok;
     }
     BOOL clockOk = elapsed(start, ticks);
@@ -1450,7 +1501,7 @@ static Measurement measure_pool(PoolTrial<API>& t, unsigned long calls, unsigned
         ok = API::count(p) == count && API::capacity(p) == (active ? t.n : 0) ? TRUE : FALSE;
         BYTE expected[16];
         for (NUINT i = 0; ok && active && i < t.n; ++i) {
-            BOOL live = sparse ? (i == last ? TRUE : FALSE) : (missing && i == last ? FALSE : TRUE);
+            BOOL live = sparse ? (i == last ? TRUE : FALSE) : (missing && i == freeIndex ? FALSE : TRUE);
             const BYTE* slot = API::get(p, i);
             ok = API::contains(p, i) == live && (slot != 0) == (live != FALSE) ? TRUE : FALSE;
             if (ok && live) {
@@ -1467,26 +1518,30 @@ static Measurement measure_pool(PoolTrial<API>& t, unsigned long calls, unsigned
 template<typename Native, typename Catalyst>
 static void benchmark_sequence(const char* heading, BOOL fifo, Summary& summary) {
     const char* labels[] = {"init + expand + free", "peek", "empty removal + peek",
-        "remove + insert", "remove + insert + expand + shrink", "expand + shrink (no-op)", "clear + refill"};
+        "remove + insert", "remove + insert + expand + shrink", "expand + shrink (unwrapped)", "expand + shrink (no-op)", "clear + refill"};
     const NUINT sizes[] = {4,
 #if TARGET_SIZEOF_ADDRESS >= 2
-        32, 128
+        32, 128, 1024
+#if TARGET_SIZEOF_ADDRESS >= 4
+        , 4096
+#endif
 #else
         8
 #endif
     };
     std::printf("\n%s\n", heading);
-    for (BYTE k = 0; k < (BYTE) 7; ++k) {
+    for (BYTE k = 0; k < (BYTE) 8; ++k) {
         std::printf("\n%s\n", labels[k]);
         for (BYTE w = 0; w < sizeof(widths) / sizeof(widths[0]); ++w) {
             for (BYTE i = 0; i < sizeof(sizes) / sizeof(sizes[0]); ++i) {
                 if (k == SEQ_EMPTY && (i != 0 || w != 0)) continue;
                 NUINT n = sizes[i], width = widths[w];
+                if (n > (NUINT) (CATALYST_NUINT_MAX / width / (NUINT) 2)) continue;
                 char label[48];
                 std::sprintf(label, "%lu slots; %lu B", (unsigned long) n, (unsigned long) width);
                 SequenceTrial<Native> native = { (SequenceKind) k, n, width, fifo };
                 SequenceTrial<Catalyst> comparison = { (SequenceKind) k, n, width, fifo };
-                benchmark_case(label, native, comparison, measure_sequence<Native>, measure_sequence<Catalyst>, 1048576UL, summary);
+                benchmark_case(label, native, comparison, measure_sequence<Native>, measure_sequence<Catalyst>, 67108864UL, summary);
             }
         }
     }
@@ -1494,26 +1549,30 @@ static void benchmark_sequence(const char* heading, BOOL fifo, Summary& summary)
 
 static void benchmark_pools(Summary& summary) {
     const char* labels[] = {"init + expand + free", "acquire + release (last free)",
-        "contains + get (hit)", "contains + get + release (miss)", "acquire (full)",
+        "acquire + release (first free)", "acquire + release (middle free)", "contains + get (hit)", "contains + get + release (miss)", "acquire (full)",
         "expand + shrink (sparse high index)", "expand + shrink (no-op)", "clear + refill"};
     const NUINT sizes[] = {5,
 #if TARGET_SIZEOF_ADDRESS >= 2
-        33, 129
+        33, 129, 1025
+#if TARGET_SIZEOF_ADDRESS >= 4
+        , 4097
+#endif
 #else
         9
 #endif
     };
-    std::printf("\nPool (C reference with occupancy bitmap)\n");
-    for (BYTE k = 0; k < (BYTE) 8; ++k) {
+    std::printf("\nPool (C reference with byte-scanned occupancy bitmap)\n");
+    for (BYTE k = 0; k < (BYTE) 10; ++k) {
         std::printf("\n%s\n", labels[k]);
         for (BYTE w = 0; w < sizeof(widths) / sizeof(widths[0]); ++w) {
             for (BYTE i = 0; i < sizeof(sizes) / sizeof(sizes[0]); ++i) {
                 NUINT n = sizes[i], width = widths[w];
+                if (n > (NUINT) (CATALYST_NUINT_MAX / width / (NUINT) 2)) continue;
                 char label[48];
                 std::sprintf(label, "%lu slots; %lu B", (unsigned long) n, (unsigned long) width);
                 PoolTrial<NativePoolAPI> native = { (PoolKind) k, n, width };
                 PoolTrial<CatalystPoolAPI> comparison = { (PoolKind) k, n, width };
-                benchmark_case(label, native, comparison, measure_pool<NativePoolAPI>, measure_pool<CatalystPoolAPI>, 1048576UL, summary);
+                benchmark_case(label, native, comparison, measure_pool<NativePoolAPI>, measure_pool<CatalystPoolAPI>, 67108864UL, summary);
             }
         }
     }
