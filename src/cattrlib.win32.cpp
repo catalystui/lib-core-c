@@ -177,7 +177,7 @@ CATALYST_RESULT cattr_platform_monitor_wait(POINTERW state, NUINT timeout, CATAL
     CATTRLIB_WIN32_MONITOR* monitor = (CATTRLIB_WIN32_MONITOR*) state;
     if (ready(arguments)) return RESULT(STATUS_CODE_SUCCESS, 0x08, 0x01, 0);
     if (timeout == 0) return RESULT(STATUS_CODE_ERROR_TIMEOUT, 0x08, 0x02, 0);
-    ULONGLONG previous = GetTickCount64();
+    ULONGLONG previous = timeout != CATALYST_NUINT_MAX ? GetTickCount64() : 0;
     NUINT remaining = timeout;
     for (;;) {
         /* INFINITE is reserved by Win32. Split wider Catalyst timeouts into

@@ -267,7 +267,7 @@ CATALYST_RESULT cattr_dispatcher_submit(DISPATCHER* dispatcher, POINTERX operati
     }
     /* The associated thread cannot block awaiting its own dispatch.
      * Asynchronous submissions still enter the Set and obey the rule. */
-    if (cattr_thread_is_current(dispatcher->thread)) {
+    if ((wait || timeout != 0) && cattr_thread_is_current(dispatcher->thread)) {
         if (wait) {
             cattr_platform_monitor_unlock(dispatcher->state);
             return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x0B, 0x02, 0);

@@ -284,7 +284,7 @@ struct Native {
             monitor_unlock(&d->monitor);
             return STATUS_CODE_ERROR_INVALID_STATE;
         }
-        if (native_is_current(d->thread)) {
+        if ((wait || timeout != 0) && native_is_current(d->thread)) {
             if (wait) {
                 monitor_unlock(&d->monitor);
                 return STATUS_CODE_ERROR_INVALID_STATE;
