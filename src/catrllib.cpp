@@ -144,11 +144,7 @@ CATALYST_BOOL catrl_map_add(CATRLLIB_MAP* map, CATMMLIB_POINTER key, CATMMLIB_PO
 CATALYST_BOOL catrl_map_remove(CATRLLIB_MAP* map, CATMMLIB_POINTER key) {
     NUINT index = catrl_find(map->keys, map->cardinality, map->ksize, key);
     if (index == map->cardinality) return FALSE;
-    --map->cardinality;
-    if (index != map->cardinality) {
-        catrl_store((BYTE*) map->keys + (NUINT) (index * map->ksize), (const BYTE*) map->keys + (NUINT) (map->cardinality * map->ksize), map->ksize);
-        catrl_store((BYTE*) map->values + (NUINT) (index * map->vsize), (const BYTE*) map->values + (NUINT) (map->cardinality * map->vsize), map->vsize);
-    }
+    catrl_map_remove_at(map, index);
     return TRUE;
 }
 

@@ -129,5 +129,14 @@ static inline void catrl_map_append_known(CATRLLIB_MAP* map, POINTER key, POINTE
     ++map->cardinality;
 }
 
+/* Remove a resolved live slot. No search and no allocation. */
+static inline void catrl_map_remove_at(CATRLLIB_MAP* map, NUINT index) {
+    --map->cardinality;
+    if (index != map->cardinality) {
+        catrl_store((BYTE*) map->keys + (NUINT) (index * map->ksize), (const BYTE*) map->keys + (NUINT) (map->cardinality * map->ksize), map->ksize);
+        catrl_store((BYTE*) map->values + (NUINT) (index * map->vsize), (const BYTE*) map->values + (NUINT) (map->cardinality * map->vsize), map->vsize);
+    }
+}
+
 } /* namespace catalyst */
 #endif /* CATRLLIB_INTERNAL_HPP */

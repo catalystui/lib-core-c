@@ -58,11 +58,13 @@ CATALYST_RESULT catoo_object_add(OBJECT* object, POINTER key, POINTER data, NUIN
 }
 
 CATALYST_RESULT catoo_object_remove(OBJECT* object, POINTER key) {
-    MEMBER* member = catoo_object_get(object, key);
-    if (member == 0) return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x07, 0x01, 0);
+    MAP* map = &object->members;
+    NUINT index = catrl_find(map->keys, map->cardinality, map->ksize, key);
+    if (index == map->cardinality) return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x07, 0x01, 0);
+    MEMBER* member = (MEMBER*) map->values + index;
     RESULT released = catoo_member_free(member);
     if (!status_code_is_success(released.status)) return RESULT(released.status, 0x07, 0x02, released.detail);
-    catrl_map_remove(&object->members, key);
+    catrl_map_remove_at(map, index);
     return RESULT(STATUS_CODE_SUCCESS, 0x07, 0x03, 0);
 }
 
