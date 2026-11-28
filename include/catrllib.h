@@ -104,6 +104,32 @@ typedef struct CATRLLIB_POOL {
 } CATRLLIB_POOL;
 
 /* -------------------------------------------------------------------------------------------------
+ * C API :: HASHED COLLECTIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/** A finite, unordered collection of distinct, fixed-size elements stored contiguously and indexed by hash. */
+typedef struct CATRLLIB_HASHSET {
+    CATMMLIB_POINTERW data;
+    CATMMLIB_POINTERW buckets;
+    CATALYST_NUINT size;
+    CATALYST_NUINT cardinality;
+    CATALYST_NUINT capacity;
+    CATALYST_NUINT bcapacity;
+} CATRLLIB_HASHSET;
+
+/** A finite collection of distinct, fixed-size keys, each associated with a fixed-size value, stored contiguously and indexed by hash. */
+typedef struct CATRLLIB_HASHMAP {
+    CATMMLIB_POINTERW keys;
+    CATMMLIB_POINTERW values;
+    CATMMLIB_POINTERW buckets;
+    CATALYST_NUINT ksize;
+    CATALYST_NUINT vsize;
+    CATALYST_NUINT cardinality;
+    CATALYST_NUINT capacity;
+    CATALYST_NUINT bcapacity;
+} CATRLLIB_HASHMAP;
+
+/* -------------------------------------------------------------------------------------------------
  * C API :: SET OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
@@ -315,6 +341,68 @@ CATRLLIB_API CATALYST_RESULT catrl_pool_shrink(CATRLLIB_POOL* pool);
 
 /** Release data then bitmap, retaining slot size for reuse. Failure retains unreleased ownership for retry; no allocations is a no-op. */
 CATRLLIB_API CATALYST_RESULT catrl_pool_free(CATRLLIB_POOL* pool);
+
+/* -------------------------------------------------------------------------------------------------
+ * C API :: HASHSET OPERATIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/** Initialize unused HashSet storage without allocation; size is nonzero bytes per element. */
+CATRLLIB_API void catrl_hashset_init(CATRLLIB_HASHSET* set, CATALYST_NUINT size);
+
+/** Copy size readable bytes from outside the initialized HashSet and its allocations; return TRUE on insertion, FALSE on duplicate. Requires spare capacity for a new element. */
+CATRLLIB_API CATALYST_BOOL catrl_hashset_add(CATRLLIB_HASHSET* set, CATMMLIB_POINTER element);
+
+/** Remove a member matching size readable bytes; return FALSE if absent. May relocate the last member; retains capacity. */
+CATRLLIB_API CATALYST_BOOL catrl_hashset_remove(CATRLLIB_HASHSET* set, CATMMLIB_POINTER element);
+
+/** Test membership using size readable bytes and byte equality in an initialized HashSet. */
+CATRLLIB_API CATALYST_BOOL catrl_hashset_contains(const CATRLLIB_HASHSET* set, CATMMLIB_POINTER element);
+
+/** Remove all members without releasing storage or changing capacity. */
+CATRLLIB_API void catrl_hashset_clear(CATRLLIB_HASHSET* set);
+
+/** Expand to the requested larger element capacity and rebuild the bucket index; smaller/equal requests are no-ops. */
+CATRLLIB_API CATALYST_RESULT catrl_hashset_expand(CATRLLIB_HASHSET* set, CATALYST_NUINT capacity);
+
+/** Reduce capacity without discarding members; rebuild the bucket index as needed. */
+CATRLLIB_API CATALYST_RESULT catrl_hashset_shrink(CATRLLIB_HASHSET* set);
+
+/** Release owned element and bucket storage, retaining element size for reuse; retain unreleased ownership on failure. */
+CATRLLIB_API CATALYST_RESULT catrl_hashset_free(CATRLLIB_HASHSET* set);
+
+/* -------------------------------------------------------------------------------------------------
+ * C API :: HASHMAP OPERATIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/** Initialize unused HashMap storage without allocation; ksize and vsize are nonzero bytes per key and value. */
+CATRLLIB_API void catrl_hashmap_init(CATRLLIB_HASHMAP* map, CATALYST_NUINT ksize, CATALYST_NUINT vsize);
+
+/** Copy readable key and value bytes from outside the initialized HashMap and its allocations; return FALSE on duplicate without replacing its value. Requires spare capacity for a new key. */
+CATRLLIB_API CATALYST_BOOL catrl_hashmap_add(CATRLLIB_HASHMAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTER value);
+
+/** Remove the association matching ksize readable key bytes; return FALSE if absent. May relocate the last association; retains capacity. */
+CATRLLIB_API CATALYST_BOOL catrl_hashmap_remove(CATRLLIB_HASHMAP* map, CATMMLIB_POINTER key);
+
+/** Test membership using ksize readable key bytes and byte equality in an initialized HashMap. */
+CATRLLIB_API CATALYST_BOOL catrl_hashmap_contains(const CATRLLIB_HASHMAP* map, CATMMLIB_POINTER key);
+
+/** Borrow the writable value associated with a readable key, or null if absent. Reacquire after removal, clear, resize or free attempts; do not release independently. */
+CATRLLIB_API CATMMLIB_POINTERW catrl_hashmap_get(CATRLLIB_HASHMAP* map, CATMMLIB_POINTER key);
+
+/** Update an existing key's value from vsize readable bytes outside the HashMap and its allocations; return FALSE if absent. */
+CATRLLIB_API CATALYST_BOOL catrl_hashmap_set(CATRLLIB_HASHMAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTER value);
+
+/** Remove all associations without releasing storage or changing capacity. */
+CATRLLIB_API void catrl_hashmap_clear(CATRLLIB_HASHMAP* map);
+
+/** Expand to the requested larger association capacity and rebuild the bucket index; smaller/equal requests are no-ops. */
+CATRLLIB_API CATALYST_RESULT catrl_hashmap_expand(CATRLLIB_HASHMAP* map, CATALYST_NUINT capacity);
+
+/** Reduce capacity without discarding associations; rebuild the bucket index as needed. */
+CATRLLIB_API CATALYST_RESULT catrl_hashmap_shrink(CATRLLIB_HASHMAP* map);
+
+/** Release owned key, value and bucket storage, retaining key and value sizes for reuse; retain unreleased ownership on failure. */
+CATRLLIB_API CATALYST_RESULT catrl_hashmap_free(CATRLLIB_HASHMAP* map);
 
 #ifdef __cplusplus
 } /* extern C */

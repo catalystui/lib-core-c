@@ -32,6 +32,15 @@ typedef ::CATRLLIB_STACK STACK;
 typedef ::CATRLLIB_POOL POOL;
 
 /* -------------------------------------------------------------------------------------------------
+ * C++ API :: HASHED COLLECTIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/** Alias of the C collection type; retains its ownership and lifetime contracts. */
+typedef ::CATRLLIB_HASHSET HASHSET;
+/** Alias of the C collection type; retains its ownership and lifetime contracts. */
+typedef ::CATRLLIB_HASHMAP HASHMAP;
+
+/* -------------------------------------------------------------------------------------------------
  * C++ API :: SET OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
@@ -362,6 +371,104 @@ inline RESULT pool_shrink(POOL* pool) {
 /** Release data then bitmap, retaining slot size for reuse. Failure retains unreleased ownership for retry; no allocations is a no-op. */
 inline RESULT pool_free(POOL* pool) {
     return ::catrl_pool_free(pool);
+}
+
+/* -------------------------------------------------------------------------------------------------
+ * C++ API :: HASHSET OPERATIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/** Initialize unused HashSet storage without allocation; size is nonzero bytes per element. */
+inline void hashset_init(HASHSET* set, NUINT size) {
+    ::catrl_hashset_init(set, size);
+}
+
+/** Copy size readable bytes from outside the initialized HashSet and its allocations; return TRUE on insertion, FALSE on duplicate. Requires spare capacity for a new element. */
+inline BOOL hashset_add(HASHSET* set, POINTER element) {
+    return ::catrl_hashset_add(set, element);
+}
+
+/** Remove a member matching size readable bytes; return FALSE if absent. May relocate the last member; retains capacity. */
+inline BOOL hashset_remove(HASHSET* set, POINTER element) {
+    return ::catrl_hashset_remove(set, element);
+}
+
+/** Test membership using size readable bytes and byte equality in an initialized HashSet. */
+inline BOOL hashset_contains(const HASHSET* set, POINTER element) {
+    return ::catrl_hashset_contains(set, element);
+}
+
+/** Remove all members without releasing storage or changing capacity. */
+inline void hashset_clear(HASHSET* set) {
+    ::catrl_hashset_clear(set);
+}
+
+/** Expand to the requested larger element capacity and rebuild the bucket index; smaller/equal requests are no-ops. */
+inline RESULT hashset_expand(HASHSET* set, NUINT capacity) {
+    return ::catrl_hashset_expand(set, capacity);
+}
+
+/** Reduce capacity without discarding members; rebuild the bucket index as needed. */
+inline RESULT hashset_shrink(HASHSET* set) {
+    return ::catrl_hashset_shrink(set);
+}
+
+/** Release owned element and bucket storage, retaining element size for reuse; retain unreleased ownership on failure. */
+inline RESULT hashset_free(HASHSET* set) {
+    return ::catrl_hashset_free(set);
+}
+
+/* -------------------------------------------------------------------------------------------------
+ * C++ API :: HASHMAP OPERATIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/** Initialize unused HashMap storage without allocation; ksize and vsize are nonzero bytes per key and value. */
+inline void hashmap_init(HASHMAP* map, NUINT ksize, NUINT vsize) {
+    ::catrl_hashmap_init(map, ksize, vsize);
+}
+
+/** Copy readable key and value bytes from outside the initialized HashMap and its allocations; return FALSE on duplicate without replacing its value. Requires spare capacity for a new key. */
+inline BOOL hashmap_add(HASHMAP* map, POINTER key, POINTER value) {
+    return ::catrl_hashmap_add(map, key, value);
+}
+
+/** Remove the association matching ksize readable key bytes; return FALSE if absent. May relocate the last association; retains capacity. */
+inline BOOL hashmap_remove(HASHMAP* map, POINTER key) {
+    return ::catrl_hashmap_remove(map, key);
+}
+
+/** Test membership using ksize readable key bytes and byte equality in an initialized HashMap. */
+inline BOOL hashmap_contains(const HASHMAP* map, POINTER key) {
+    return ::catrl_hashmap_contains(map, key);
+}
+
+/** Borrow the writable value associated with a readable key, or null if absent. Reacquire after removal, clear, resize or free attempts; do not release independently. */
+inline POINTERW hashmap_get(HASHMAP* map, POINTER key) {
+    return ::catrl_hashmap_get(map, key);
+}
+
+/** Update an existing key's value from vsize readable bytes outside the HashMap and its allocations; return FALSE if absent. */
+inline BOOL hashmap_set(HASHMAP* map, POINTER key, POINTER value) {
+    return ::catrl_hashmap_set(map, key, value);
+}
+
+/** Remove all associations without releasing storage or changing capacity. */
+inline void hashmap_clear(HASHMAP* map) {
+    ::catrl_hashmap_clear(map);
+}
+
+/** Expand to the requested larger association capacity and rebuild the bucket index; smaller/equal requests are no-ops. */
+inline RESULT hashmap_expand(HASHMAP* map, NUINT capacity) {
+    return ::catrl_hashmap_expand(map, capacity);
+}
+
+/** Reduce capacity without discarding associations; rebuild the bucket index as needed. */
+inline RESULT hashmap_shrink(HASHMAP* map) {
+    return ::catrl_hashmap_shrink(map);
+}
+
+/** Release owned key, value and bucket storage, retaining key and value sizes for reuse; retain unreleased ownership on failure. */
+inline RESULT hashmap_free(HASHMAP* map) {
+    return ::catrl_hashmap_free(map);
 }
 
 } /* namespace catalyst */

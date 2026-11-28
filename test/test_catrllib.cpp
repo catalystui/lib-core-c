@@ -903,6 +903,158 @@ int main() {
     }
 
     // ------------------------------------------------------------
+    // HashSet and HashMap: collision chains, dense relocation, and lifecycle
+    // ------------------------------------------------------------
+    {
+        HASHSET set;
+        HASHMAP map;
+        BYTE a = 0, b = 8, c = 16, d = 24, missing = 32;
+        BYTE av = 0xA1, bv = 0xB2, cv = 0xC3, dv = 0xD4;
+        catrl_hashset_init(&set, 1);
+        catrl_hashmap_init(&map, 1, 1);
+        check(&failed, set.data == 0 && set.buckets == 0 && set.size == 1 &&
+            set.cardinality == 0 && set.capacity == 0 && set.bcapacity == 0 &&
+            !hashset_contains(&set, &a) && !hashset_remove(&set, &a), "hashset empty initialization");
+        check(&failed, map.keys == 0 && map.values == 0 && map.buckets == 0 &&
+            map.ksize == 1 && map.vsize == 1 && map.cardinality == 0 && map.capacity == 0 &&
+            map.bcapacity == 0 && !hashmap_contains(&map, &a) && hashmap_get(&map, &a) == 0 &&
+            !hashmap_remove(&map, &a) && !hashmap_set(&map, &a, &av), "hashmap empty initialization");
+        check(&failed, matches(hashset_expand(&set, 0), STATUS_CODE_SUCCESS_NOOP, 0x42, 1) &&
+            matches(hashset_shrink(&set), STATUS_CODE_SUCCESS_NOOP, 0x43, 1) &&
+            matches(hashset_free(&set), STATUS_CODE_SUCCESS_NOOP, 0x44, 1), "hashset empty no-ops");
+        check(&failed, matches(hashmap_expand(&map, 0), STATUS_CODE_SUCCESS_NOOP, 0x4C, 1) &&
+            matches(hashmap_shrink(&map), STATUS_CODE_SUCCESS_NOOP, 0x4D, 1) &&
+            matches(hashmap_free(&map), STATUS_CODE_SUCCESS_NOOP, 0x4E, 1), "hashmap empty no-ops");
+        BOOL readySet = matches(hashset_expand(&set, 4), STATUS_CODE_SUCCESS, 0x42, 6);
+        BOOL readyMap = matches(hashmap_expand(&map, 4), STATUS_CODE_SUCCESS, 0x4C, 8);
+        if (check(&failed, readySet && readyMap && set.capacity == 4 && set.bcapacity == 8 &&
+                map.capacity == 4 && map.bcapacity == 8, "hashed allocations and bucket counts")) {
+            // Keys separated by eight have the same home in an eight-bucket ring.
+            check(&failed, catrl_hashset_add(&set, &a) && hashset_add(&set, &b) &&
+                hashset_add(&set, &c) && hashset_add(&set, &d) &&
+                !hashset_add(&set, &a) && set.cardinality == 4, "hashset colliding insertion and duplicate at capacity");
+            check(&failed, catrl_hashmap_add(&map, &a, &av) && hashmap_add(&map, &b, &bv) &&
+                hashmap_add(&map, &c, &cv) && hashmap_add(&map, &d, &dv) &&
+                !hashmap_add(&map, &a, &dv) && value_matches(hashmap_get(&map, &a), &av, 1) &&
+                map.cardinality == 4, "hashmap colliding insertion and duplicate preserves value");
+            check(&failed, !hashset_contains(&set, &missing) && !hashset_remove(&set, &missing) &&
+                !hashmap_contains(&map, &missing) && hashmap_get(&map, &missing) == 0 &&
+                !hashmap_remove(&map, &missing) && !hashmap_set(&map, &missing, &av), "hashed collision-chain misses");
+            check(&failed, catrl_hashset_remove(&set, &b) && !hashset_contains(&set, &b) &&
+                hashset_contains(&set, &a) && hashset_contains(&set, &c) && hashset_contains(&set, &d) &&
+                ((const BYTE*) set.data)[1] == d && set.cardinality == 3, "hashset middle deletion and dense relocation");
+            check(&failed, catrl_hashmap_remove(&map, &b) && !hashmap_contains(&map, &b) &&
+                value_matches(hashmap_get(&map, &a), &av, 1) && value_matches(hashmap_get(&map, &c), &cv, 1) &&
+                value_matches(hashmap_get(&map, &d), &dv, 1) &&
+                ((const BYTE*) map.keys)[1] == d && ((const BYTE*) map.values)[1] == dv, "hashmap dense relocation preserves associations");
+            check(&failed, catrl_hashmap_set(&map, &d, &bv) &&
+                value_matches(catrl_hashmap_get(&map, &d), &bv, 1), "hashmap set existing association");
+            POINTERW borrowed = hashmap_get(&map, &d);
+            if (borrowed != 0) *(BYTE*) borrowed = dv;
+            check(&failed, value_matches(hashmap_get(&map, &d), &dv, 1), "hashmap writable borrowed value");
+            BOOL grownSet = matches(catrl_hashset_expand(&set, 9), STATUS_CODE_SUCCESS, 0x42, 6);
+            BOOL grownMap = matches(catrl_hashmap_expand(&map, 9), STATUS_CODE_SUCCESS, 0x4C, 8);
+            if (check(&failed, grownSet && grownMap && set.bcapacity == 18 && map.bcapacity == 18 &&
+                    hashset_contains(&set, &d) && value_matches(hashmap_get(&map, &d), &dv, 1), "hashed rehash on non-power-of-two growth")) {
+                check(&failed, matches(hashset_expand(&set, 9), STATUS_CODE_SUCCESS_NOOP, 0x42, 1) &&
+                    matches(hashmap_expand(&map, 9), STATUS_CODE_SUCCESS_NOOP, 0x4C, 1), "hashed expansion no-op");
+                check(&failed, matches(catrl_hashset_shrink(&set), STATUS_CODE_SUCCESS, 0x43, 4) &&
+                    matches(catrl_hashmap_shrink(&map), STATUS_CODE_SUCCESS, 0x4D, 5) &&
+                    set.capacity == 4 && map.capacity == 4 && set.bcapacity == 8 && map.bcapacity == 8 &&
+                    hashset_contains(&set, &c) && value_matches(hashmap_get(&map, &c), &cv, 1), "hashed shrink rebuild preserves members");
+                check(&failed, hashset_add(&set, &b) && hashmap_add(&map, &b, &bv), "hashed reinsertion into repaired cluster");
+                check(&failed, matches(hashset_shrink(&set), STATUS_CODE_SUCCESS_NOOP, 0x43, 1) &&
+                    matches(hashmap_shrink(&map), STATUS_CODE_SUCCESS_NOOP, 0x4D, 1), "hashed full shrink no-op");
+            }
+            catrl_hashset_clear(&set);
+            catrl_hashmap_clear(&map);
+            check(&failed, set.cardinality == 0 && map.cardinality == 0 && !hashset_contains(&set, &a) &&
+                hashmap_get(&map, &a) == 0 && hashset_add(&set, &a) && hashmap_add(&map, &a, &av), "hashed clear and reuse");
+        }
+        check(&failed, status_code_is_success(catrl_hashset_free(&set).status) &&
+            set.data == 0 && set.buckets == 0 && set.capacity == 0 && set.bcapacity == 0 && set.cardinality == 0 &&
+            set.size == 1, "hashset free retains size");
+        check(&failed, status_code_is_success(catrl_hashmap_free(&map).status) &&
+            map.keys == 0 && map.values == 0 && map.buckets == 0 && map.capacity == 0 && map.bcapacity == 0 &&
+            map.cardinality == 0 && map.ksize == 1 && map.vsize == 1, "hashmap free retains sizes");
+        check(&failed, matches(hashset_free(&set), STATUS_CODE_SUCCESS_NOOP, 0x44, 1) &&
+            matches(hashmap_free(&map), STATUS_CODE_SUCCESS_NOOP, 0x4E, 1), "hashed repeated free");
+    }
+    {
+        HASHSET set;
+        HASHMAP map;
+        hashset_init(&set, 2);
+        hashmap_init(&map, 1, 2);
+        check(&failed, matches(hashset_expand(&set, CATALYST_NUINT_MAX), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x42, 2) &&
+            matches(hashmap_expand(&map, CATALYST_NUINT_MAX), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x4C, 3),
+            "hashed element and value extent overflow");
+        hashmap_init(&map, 2, 1);
+        check(&failed, matches(hashmap_expand(&map, CATALYST_NUINT_MAX), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x4C, 2),
+            "hashmap key extent overflow");
+        hashset_init(&set, 1);
+        hashmap_init(&map, 1, 1);
+        NUINT tooMany = (NUINT) (CATALYST_NUINT_MAX / (NUINT) sizeof(NUINT) / (NUINT) 2 + (NUINT) 1);
+        check(&failed, matches(hashset_expand(&set, tooMany), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x42, 3) &&
+            matches(hashmap_expand(&map, tooMany), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x4C, 4) &&
+            set.data == 0 && set.buckets == 0 && map.keys == 0 && map.values == 0 && map.buckets == 0,
+            "hashed bucket extent overflow precedes allocation");
+        // One allocation succeeds, but a value extent of NUINT_MAX cannot
+        // accommodate CATMMLIB's private allocation prefix.
+        hashmap_init(&map, 1, CATALYST_NUINT_MAX);
+        check(&failed, matches(hashmap_expand(&map, 1), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x4C, 6) &&
+            map.keys != 0 && map.values == 0 && map.buckets == 0 &&
+            map.capacity == 0 && map.cardinality == 0 && map.bcapacity == 0, "hashmap partial expansion retains ownership");
+        check(&failed, matches(hashmap_free(&map), STATUS_CODE_SUCCESS, 0x4E, 5) &&
+            map.keys == 0 && map.values == 0 && map.buckets == 0, "hashmap partial expansion cleanup");
+    }
+    {
+        // Repeated mutations across many non-power-of-two bucket counts.
+        // A separate byte model validates every membership and association.
+#if TARGET_SIZEOF_ADDRESS >= 2
+        const NUINT count = 63;
+#else
+        const NUINT count = 7;
+#endif
+        BYTE present[count];
+        HASHSET set;
+        HASHMAP map;
+        hashset_init(&set, 1);
+        hashmap_init(&map, 1, 1);
+        BOOL setReady = matches(hashset_expand(&set, count), STATUS_CODE_SUCCESS, 0x42, 6);
+        BOOL mapReady = matches(hashmap_expand(&map, count), STATUS_CODE_SUCCESS, 0x4C, 8);
+        BOOL passed = setReady && mapReady ? TRUE : FALSE;
+        for (NUINT i = 0; i < count; ++i) present[i] = 0;
+        for (BYTE round = 0; round < (BYTE) 12 && passed; ++round) {
+            for (NUINT i = 0; i < count && passed; ++i) {
+                BYTE key = (BYTE) i;
+                BYTE value = (BYTE) (key ^ (BYTE) 0xA5);
+                if ((BYTE) ((BYTE) i + round) % (BYTE) 3 == 0) {
+                    BOOL existed = present[i] != 0 ? TRUE : FALSE;
+                    passed = hashset_remove(&set, &key) == existed && hashmap_remove(&map, &key) == existed ? TRUE : FALSE;
+                    present[i] = 0;
+                } else {
+                    BOOL inserted = present[i] == 0 ? TRUE : FALSE;
+                    passed = hashset_add(&set, &key) == inserted && hashmap_add(&map, &key, &value) == inserted ? TRUE : FALSE;
+                    present[i] = 1;
+                }
+            }
+            NUINT live = 0;
+            for (NUINT i = 0; i < count && passed; ++i) {
+                BYTE key = (BYTE) i;
+                BYTE value = (BYTE) (key ^ (BYTE) 0xA5);
+                BOOL exists = present[i] != 0 ? TRUE : FALSE;
+                passed = hashset_contains(&set, &key) == exists && hashmap_contains(&map, &key) == exists &&
+                    (exists ? value_matches(hashmap_get(&map, &key), &value, 1) : hashmap_get(&map, &key) == 0) ? TRUE : FALSE;
+                if (exists) ++live;
+            }
+            if (set.cardinality != live || map.cardinality != live) passed = FALSE;
+        }
+        if (!status_code_is_success(hashset_free(&set).status)) passed = FALSE;
+        if (!status_code_is_success(hashmap_free(&map).status)) passed = FALSE;
+        check(&failed, passed, "hashed repeated mutation agrees with independent membership model");
+    }
+
+    // ------------------------------------------------------------
     // Done
     // ------------------------------------------------------------
     if (failed != 0) {
