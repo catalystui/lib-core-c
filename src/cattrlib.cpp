@@ -135,7 +135,6 @@ static const BYTE INVOCATION_CANCELLED = 3;
 struct CATTRLIB_INVOCATION {
     POINTERX operation;
     POINTERW arguments;
-    POINTERW identity;
     NUINT index;
     BOOL awaited;
     BYTE stage;
@@ -150,10 +149,10 @@ static CATTRLIB_INVOCATION* cattr_invocation_at(POINTER member) {
 }
 
 /* Monitor held. Cancel a pending invocation belonging to this dispatcher.
- * Remove using the exact identity representation originally inserted. */
-static void cattr_remove_pending(DISPATCHER* dispatcher, CATTRLIB_INVOCATION* invocation) {
+ * Identity points to the submitting caller's original stored reference. */
+static void cattr_remove_pending(DISPATCHER* dispatcher, POINTERW* identity) {
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
-    catrl_set_remove(&dispatcher->work, &invocation->identity);
+    catrl_set_remove(&dispatcher->work, identity);
     if (dispatcher->rule != 0) return;
     /* Cancellation is uncommon and may target any pending member. Rotate
      * exactly the original queue length, retaining relative FIFO order. */
@@ -161,7 +160,7 @@ static void cattr_remove_pending(DISPATCHER* dispatcher, CATTRLIB_INVOCATION* in
     for (NUINT i = 0; i < length; ++i) {
         POINTERW member;
         catrl_queue_dequeue(&state->order, &member);
-        if (member != invocation) catrl_queue_enqueue(&state->order, &member);
+        if (member != *identity) catrl_queue_enqueue(&state->order, &member);
     }
 }
 
@@ -216,7 +215,9 @@ struct CATTRLIB_SUBMISSION {
     POINTERX operation;
     POINTERW arguments;
     BOOL awaited;
-    CATTRLIB_INVOCATION* invocation;
+    /* Store the reference in the same type and representation used by the
+     * Set and Queue; an awaited caller retains it through cancellation. */
+    POINTERW invocation;
 };
 
 /* Monitor held. Admit once when a slot is available, then wait for execution
@@ -234,17 +235,16 @@ static BOOL cattr_submission_ready(POINTERW arguments) {
         CATTRLIB_INVOCATION* invocation = (CATTRLIB_INVOCATION*) catrl_pool_get(&state->pool, index);
         invocation->operation = submission->operation;
         invocation->arguments = submission->arguments;
-        invocation->identity = invocation;
         invocation->index = index;
         invocation->awaited = submission->awaited;
         invocation->stage = INVOCATION_PENDING;
         submission->invocation = invocation;
         BOOL was_empty = dispatcher->work.cardinality == 0 ? TRUE : FALSE;
-        catrl_set_add(&dispatcher->work, &invocation->identity);
-        if (dispatcher->rule == 0) catrl_queue_enqueue(&state->order, &invocation->identity);
+        catrl_set_add(&dispatcher->work, &submission->invocation);
+        if (dispatcher->rule == 0) catrl_queue_enqueue(&state->order, &submission->invocation);
         if (was_empty) cattr_platform_monitor_notify(dispatcher->state);
     }
-    return !submission->awaited || submission->invocation->stage != INVOCATION_PENDING ? TRUE : FALSE;
+    return !submission->awaited || ((const CATTRLIB_INVOCATION*) submission->invocation)->stage != INVOCATION_PENDING ? TRUE : FALSE;
 }
 
 /* An awaited running invocation cannot release its borrowed arguments until
@@ -276,7 +276,7 @@ CATALYST_RESULT cattr_dispatcher_submit(DISPATCHER* dispatcher, POINTERX operati
     submission.awaited = wait;
     submission.invocation = 0;
     RESULT admission = cattr_platform_monitor_wait(dispatcher->state, timeout, cattr_submission_ready, &submission);
-    CATTRLIB_INVOCATION* invocation = submission.invocation;
+    CATTRLIB_INVOCATION* invocation = (CATTRLIB_INVOCATION*) submission.invocation;
     if (invocation == 0) {
         cattr_platform_monitor_unlock(dispatcher->state);
         if (!status_code_is_success(admission.status)) return RESULT(admission.status, 0x0B, 0x03, admission.detail);
@@ -287,7 +287,7 @@ CATALYST_RESULT cattr_dispatcher_submit(DISPATCHER* dispatcher, POINTERX operati
         return RESULT(STATUS_CODE_SUCCESS, 0x0B, 0x05, 0);
     }
     if (invocation->stage == INVOCATION_PENDING) {
-        cattr_remove_pending(dispatcher, invocation);
+        cattr_remove_pending(dispatcher, &submission.invocation);
         BOOL was_full = state->pool.cardinality == state->pool.capacity ? TRUE : FALSE;
         catrl_pool_release(&state->pool, invocation->index);
         if (was_full) cattr_platform_monitor_notify(dispatcher->state);
