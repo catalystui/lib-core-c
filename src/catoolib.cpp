@@ -132,7 +132,7 @@ void catoo_field_set(FIELD* field, POINTER data) {
 
 CATALYST_RESULT catoo_method_invoke(const FIELD* field, POINTER arguments, POINTERW output) {
     METHOD method;
-    catmm_copy(&method, field->member->data, (NUINT) sizeof(method));
+    catrl_store(&method, field->member->data, (NUINT) sizeof(method));
     RESULT result = method(field->object, arguments, output);
     return RESULT(result.status, 0x11, 0x01, result.detail);
 }
