@@ -415,6 +415,49 @@ static int test_byte_class_extension() {
     return 0;
 }
 
+static BYTE rejected_argument = 0;
+static CATALYST_RESULT reject_method(OBJECT*, POINTER, POINTERW) {
+    return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0xB4, 1, rejected_argument);
+}
+static CATALYST_RESULT reject_getter(OBJECT*, POINTERW) {
+    return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0xB5, 1, rejected_argument);
+}
+static CATALYST_RESULT reject_setter(OBJECT*, POINTER) {
+    return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0xB6, 1, rejected_argument);
+}
+
+static int test_dispatch_argument_results() {
+    OBJECT object;
+    object_init(&object, 1);
+    CHECK(status_code_is_success(object_expand(&object, 2).status));
+    METHOD method = reject_method;
+    PROPERTY property = { reject_getter, reject_setter };
+    CHECK(status_code_is_success(object_add(&object, &method_key, &method, (NUINT) sizeof(method)).status));
+    CHECK(status_code_is_success(object_add(&object, &property_key, &property, (NUINT) sizeof(property)).status));
+    FIELD callable, accessor;
+    CHECK(field_init(&callable, &object, &method_key));
+    CHECK(field_init(&accessor, &object, &property_key));
+    BYTE input = 1, output = 0x77;
+    for (BYTE i = 0; i < 3; ++i) {
+        rejected_argument = i;
+        CHECK(matches(method_invoke(&callable, &input, &output), STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x11, 1, i));
+        STATUS_CODE status = i < 2 ? STATUS_CODE_ERROR_INVALID_ARGUMENT : STATUS_CODE_ERROR_INVALID_STATE;
+        OPERATION_CODE operation = i < 2 ? (OPERATION_CODE) 1 : (OPERATION_CODE) 2;
+        CHECK(matches(property_get(&accessor, &output), status, 0x12, operation, i));
+        CHECK(matches(property_set(&accessor, &input), status, 0x13, operation, i));
+        CHECK(output == 0x77);
+    }
+    rejected_argument = 3;
+    CHECK(matches(method_invoke(&callable, &input, &output), STATUS_CODE_ERROR_INVALID_STATE, 0x11, 2, 3));
+    rejected_argument = CATALYST_BYTE_MAX;
+    CHECK(matches(method_invoke(&callable, &input, &output), STATUS_CODE_ERROR_INVALID_STATE, 0x11, 2, CATALYST_BYTE_MAX));
+    CHECK(matches(property_get(&accessor, &output), STATUS_CODE_ERROR_INVALID_STATE, 0x12, 2, CATALYST_BYTE_MAX));
+    CHECK(matches(property_set(&accessor, &input), STATUS_CODE_ERROR_INVALID_STATE, 0x13, 2, CATALYST_BYTE_MAX));
+    CHECK(output == 0x77);
+    CHECK(status_code_is_success(object_free(&object).status));
+    return 0;
+}
+
 int main() {
     BYTE value = 17, changed = 42, output = 0;
     MEMBER member;
@@ -525,6 +568,7 @@ int main() {
     CHECK(test_independent_instances() == 0);
     std::printf("PASS: independent instances and borrowed references\n");
     CHECK(test_callback_results() == 0);
+    CHECK(test_dispatch_argument_results() == 0);
     std::printf("PASS: callback status and structural validation\n");
     CHECK(test_class_extension_boundaries() == 0);
     std::printf("PASS: class extension boundaries and empty composites\n");

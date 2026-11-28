@@ -147,17 +147,17 @@ CATOOLIB_API void catoo_field_set(CATOOLIB_FIELD* field, CATMMLIB_POINTER data);
  * C API :: METHOD OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Invoke a live field containing a CATOOLIB_METHOD value with the exact callable type. Caller supplies valid arguments/output per callback; callback defines output validity and may invalidate the field. */
+/** Invoke a live field containing a CATOOLIB_METHOD value with the exact callable type. Caller supplies valid arguments/output per callback; callback defines output validity and may invalidate the field. Invalid-argument indices 0–2 identify field, arguments, and output; any larger index is an invalid callback state. */
 CATOOLIB_API CATALYST_RESULT catoo_method_invoke(const CATOOLIB_FIELD* field, CATMMLIB_POINTER arguments, CATMMLIB_POINTERW output);
 
 /* -------------------------------------------------------------------------------------------------
  * C API :: PROPERTY OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Invoke a live field containing a CATOOLIB_PROPERTY with a callable getter. Caller supplies valid output; callback defines its validity and may invalidate the field. */
+/** Invoke a live field containing a CATOOLIB_PROPERTY with a callable getter. Caller supplies valid output; callback defines its validity and may invalidate the field. Invalid-argument indices 0–1 identify field and output; any larger index is an invalid callback state. */
 CATOOLIB_API CATALYST_RESULT catoo_property_get(const CATOOLIB_FIELD* field, CATMMLIB_POINTERW output);
 
-/** Invoke a live field containing a CATOOLIB_PROPERTY with a callable setter. Caller supplies valid input; callback defines behavior and may invalidate the field. */
+/** Invoke a live field containing a CATOOLIB_PROPERTY with a callable setter. Caller supplies valid input; callback defines behavior and may invalidate the field. Invalid-argument indices 0–1 identify field and data; any larger index is an invalid callback state. */
 CATOOLIB_API CATALYST_RESULT catoo_property_set(CATOOLIB_FIELD* field, CATMMLIB_POINTER data);
 
 /* -------------------------------------------------------------------------------------------------

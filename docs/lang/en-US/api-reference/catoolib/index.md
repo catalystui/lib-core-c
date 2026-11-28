@@ -15,7 +15,7 @@ Objects own their CATRLLIB map records and each nonzero-size member's separately
 
 Keys have a single nonzero byte width per object and are compared as bytes. Expand capacity before adding; a duplicate is a no-op. The map's exposed fields are not an alternative mutation API. Borrowed members and fields are invalidated by removal, clear, resize or free attempts. Fields borrow the object's stored keys, not the caller's lookup buffers. Do not independently free borrowed members or change their ownership or size.
 
-A method is stored by copying the bytes of a native `CATOOLIB_METHOD` function pointer; a property is stored by copying a `CATOOLIB_PROPERTY`. Callers establish the exact callable types and callback contracts before invoking; no runtime type metadata is introduced. Callback results preserve status/detail under CATOOLIB context/operation codes, except interface validation remaps invalid-argument details. A callback may invalidate a resolved field by mutating its object.
+A method is stored by copying the bytes of a native `CATOOLIB_METHOD` function pointer; a property is stored by copying a `CATOOLIB_PROPERTY`. Callers establish the exact callable types and callback contracts before invoking; no runtime type metadata is introduced. Callback results preserve status/detail under CATOOLIB context/operation codes, except interface validation remaps invalid-argument details and dispatch rejects out-of-range callback argument indices as invalid state. Receiver index zero corresponds to the public Field argument. A callback may invalidate a resolved field by mutating its object.
 
 Structures have fixed keys by API contract, not compiler enforcement. Classes store default member bytes and create independent instances; references embedded in those bytes remain shared. Class extension copies disjoint layouts. Conflicting keys are intentionally unsupported until a policy is approved. No nominal inheritance, class identity tracking, or automatic lifecycle callbacks are implied.
 
@@ -52,9 +52,9 @@ Interfaces require a subset of the object's keys and validate each corresponding
 | [`catoo_field_init`](#catoo_field_init) | Resolve a borrowed field from an initialized object using a readable key. The field borrows the object's stored key and member; input key storage is not retained. Reacquire after invalidating map operations. Absence clears the field and returns FALSE. |
 | [`catoo_field_get`](#catoo_field_get) | Copy a live resolved member into sufficient writable output storage outside its descriptor. |
 | [`catoo_field_set`](#catoo_field_set) | Copy size readable bytes into a live resolved member without changing its size or key. |
-| [`catoo_method_invoke`](#catoo_method_invoke) | Invoke a live field containing a CATOOLIB_METHOD value with the exact callable type. Caller supplies valid arguments/output per callback; callback defines output validity and may invalidate the field. |
-| [`catoo_property_get`](#catoo_property_get) | Invoke a live field containing a CATOOLIB_PROPERTY with a callable getter. Caller supplies valid output; callback defines its validity and may invalidate the field. |
-| [`catoo_property_set`](#catoo_property_set) | Invoke a live field containing a CATOOLIB_PROPERTY with a callable setter. Caller supplies valid input; callback defines behavior and may invalidate the field. |
+| [`catoo_method_invoke`](#catoo_method_invoke) | Invoke a live field containing a CATOOLIB_METHOD value with the exact callable type. Caller supplies valid arguments/output per callback; callback defines output validity and may invalidate the field. Invalid-argument indices 0–2 identify field, arguments, and output; any larger index is an invalid callback state. |
+| [`catoo_property_get`](#catoo_property_get) | Invoke a live field containing a CATOOLIB_PROPERTY with a callable getter. Caller supplies valid output; callback defines its validity and may invalidate the field. Invalid-argument indices 0–1 identify field and output; any larger index is an invalid callback state. |
+| [`catoo_property_set`](#catoo_property_set) | Invoke a live field containing a CATOOLIB_PROPERTY with a callable setter. Caller supplies valid input; callback defines behavior and may invalidate the field. Invalid-argument indices 0–1 identify field and data; any larger index is an invalid callback state. |
 | [`catoo_structure_init`](#catoo_structure_init) | Clone a live object's members into unused structure storage. Keys are fixed by contract. Failure attempts cleanup; remaining ownership is freeable via structure_free. |
 | [`catoo_structure_get`](#catoo_structure_get) | Borrow the member associated with a readable key, or return null if absent. Do not change the structure's key set. |
 | [`catoo_structure_free`](#catoo_structure_free) | Release the structure's owned storage; failure retains unreleased resources for retry. |
@@ -303,7 +303,7 @@ Copy size readable bytes into a live resolved member without changing its size o
 CATALYST_RESULT catoo_method_invoke(const CATOOLIB_FIELD* field, CATMMLIB_POINTER arguments, CATMMLIB_POINTERW output);
 ```
 
-Invoke a live field containing a CATOOLIB_METHOD value with the exact callable type. Caller supplies valid arguments/output per callback; callback defines output validity and may invalidate the field.
+Invoke a live field containing a CATOOLIB_METHOD value with the exact callable type. Caller supplies valid arguments/output per callback; callback defines output validity and may invalidate the field. Invalid-argument indices 0–2 identify field, arguments, and output; any larger index is an invalid callback state.
 
 **C++:** `method_invoke`  
 **Context:** `0x11`  
@@ -311,7 +311,11 @@ Invoke a live field containing a CATOOLIB_METHOD value with the exact callable t
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0xSS1101DD` | Variable status | Callback outcome. | Callback detail. |
+| `0xSS1101DD` | Variable status except INVALID_ARGUMENT | Callback outcome. | Callback detail. |
+| `0x81110100` | ERROR_INVALID_ARGUMENT | Callback rejects an argument. | Field (receiver) parameter. |
+| `0x81110101` | ERROR_INVALID_ARGUMENT | Callback rejects an argument. | Arguments parameter. |
+| `0x81110102` | ERROR_INVALID_ARGUMENT | Callback rejects an argument. | Output parameter. |
+| `0x821102DD` | ERROR_INVALID_STATE | Callback reported an out-of-range argument index. | Rejected callback index (3–255). |
 
 ### catoo_property_get
 
@@ -319,7 +323,7 @@ Invoke a live field containing a CATOOLIB_METHOD value with the exact callable t
 CATALYST_RESULT catoo_property_get(const CATOOLIB_FIELD* field, CATMMLIB_POINTERW output);
 ```
 
-Invoke a live field containing a CATOOLIB_PROPERTY with a callable getter. Caller supplies valid output; callback defines its validity and may invalidate the field.
+Invoke a live field containing a CATOOLIB_PROPERTY with a callable getter. Caller supplies valid output; callback defines its validity and may invalidate the field. Invalid-argument indices 0–1 identify field and output; any larger index is an invalid callback state.
 
 **C++:** `property_get`  
 **Context:** `0x12`  
@@ -327,7 +331,10 @@ Invoke a live field containing a CATOOLIB_PROPERTY with a callable getter. Calle
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0xSS1201DD` | Variable status | Callback outcome. | Callback detail. |
+| `0xSS1201DD` | Variable status except INVALID_ARGUMENT | Callback outcome. | Callback detail. |
+| `0x81120100` | ERROR_INVALID_ARGUMENT | Callback rejects an argument. | Field (receiver) parameter. |
+| `0x81120101` | ERROR_INVALID_ARGUMENT | Callback rejects an argument. | Output parameter. |
+| `0x821202DD` | ERROR_INVALID_STATE | Callback reported an out-of-range argument index. | Rejected callback index (2–255). |
 
 ### catoo_property_set
 
@@ -335,7 +342,7 @@ Invoke a live field containing a CATOOLIB_PROPERTY with a callable getter. Calle
 CATALYST_RESULT catoo_property_set(CATOOLIB_FIELD* field, CATMMLIB_POINTER data);
 ```
 
-Invoke a live field containing a CATOOLIB_PROPERTY with a callable setter. Caller supplies valid input; callback defines behavior and may invalidate the field.
+Invoke a live field containing a CATOOLIB_PROPERTY with a callable setter. Caller supplies valid input; callback defines behavior and may invalidate the field. Invalid-argument indices 0–1 identify field and data; any larger index is an invalid callback state.
 
 **C++:** `property_set`  
 **Context:** `0x13`  
@@ -343,7 +350,10 @@ Invoke a live field containing a CATOOLIB_PROPERTY with a callable setter. Calle
 
 | Result | Status | Operation | Detail |
 | --- | --- | --- | --- |
-| `0xSS1301DD` | Variable status | Callback outcome. | Callback detail. |
+| `0xSS1301DD` | Variable status except INVALID_ARGUMENT | Callback outcome. | Callback detail. |
+| `0x81130100` | ERROR_INVALID_ARGUMENT | Callback rejects an argument. | Field (receiver) parameter. |
+| `0x81130101` | ERROR_INVALID_ARGUMENT | Callback rejects an argument. | Data parameter. |
+| `0x821302DD` | ERROR_INVALID_STATE | Callback reported an out-of-range argument index. | Rejected callback index (2–255). |
 
 ### catoo_structure_init
 

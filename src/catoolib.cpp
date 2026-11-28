@@ -135,6 +135,10 @@ CATALYST_RESULT catoo_method_invoke(const FIELD* field, POINTER arguments, POINT
     METHOD method;
     catrl_store(&method, field->member->data, (NUINT) sizeof(method));
     RESULT result = method(field->object, arguments, output);
+    /* Callback receiver index zero corresponds to the public Field.
+     * All remaining callback argument positions match the public signature. */
+    if (result.status == STATUS_CODE_ERROR_INVALID_ARGUMENT && result.detail > (DETAIL_CODE) 2)
+        return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x11, 0x02, result.detail);
     return RESULT(result.status, 0x11, 0x01, result.detail);
 }
 
@@ -142,6 +146,10 @@ CATALYST_RESULT catoo_property_get(const FIELD* field, POINTERW output) {
     CATALYST_RESULT (*get)(OBJECT*, POINTERW);
     catrl_store(&get, (const BYTE*) field->member->data + (NUINT) offsetof(PROPERTY, get), (NUINT) sizeof(get));
     RESULT result = get(field->object, output);
+    /* Callback receiver index zero corresponds to the public Field.
+     * All remaining callback argument positions match the public signature. */
+    if (result.status == STATUS_CODE_ERROR_INVALID_ARGUMENT && result.detail > (DETAIL_CODE) 1)
+        return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x12, 0x02, result.detail);
     return RESULT(result.status, 0x12, 0x01, result.detail);
 }
 
@@ -149,6 +157,10 @@ CATALYST_RESULT catoo_property_set(FIELD* field, POINTER data) {
     CATALYST_RESULT (*set)(OBJECT*, POINTER);
     catrl_store(&set, (const BYTE*) field->member->data + (NUINT) offsetof(PROPERTY, set), (NUINT) sizeof(set));
     RESULT result = set(field->object, data);
+    /* Callback receiver index zero corresponds to the public Field.
+     * All remaining callback argument positions match the public signature. */
+    if (result.status == STATUS_CODE_ERROR_INVALID_ARGUMENT && result.detail > (DETAIL_CODE) 1)
+        return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x13, 0x02, result.detail);
     return RESULT(result.status, 0x13, 0x01, result.detail);
 }
 
