@@ -129,13 +129,60 @@ jobs:
           $output = 'build/linux/linux/${{ matrix.arch }}/release'
           g++ ${{ matrix.flags }} -std=c++${{ matrix.cpp }} -Iinclude -Itarget/ci/generated test/test_cattelib.cpp "-L$output/lib" -lcatte '-Wl,-rpath,$ORIGIN' -o "$output/test_cattelib_dynamic"
           g++ ${{ matrix.flags }} -std=c++${{ matrix.cpp }} -Iinclude -Itarget/ci/generated test/test_catoolib.cpp "-L$output/lib" -lcatoo -lcatrl -lcatmm '-Wl,-rpath,$ORIGIN' -o "$output/test_catoolib_dynamic"
+          # Exercise actual C callbacks and C consumers, not just C header syntax.
+          @'
+          #include "catoolib.h"
+
+          static CATALYST_RESULT read_member(CATOOLIB_OBJECT* object, CATMMLIB_POINTER arguments, CATMMLIB_POINTERW output) {
+              CATALYST_RESULT result = { CATALYST_STATUS_CODE_SUCCESS, 0xA0, 1, 0 };
+              CATOOLIB_MEMBER* member = catoo_object_get(object, arguments);
+              if (member == 0) {
+                  result.status = CATALYST_STATUS_CODE_ERROR_NOT_FOUND;
+                  result.operation = 2;
+                  return result;
+              }
+              catoo_member_get(member, output);
+              return result;
+          }
+
+          int main(void) {
+              CATOOLIB_OBJECT definition, instance;
+              CATOOLIB_CLASS class_;
+              CATOOLIB_FIELD field;
+              CATOOLIB_METHOD method = read_member;
+              CATOOLIB_MEMBER* member;
+              CATALYST_RESULT result;
+              CATALYST_BYTE key = 1, method_key = 2, value = 42, output[2];
+              catoo_object_init(&definition, 1);
+              if (!CATALYST_STATUS_CODE_IS_SUCCESS(catoo_object_expand(&definition, 2).status)) return 1;
+              if (!CATALYST_STATUS_CODE_IS_SUCCESS(catoo_object_add(&definition, &key, &value, 1).status)) return 2;
+              if (!CATALYST_STATUS_CODE_IS_SUCCESS(catoo_object_add(&definition, &method_key, &method, (CATALYST_NUINT) sizeof(method)).status)) return 3;
+              if (!CATALYST_STATUS_CODE_IS_SUCCESS(catoo_class_init(&class_, &definition).status)) return 4;
+              if (!CATALYST_STATUS_CODE_IS_SUCCESS(catoo_class_create(&class_, &instance).status)) return 5;
+              if (!CATALYST_STATUS_CODE_IS_SUCCESS(catoo_class_free(&class_).status)) return 6;
+              if (!CATALYST_STATUS_CODE_IS_SUCCESS(catoo_object_free(&definition).status)) return 7;
+              member = catoo_object_get(&instance, &key);
+              if (member == 0) return 8;
+              result = catoo_member_resize(member, 2);
+              if (result.status != CATALYST_STATUS_CODE_SUCCESS || result.context != 0x1E || result.operation != 4 || result.detail != 0) return 9;
+              if (!catoo_field_init(&field, &instance, &method_key)) return 10;
+              result = catoo_method_invoke(&field, &key, output);
+              if (result.status != CATALYST_STATUS_CODE_SUCCESS || result.context != 0x11 || result.operation != 1 || result.detail != 0) return 11;
+              if (output[0] != value || output[1] != 0) return 12;
+              if (!CATALYST_STATUS_CODE_IS_SUCCESS(catoo_object_free(&instance).status)) return 13;
+              return 0;
+          }
+          '@ | gcc ${{ matrix.flags }} -std=c${{ matrix.c }} -pedantic-errors -Iinclude -Itarget/ci/generated -x c -c -o target/ci/catoolib-c-client.o -
+          gcc ${{ matrix.flags }} target/ci/catoolib-c-client.o "-L$output/lib" -lcatoo -lcatrl -lcatmm '-Wl,-rpath,$ORIGIN' -o "$output/test_catoolib_c_dynamic"
           $runtime = 'target/ci/runtime-check'
           New-Item -ItemType Directory -Path $runtime -Force | Out-Null
           Get-ChildItem "$output/lib*.so.*" | ForEach-Object { /bin/cp -P $_.FullName "$runtime/" }
           Copy-Item "$output/test_cattelib_dynamic" "$runtime/"
           Copy-Item "$output/test_catoolib_dynamic" "$runtime/"
+          Copy-Item "$output/test_catoolib_c_dynamic" "$runtime/"
           & "$runtime/test_cattelib_dynamic"
           & "$runtime/test_catoolib_dynamic"
+          & "$runtime/test_catoolib_c_dynamic"
 
       - name: Compile public C headers
         run: |
