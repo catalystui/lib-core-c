@@ -373,6 +373,48 @@ static int test_remove_payload_key() {
     return 0;
 }
 
+static int test_byte_class_extension() {
+#if TARGET_SIZEOF_VOID_P >= 2
+    OBJECT definition, incoming;
+    object_init(&definition, 1);
+    object_init(&incoming, 1);
+    CHECK(status_code_is_success(object_expand(&definition, 32).status));
+    CHECK(status_code_is_success(object_expand(&incoming, 8).status));
+    for (BYTE i = 0; i < 32; ++i)
+        CHECK(status_code_is_success(object_add(&definition, &i, &i, 1).status));
+    for (BYTE i = 0; i < 7; ++i) {
+        BYTE key = (BYTE) (248 + i);
+        CHECK(status_code_is_success(object_add(&incoming, &key, &key, 1).status));
+    }
+    BYTE overlap = 31, high = 255;
+    CHECK(status_code_is_success(object_add(&incoming, &overlap, &overlap, 1).status));
+    CLASS destination, base;
+    CHECK(status_code_is_success(class_init(&destination, &definition).status));
+    CHECK(status_code_is_success(class_init(&base, &incoming).status));
+    CHECK(matches(class_extend(&destination, &base), STATUS_CODE_ERROR_NOT_IMPLEMENTED, 0x19, 3));
+    CHECK(destination.object.members.cardinality == 32 && destination.object.members.capacity == 32);
+    CHECK(matches(class_free(&base), STATUS_CODE_SUCCESS, 0x1A, 1));
+    CHECK(status_code_is_success(object_remove(&incoming, &overlap).status));
+    CHECK(status_code_is_success(object_add(&incoming, &high, &high, 1).status));
+    CHECK(status_code_is_success(class_init(&base, &incoming).status));
+    CHECK(matches(class_extend(&destination, &base), STATUS_CODE_SUCCESS, 0x19, 8));
+    CHECK(destination.object.members.cardinality == 40);
+    for (BYTE i = 0; i < 8; ++i) {
+        BYTE key = (BYTE) (248 + i), out = 0;
+        MEMBER* member = object_get(&destination.object, &key);
+        CHECK(member != 0);
+        member_get(member, &out);
+        CHECK(out == key);
+    }
+    CHECK(matches(class_extend(&destination, &base), STATUS_CODE_ERROR_NOT_IMPLEMENTED, 0x19, 3));
+    CHECK(status_code_is_success(class_free(&base).status));
+    CHECK(status_code_is_success(class_free(&destination).status));
+    CHECK(status_code_is_success(object_free(&definition).status));
+    CHECK(status_code_is_success(object_free(&incoming).status));
+#endif
+    return 0;
+}
+
 int main() {
     BYTE value = 17, changed = 42, output = 0;
     MEMBER member;
@@ -492,6 +534,7 @@ int main() {
     std::printf("PASS: ordered, reordered and incomplete interfaces\n");
     CHECK(test_remove_payload_key() == 0);
     std::printf("PASS: removal with payload-backed lookup key\n");
+    CHECK(test_byte_class_extension() == 0);
     std::printf("PASS: CATOOLIB composites\n");
     return 0;
 }

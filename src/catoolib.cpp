@@ -213,6 +213,32 @@ CATALYST_RESULT catoo_class_create(const CLASS* class_, OBJECT* object) {
     return catoo_clone(object, &class_->object, 0x18);
 }
 
+/* Equal, nonzero key widths. Single-byte key sets have only 256 possible
+ * values; for larger pairs a bounded bitmap avoids repeated searches.
+ * The crossover is conservative and subject to benchmark verification. */
+static BOOL catoo_class_overlaps(const MAP* destination, const MAP* source) {
+    const BYTE* key = (const BYTE*) source->keys;
+    if (destination->ksize == (NUINT) 1 && destination->cardinality >= (NUINT) 32 &&
+        source->cardinality >= (NUINT) 8) {
+        BYTE occupied[32] = { 0 };
+        const BYTE* existing = (const BYTE*) destination->keys;
+        for (NUINT i = 0; i < destination->cardinality; ++i) {
+            const BYTE value = existing[i];
+            occupied[value >> 3] |= (BYTE) ((BYTE) 1 << (value & (BYTE) 7));
+        }
+        for (NUINT i = 0; i < source->cardinality; ++i) {
+            const BYTE value = key[i];
+            if ((occupied[value >> 3] & (BYTE) ((BYTE) 1 << (value & (BYTE) 7))) != 0) return TRUE;
+        }
+        return FALSE;
+    }
+    for (NUINT i = 0; i < source->cardinality; ++i) {
+        if (catrl_map_contains(destination, key)) return TRUE;
+        key += source->ksize;
+    }
+    return FALSE;
+}
+
 CATALYST_RESULT catoo_class_extend(CLASS* class_, const CLASS* base) {
     OBJECT* destination = &class_->object;
     const OBJECT* source = &base->object;
@@ -220,16 +246,13 @@ CATALYST_RESULT catoo_class_extend(CLASS* class_, const CLASS* base) {
     if (destination->members.ksize != source->members.ksize) return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x19, 0x02, 1);
     /* Overlap policy is not established. Reject before changing the class
      * rather than silently overriding or accepting incompatible definitions. */
-    const BYTE* key = (const BYTE*) source->members.keys;
-    for (NUINT i = 0; i < source->members.cardinality; ++i) {
-        if (catoo_object_contains(destination, key)) return RESULT(STATUS_CODE_ERROR_NOT_IMPLEMENTED, 0x19, 0x03, 0);
-        key += source->members.ksize;
-    }
+    if (catoo_class_overlaps(&destination->members, &source->members))
+        return RESULT(STATUS_CODE_ERROR_NOT_IMPLEMENTED, 0x19, 0x03, 0);
     const NUINT original = destination->members.cardinality;
     if (source->members.cardinality > (NUINT) (CATALYST_NUINT_MAX - original)) return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x19, 0x04, 0);
     RESULT expanded = catoo_object_expand(destination, (NUINT) (original + source->members.cardinality));
     if (!status_code_is_success(expanded.status)) return RESULT(expanded.status, 0x19, 0x05, expanded.detail);
-    key = (const BYTE*) source->members.keys;
+    const BYTE* key = (const BYTE*) source->members.keys;
     const MEMBER* member = (const MEMBER*) source->members.values;
     for (NUINT i = 0; i < source->members.cardinality; ++i) {
         RESULT added = catoo_append_copy(destination, key, member);
