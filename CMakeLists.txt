@@ -1,11 +1,27 @@
 cmake_minimum_required(VERSION 4.3.0)
 project(catalyst C CXX)
-set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-include_directories("${CMAKE_SOURCE_DIR}/include")
-include(${CMAKE_SOURCE_DIR}/cmake/CMakeInit.cmake REQUIRED)
+if(PROJECT_IS_TOP_LEVEL)
+    set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+endif()
+include("${PROJECT_SOURCE_DIR}/cmake/CMakeInit.cmake" REQUIRED)
 metadata("catalyst" 1 0 0 "alpha.2" "Foundational C ABI libraries for CatalystUI core types and text encoding.")
 configure("${TARGET_VENDOR}" "${TARGET_SYSTEM}" "${TARGET_ARCHITECTURE}")
 define("cmake/CMakeConfig.h" "cmakecfg.h")
+
+# Public headers and target configuration are usage requirements, not global
+# include paths. Keep the generated configuration separate from other projects.
+add_library(catalyst_headers INTERFACE)
+add_library(Catalyst::catalyst ALIAS catalyst_headers)
+set_target_properties(catalyst_headers PROPERTIES EXPORT_NAME catalyst)
+target_include_directories(catalyst_headers INTERFACE
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>"
+    "$<INSTALL_INTERFACE:include>"
+    "$<INSTALL_INTERFACE:include/catalyst-core-config>"
+)
+
+option(CATALYST_CORE_BUILD_TESTS "Build Core's standalone verification programs" ${PROJECT_IS_TOP_LEVEL})
+option(CATALYST_CORE_INSTALL "Install Core libraries and CMake package" ${PROJECT_IS_TOP_LEVEL})
 
 # cattelib
 add_library(cattelib_shared SHARED)
@@ -82,22 +98,24 @@ target_compile_definitions(cattelib_shared PRIVATE CATTELIB_EXPORTS INTERFACE CA
 target_compile_definitions(catmmlib_shared PRIVATE CATMMLIB_EXPORTS INTERFACE CATMMLIB_USE_DLL)
 target_compile_definitions(catrllib_shared PRIVATE CATRLLIB_EXPORTS INTERFACE CATRLLIB_USE_DLL)
 
-# Define test executables
-define_test_executables(
-    STATIC_DEPENDS
-        cattelib_static
-    SHARED_DEPENDS
-        cattelib_shared
-)
+if(CATALYST_CORE_BUILD_TESTS)
+    # Define test executables
+    define_test_executables(
+        STATIC_DEPENDS
+            cattelib_static
+        SHARED_DEPENDS
+            cattelib_shared
+    )
 
-# Test sources are discovered above; add the corresponding modules for their companion tests.
-target_link_libraries(test_catmmlib PRIVATE catmmlib_static)
-target_link_libraries(perf_catmmlib PRIVATE catmmlib_static)
-target_link_libraries(test_catrllib PRIVATE catrllib_static)
-target_link_libraries(perf_catrllib PRIVATE catrllib_static)
-if(TARGET cattrlib_static)
-    target_link_libraries(test_cattrlib PRIVATE cattrlib_static)
-    target_link_libraries(perf_cattrlib PRIVATE cattrlib_static)
+    # Test sources are discovered above; add the corresponding modules for their companion tests.
+    target_link_libraries(test_catmmlib PRIVATE catmmlib_static)
+    target_link_libraries(perf_catmmlib PRIVATE catmmlib_static)
+    target_link_libraries(test_catrllib PRIVATE catrllib_static)
+    target_link_libraries(perf_catrllib PRIVATE catrllib_static)
+    if(TARGET cattrlib_static)
+        target_link_libraries(test_cattrlib PRIVATE cattrlib_static)
+        target_link_libraries(perf_cattrlib PRIVATE cattrlib_static)
+    endif()
 endif()
 
 # Release optimization is local to Core; preserve Debug and the selected target ISA.
@@ -106,12 +124,25 @@ set(CATALYST_RELEASE_LIBRARIES
     catmmlib_shared catmmlib_static
     catrllib_shared catrllib_static
 )
-set(CATALYST_RELEASE_EXECUTABLES test_cattelib test_catmmlib test_catrllib perf_cattelib perf_catmmlib perf_catrllib)
+set(CATALYST_RELEASE_EXECUTABLES)
+if(CATALYST_CORE_BUILD_TESTS)
+    set(CATALYST_RELEASE_EXECUTABLES test_cattelib test_catmmlib test_catrllib perf_cattelib perf_catmmlib perf_catrllib)
+endif()
 
 if(TARGET cattrlib_static)
     list(APPEND CATALYST_RELEASE_LIBRARIES cattrlib_shared cattrlib_static)
-    list(APPEND CATALYST_RELEASE_EXECUTABLES test_cattrlib perf_cattrlib)
+    if(CATALYST_CORE_BUILD_TESTS)
+        list(APPEND CATALYST_RELEASE_EXECUTABLES test_cattrlib perf_cattrlib)
+    endif()
 endif()
+
+# Export the same stable target names for source and installed consumption.
+foreach(TARGET_NAME IN LISTS CATALYST_RELEASE_LIBRARIES)
+    string(REPLACE "lib_" "_" EXPORT_TARGET_NAME "${TARGET_NAME}")
+    set_target_properties(${TARGET_NAME} PROPERTIES EXPORT_NAME "${EXPORT_TARGET_NAME}")
+    add_library(Catalyst::${EXPORT_TARGET_NAME} ALIAS ${TARGET_NAME})
+    target_link_libraries(${TARGET_NAME} PUBLIC catalyst_headers)
+endforeach()
 
 foreach(TARGET_NAME IN LISTS CATALYST_RELEASE_LIBRARIES CATALYST_RELEASE_EXECUTABLES)
     get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
@@ -170,4 +201,57 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|MSVC)$")
         endforeach()
     endfunction()
     catalyst_configure_release_ipo()
+endif()
+
+# Preserve the existing runtime/development artifact layout in each install prefix.
+if(CATALYST_CORE_INSTALL)
+    include(CMakePackageConfigHelpers)
+    set(CATALYST_CORE_PACKAGE_DIR "lib/cmake/CatalystCore")
+    install(TARGETS catalyst_headers ${CATALYST_RELEASE_LIBRARIES}
+        EXPORT CatalystCoreTargets
+        RUNTIME DESTINATION .
+        LIBRARY DESTINATION .
+        ARCHIVE DESTINATION lib
+    )
+    if(TARGET_PLATFORM_LINUX OR TARGET_PLATFORM_DARWIN)
+        foreach(TARGET_NAME IN LISTS CATALYST_RELEASE_LIBRARIES)
+            get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
+            if(TARGET_TYPE STREQUAL "SHARED_LIBRARY")
+                get_target_property(ABI_NAME ${TARGET_NAME} CATALYST_ABI_NAME)
+                get_target_property(LINKER_NAME ${TARGET_NAME} CATALYST_LINKER_NAME)
+                set_property(TARGET ${TARGET_NAME} APPEND PROPERTY EXPORT_PROPERTIES CATALYST_ABI_NAME)
+                install(FILES "$<TARGET_FILE_DIR:${TARGET_NAME}>/${ABI_NAME}" DESTINATION .)
+                install(FILES "${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${LINKER_NAME}" DESTINATION lib)
+            endif()
+        endforeach()
+    endif()
+    install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/" DESTINATION include
+        FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/cmakecfg.h"
+        DESTINATION include/catalyst-core-config)
+    install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_SOURCE_DIR}/NOTICE"
+        DESTINATION share/CatalystCore)
+
+    set(CATALYST_CORE_NEEDS_THREADS FALSE)
+    if(TARGET cattrlib_static AND NOT TARGET_PLATFORM_WIN32)
+        set(CATALYST_CORE_NEEDS_THREADS TRUE)
+    endif()
+    configure_package_config_file(
+        "${PROJECT_SOURCE_DIR}/packaging/CatalystCoreConfig.cmake.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/CatalystCoreConfig.cmake"
+        INSTALL_DESTINATION "${CATALYST_CORE_PACKAGE_DIR}"
+    )
+    # Alpha releases do not promise compatibility with other numeric versions.
+    write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/CatalystCoreConfigVersion.cmake"
+        VERSION "${METADATA_VERSION_MAJOR}.${METADATA_VERSION_MINOR}.${METADATA_VERSION_PATCH}"
+        COMPATIBILITY ExactVersion
+    )
+    install(EXPORT CatalystCoreTargets
+        NAMESPACE Catalyst::
+        DESTINATION "${CATALYST_CORE_PACKAGE_DIR}")
+    install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/CatalystCoreConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/CatalystCoreConfigVersion.cmake"
+        DESTINATION "${CATALYST_CORE_PACKAGE_DIR}")
 endif()

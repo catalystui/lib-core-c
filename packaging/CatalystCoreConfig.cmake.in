@@ -1,0 +1,50 @@
+@PACKAGE_INIT@
+
+# Do not select a package built for a different declared system or pointer ABI.
+set(CatalystCore_VERSION_STRING "@METADATA_VERSION@")
+set(CatalystCore_TARGET_VENDOR "@TARGET_VENDOR@")
+set(CatalystCore_TARGET_SYSTEM "@TARGET_SYSTEM@")
+set(CatalystCore_TARGET_ARCHITECTURE "@TARGET_ARCHITECTURE@")
+
+if(NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "@CMAKE_SYSTEM_NAME@" OR
+   (DEFINED CMAKE_SIZEOF_VOID_P AND NOT "${CMAKE_SIZEOF_VOID_P}" STREQUAL "@TARGET_SIZEOF_VOID_P@"))
+    set(CatalystCore_FOUND FALSE)
+    set(CatalystCore_NOT_FOUND_MESSAGE "Core was built for a different operating system or pointer width.")
+    return()
+endif()
+foreach(FIELD VENDOR SYSTEM ARCHITECTURE)
+    if(DEFINED TARGET_${FIELD} AND NOT "${TARGET_${FIELD}}" STREQUAL "" AND
+       NOT "${TARGET_${FIELD}}" STREQUAL "${CatalystCore_TARGET_${FIELD}}")
+        set(CatalystCore_FOUND FALSE)
+        set(CatalystCore_NOT_FOUND_MESSAGE "Core's target ${FIELD} does not match the consuming project.")
+        return()
+    endif()
+endforeach()
+
+if(@CATALYST_CORE_NEEDS_THREADS@)
+    include(CMakeFindDependencyMacro)
+    find_dependency(Threads)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/CatalystCoreTargets.cmake")
+# configure_target supplies the real ABI name explicitly on Unix. CMake's
+# NO_SONAME build property only disables its automatic naming; the binary
+# does have a SONAME/install name. Restore that information for consumers.
+foreach(MODULE catte catmm catrl cattr)
+    if(TARGET Catalyst::${MODULE}_shared)
+        get_target_property(IS_IMPORTED Catalyst::${MODULE}_shared IMPORTED)
+        get_target_property(ABI_NAME Catalyst::${MODULE}_shared CATALYST_ABI_NAME)
+        if(IS_IMPORTED AND ABI_NAME)
+            if("@CMAKE_SYSTEM_NAME@" STREQUAL "Darwin")
+                set(ABI_NAME "@rpath/${ABI_NAME}")
+            endif()
+            get_target_property(CONFIGURATIONS Catalyst::${MODULE}_shared IMPORTED_CONFIGURATIONS)
+            foreach(CONFIGURATION IN LISTS CONFIGURATIONS)
+                set_target_properties(Catalyst::${MODULE}_shared PROPERTIES
+                    IMPORTED_NO_SONAME_${CONFIGURATION} FALSE
+                    IMPORTED_SONAME_${CONFIGURATION} "${ABI_NAME}")
+            endforeach()
+        endif()
+    endif()
+endforeach()
+check_required_components(CatalystCore)

@@ -104,6 +104,60 @@ Already cloned? Run `git submodule update --init --recursive` to initialize the 
 
 The [compile workflow](https://github.com/catalystui/lib-core-c/actions/workflows/compile.yml) checks C90/C++98 on x86 and C99/C++11 on x64 with GCC on Linux.
 
+### Consuming Core
+
+Core provides the same namespaced CMake targets when built from source or installed as a package.
+
+| Module | Static | Shared |
+| --- | --- | --- |
+| CATALYST (headers only) | `Catalyst::catalyst` | `Catalyst::catalyst` |
+| CATTELIB | `Catalyst::catte_static` | `Catalyst::catte_shared` |
+| CATMMLIB | `Catalyst::catmm_static` | `Catalyst::catmm_shared` |
+| CATRLLIB | `Catalyst::catrl_static` | `Catalyst::catrl_shared` |
+| CATTRLIB (where implemented) | `Catalyst::cattr_static` | `Catalyst::cattr_shared` |
+
+Targets propagate public include directories, the generated target configuration, shared-library import definitions, and required library dependencies. Choose a consistent static or shared dependency chain; do not embed independent copies of stateful Core libraries into multiple shared libraries.
+
+#### Source dependency
+
+Use the same dependency name, `CatalystCore`, throughout a CMake build. Select an immutable Core revision via `CATALYST_CORE_REVISION`, and configure the consuming project using its target toolchain and the existing `TARGET_VENDOR`, `TARGET_SYSTEM`, and `TARGET_ARCHITECTURE` settings.
+
+```cmake
+include(FetchContent)
+
+if(NOT TARGET Catalyst::catalyst)
+    FetchContent_Declare(
+        CatalystCore
+        GIT_REPOSITORY https://github.com/catalystui/lib-core-c.git
+        GIT_TAG "${CATALYST_CORE_REVISION}"
+        GIT_SUBMODULES cmake
+    )
+    FetchContent_MakeAvailable(CatalystCore)
+endif()
+
+target_link_libraries(my_application PRIVATE Catalyst::catte_static)
+```
+
+A parent project can declare the revision first or set `FETCHCONTENT_SOURCE_DIR_CATALYSTCORE` to an existing local checkout. Core's standalone verification programs and install rules default to disabled in nested builds; enable them explicitly with `CATALYST_CORE_BUILD_TESTS` and `CATALYST_CORE_INSTALL` when needed.
+
+#### Installed dependency
+
+After building Core, install into a dedicated prefix for the chosen target and configuration. For the Apple Silicon preset above:
+
+```powershell
+cmake --install target/aclang17-darwin24.6-arm64 --config Release --prefix ./package
+```
+
+Use one prefix per target and configuration. The package preserves the runtime libraries and ABI aliases at its root, development archives/import libraries and linker aliases under `lib/`, and public headers under `include/`. Set `CMAKE_PREFIX_PATH` to this prefix when configuring a consuming project.
+
+```cmake
+find_package(CatalystCore CONFIG REQUIRED)
+
+target_link_libraries(my_application PRIVATE Catalyst::catte_static)
+```
+
+Installed packages require a compatible target ABI and toolchain. The package checks the operating system, pointer width when available, and explicitly declared Catalyst target identifiers; these checks do not establish every aspect of binary compatibility. Release static archives use IPO by default; configure Core with `CATALYST_RELEASE_STATIC_IPO=OFF` for native machine-code archives intended for distribution. Alpha versions do not guarantee compatibility; pin the intended source revision or select the corresponding binary package rather than relying on the numeric version alone. Shared-library consumers must deploy the corresponding runtime libraries and ABI aliases where the native loader can find them.
+
 ## AI-Assisted Development
 
 Core is developed with AI assistance under human direction. The owner defines the model, requirements, and design decisions. All contributions follow the same correctness, maintainability, attribution, and licensing expectations; AI-assisted code is not necessarily reviewed independently line by line.
