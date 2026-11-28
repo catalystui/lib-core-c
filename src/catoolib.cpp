@@ -114,8 +114,12 @@ CATALYST_RESULT catoo_object_clear(OBJECT* object) {
 }
 
 CATALYST_RESULT catoo_object_free(OBJECT* object) {
-    RESULT cleared = catoo_object_clear(object);
-    if (!status_code_is_success(cleared.status)) return RESULT(cleared.status, 0x0D, 0x01, cleared.detail);
+    /* No member cleanup is needed for an empty map. Always retain the map
+     * release path: an empty or partially released map may own storage. */
+    if (object->members.cardinality != 0) {
+        RESULT cleared = catoo_object_clear(object);
+        if (!status_code_is_success(cleared.status)) return RESULT(cleared.status, 0x0D, 0x01, cleared.detail);
+    }
     RESULT released = catrl_map_free(&object->members);
     return RESULT(released.status, 0x0D, 0x02, released.detail);
 }
