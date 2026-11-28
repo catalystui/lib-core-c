@@ -195,17 +195,17 @@ static void cattr_remove_pending(DISPATCHER* dispatcher, CATTRLIB_INVOCATION* in
 
 /* Monitor held, pending set nonempty. The rule is read-only/non-reentrant
  * and returns an opaque record reference, not the address of its Set slot.
- * Validate membership before dereferencing a rule result. */
+ * Custom selection validates and removes the chosen member in one operation;
+ * FIFO selection leaves removal to the caller. */
 static CATTRLIB_INVOCATION* cattr_select(DISPATCHER* dispatcher) {
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
     if (dispatcher->rule == 0) return cattr_invocation_at(catrl_queue_peek(&state->order));
     POINTER selected = dispatcher->rule(&dispatcher->work);
-    const BYTE* members = (const BYTE*) dispatcher->work.data;
-    for (NUINT i = 0; i < dispatcher->work.cardinality; ++i) {
-        CATTRLIB_INVOCATION* invocation = cattr_invocation_at(members + (NUINT) (i * dispatcher->work.size));
-        if (selected == invocation) return invocation;
-    }
-    return 0;
+    POINTERW identity = (POINTERW) selected;
+    /* Set removal validates membership before dereferencing the result.
+     * Custom selection has no separate FIFO bookkeeping. */
+    if (!catrl_set_remove(&dispatcher->work, &identity)) return 0;
+    return (CATTRLIB_INVOCATION*) identity;
 }
 
 CATALYST_RESULT cattr_dispatcher_create(DISPATCHER* dispatcher, THREAD* thread, POINTER (*rule)(const SET*), NUINT capacity) {
@@ -396,7 +396,7 @@ CATALYST_RESULT cattr_dispatcher_poll(DISPATCHER* dispatcher) {
         cattr_platform_monitor_unlock(state->monitor);
         return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x0E, 0x05, 0);
     }
-    cattr_remove_pending(dispatcher, invocation, TRUE);
+    if (dispatcher->rule == 0) cattr_remove_pending(dispatcher, invocation, TRUE);
     invocation->stage = INVOCATION_RUNNING;
     state->polling = TRUE;
     /* Completion or the original deadline will wake the awaited caller.
