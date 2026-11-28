@@ -1054,6 +1054,36 @@ int main() {
         check(&failed, passed, "hashed repeated mutation agrees with independent membership model");
     }
 
+    /* Pointer-width search: unaligned keys, identical byte prefixes,
+     * every position of the four-element group and its scalar tail. */
+    {
+        SET set;
+        set_init(&set, (NUINT) sizeof(NUINT));
+        BYTE storage[sizeof(NUINT) + 1];
+        BYTE* key = storage + 1;
+        BOOL passed = status_code_is_success(set_expand(&set, (NUINT) 33).status);
+        if (passed) {
+            catmm_fill(key, (BYTE) 0xA5, (NUINT) sizeof(NUINT));
+            for (BYTE i = 0; i < (BYTE) 33; ++i) {
+                key[sizeof(NUINT) - 1] = i;
+                if (!set_add(&set, key)) passed = FALSE;
+            }
+            for (BYTE i = 0; i < (BYTE) 33; ++i) {
+                key[sizeof(NUINT) - 1] = i;
+                if (!set_contains(&set, key) || set_add(&set, key)) passed = FALSE;
+            }
+            key[sizeof(NUINT) - 1] = (BYTE) 99;
+            if (set_contains(&set, key) || set_remove(&set, key)) passed = FALSE;
+            for (BYTE i = 0; i < (BYTE) 33; ++i) {
+                key[sizeof(NUINT) - 1] = i;
+                if (!set_remove(&set, key) || set_contains(&set, key)) passed = FALSE;
+            }
+            if (set.cardinality != 0) passed = FALSE;
+        }
+        if (!status_code_is_success(set_free(&set).status)) passed = FALSE;
+        check(&failed, passed, "pointer-width Set search with unaligned keys and grouped/tail matches");
+    }
+
     // ------------------------------------------------------------
     // Done
     // ------------------------------------------------------------
