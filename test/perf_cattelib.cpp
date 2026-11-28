@@ -50,7 +50,7 @@ typedef struct NativeData {
     unsigned char status;
 } NativeData;
 
-enum { OK = 0, PARTIAL = 0x41, INVALID = 0x81, MALFORMED = 0x83, OVERFLOW = 0x90 };
+enum { OK = 0, PARTIAL = 0x41, INVALID = 0x81, MALFORMED = 0x83, NATIVE_OVERFLOW = 0x90 };
 
 /* Undefined CP1252 extension entries are zero; none maps to U+0000. */
 static const unsigned short cp1252_extension[32] = {
@@ -359,7 +359,7 @@ static unsigned char convert(int from, int to, const unsigned char* input, unsig
         size_t i = 0;
         while (i < length && input[i] < 0x80) ++i;
         if (i == length) {
-            if (to == PERF_UTF8 && length >= PERF_BYTES) return OVERFLOW;
+            if (to == PERF_UTF8 && length >= PERF_BYTES) return NATIVE_OVERFLOW;
             memcpy(output, input, length + 1);
             return OK;
         }
@@ -390,7 +390,7 @@ static unsigned char convert(int from, int to, const unsigned char* input, unsig
             if (step != OK) return step;
         } else {
             while (*input != 0) {
-                if (count == PERF_SCALARS) return OVERFLOW;
+                if (count == PERF_SCALARS) return NATIVE_OVERFLOW;
                 step = decode(from, input, &value, &consumed);
                 if (from == PERF_ASCII && value >= 0x80) { value = 0x3F; step = PARTIAL; }
                 if (step == PARTIAL) status = PARTIAL;
@@ -408,11 +408,11 @@ static unsigned char convert(int from, int to, const unsigned char* input, unsig
                 state, scalars, scalars + count, consumedScalars,
                 begin, begin + PERF_BYTES - width, end);
             if (result != std::codecvt_base::ok || consumedScalars != scalars + count)
-                return result == std::codecvt_base::partial ? OVERFLOW : INVALID;
+                return result == std::codecvt_base::partial ? NATIVE_OVERFLOW : INVALID;
             memset(end, 0, width);
             return status;
         }
-        if (count >= PERF_BYTES) return OVERFLOW;
+        if (count >= PERF_BYTES) return NATIVE_OVERFLOW;
         for (size_t i = 0; i < count; ++i) {
             step = encode(to, (NativeScalar) scalars[i], output + i, &produced);
             if (step == PARTIAL) status = PARTIAL;
@@ -437,7 +437,7 @@ static unsigned char convert(int from, int to, const unsigned char* input, unsig
         if (step == PARTIAL) status = PARTIAL;
         else if (step != OK) return step;
         bytes = produced * width;
-        if (bytes > PERF_BYTES - written - width) return OVERFLOW;
+        if (bytes > PERF_BYTES - written - width) return NATIVE_OVERFLOW;
         memcpy(output + written, encoded, bytes);
         written += bytes;
         input += consumed * unit_bytes(from);

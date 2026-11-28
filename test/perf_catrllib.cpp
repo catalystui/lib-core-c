@@ -1871,7 +1871,7 @@ int main() {
     std::printf("Independent C reference is the baseline unless labeled otherwise. Lower time is better.\n");
     std::printf("Difference: +10%% means Catalyst takes 10%% longer; -10%% means 10%% less time.\n");
     std::printf("Time per operation or named cycle: median of 3 paired samples; %lu clock ticks/second.\n", (unsigned long) CLOCKS_PER_SEC);
-    std::printf("Set/Map/Array references use linear search; hashed references use linear probing at up to 50% load.\n");
+    std::printf("Set/Map/Array references use linear search; hashed references use linear probing at up to 50%% load.\n");
     std::printf("Collection counts/widths vary; map keys and values have the same width.\n");
     std::printf("16-byte search fixtures share a prefix at small counts; large keys encode additional index bytes.\n");
     std::printf("Set/restore cycles observe the intermediate stored value before restoring it.\n");
