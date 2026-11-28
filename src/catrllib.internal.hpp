@@ -5,6 +5,27 @@
 
 namespace catalyst {
 
+#if CATALYST_SUPPORTS_64BIT && TARGET_SIZEOF_VOID_P >= 2 && (defined(__GNUC__) || defined(__clang__)) && \
+    ((defined(__aarch64__) && defined(__ARM_NEON)) || defined(__SSE2__)) && \
+    defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ && \
+    defined(__SIZEOF_LONG_LONG__) && __SIZEOF_LONG_LONG__ == 8
+/* Compiler-native byte lanes are an optional acceleration, not an ABI type.
+ * Each full vector is read within the live extent; masks retain memory order. */
+typedef BYTE CATRL_BYTE_VECTOR __attribute__((vector_size(16)));
+
+static inline NUINT catrl_find_vector(const BYTE* current, CATRL_BYTE_VECTOR pattern) {
+    CATRL_BYTE_VECTOR data;
+    __builtin_memcpy(&data, current, sizeof(data));
+    CATRL_BYTE_VECTOR matches = (CATRL_BYTE_VECTOR) (data == pattern);
+    ULONG low, high;
+    __builtin_memcpy(&low, &matches, sizeof(low));
+    __builtin_memcpy(&high, (const BYTE*) &matches + sizeof(low), sizeof(high));
+    if (low != 0) return (NUINT) (__builtin_ctzll(low) / 8);
+    if (high != 0) return (NUINT) (8 + __builtin_ctzll(high) / 8);
+    return (NUINT) 16;
+}
+#endif
+
 /* A byte key search requires no key-width dispatch. The first byte is
  * checked directly; no word load reads beyond the established extent. */
 static inline NUINT catrl_find_byte(const BYTE* current, NUINT count, BYTE first) {
@@ -13,6 +34,26 @@ static inline NUINT catrl_find_byte(const BYTE* current, NUINT count, BYTE first
     if (count == (NUINT) 1) return count;
     if (count == (NUINT) 2) return current[1] == first ? (NUINT) 1 : count;
     NUINT index = 0;
+#if CATALYST_SUPPORTS_64BIT && TARGET_SIZEOF_VOID_P >= 2 && (defined(__GNUC__) || defined(__clang__)) && \
+    ((defined(__aarch64__) && defined(__ARM_NEON)) || defined(__SSE2__)) && \
+    defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ && \
+    defined(__SIZEOF_LONG_LONG__) && __SIZEOF_LONG_LONG__ == 8
+    if (count >= (NUINT) 16) {
+        const CATRL_BYTE_VECTOR pattern = { first, first, first, first, first, first, first, first,
+            first, first, first, first, first, first, first, first };
+        const NUINT last = (NUINT) (count - (NUINT) 16);
+        while (index < last) {
+            NUINT found = catrl_find_vector(current + index, pattern);
+            if (found != (NUINT) 16) return (NUINT) (index + found);
+            if ((NUINT) (last - index) <= (NUINT) 16) break;
+            index = (NUINT) (index + (NUINT) 16);
+        }
+        /* The final vector may overlap an already searched region, but
+         * never reads beyond count or changes the first-match result. */
+        NUINT found = catrl_find_vector(current + last, pattern);
+        return found == (NUINT) 16 ? count : (NUINT) (last + found);
+    }
+#endif
 #if CATALYST_SUPPORTS_64BIT || CATALYST_SUPPORTS_32BIT
 #if CATALYST_SUPPORTS_64BIT
     typedef ULONG CATRL_SEARCH_WORD;
@@ -86,7 +127,15 @@ static inline NUINT catrl_find_byte(const BYTE* current, NUINT count, BYTE first
             for (BYTE i = 0; i < (BYTE) sizeof(word); ++i) ((BYTE*) &word)[i] = current[i];
 #endif
             word ^= pattern;
-            if (((word - ones) & ~word & high) != 0) {
+            const CATRL_SEARCH_WORD matches = (CATRL_SEARCH_WORD) ((word - ones) & ~word & high);
+            if (matches != 0) {
+#if (defined(__GNUC__) || defined(__clang__)) && defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if CATALYST_SUPPORTS_64BIT && defined(__SIZEOF_LONG_LONG__) && __SIZEOF_LONG_LONG__ == 8
+                return (NUINT) (index + (NUINT) ((NUINT) __builtin_ctzll(matches) / (NUINT) 8));
+#elif !CATALYST_SUPPORTS_64BIT && CATALYST_SUPPORTS_32BIT && defined(__SIZEOF_INT__) && __SIZEOF_INT__ == 4
+                return (NUINT) (index + (NUINT) ((NUINT) __builtin_ctz(matches) / (NUINT) 8));
+#endif
+#endif
                 for (NUINT i = 0; i < width; ++i)
                     if (current[i] == first) return (NUINT) (index + i);
             }

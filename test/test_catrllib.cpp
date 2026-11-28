@@ -58,7 +58,7 @@ int main() {
 
     // Every hit position and absent byte at scalar/word/group boundaries.
     {
-        const BYTE counts[] = { 1, 2, 3, 4, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65 };
+        const BYTE counts[] = { 1, 2, 3, 4, 7, 8, 9, 15, 16, 17, 31, 32, 33, 47, 48, 49, 63, 64, 65 };
         MAP map;
         map_init(&map, 1, 1);
         BOOL passed = TRUE;
