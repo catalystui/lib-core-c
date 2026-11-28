@@ -83,7 +83,7 @@ jobs:
             system: nt10.0
             arch: x64
             platform: x64
-          - runner: windows-2022
+          - runner: windows-11-arm
             vendor: microsoft
             system: nt10.0
             arch: arm64
@@ -106,12 +106,18 @@ jobs:
           ref: ${{ github.sha }}
           submodules: recursive
       - uses: actions/setup-python@v5
+        if: matrix.runner != 'windows-11-arm'
         with:
           python-version: '3.12'
       - name: Install build dependencies
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          python -m pip install 'cmake>=4.3,<5'
+          if ($env:RUNNER_OS -eq 'Windows' -and $env:RUNNER_ARCH -eq 'ARM64') {
+            # The native ARM64 image already supplies CMake 4.3 or newer.
+            cmake --version
+          } else {
+            python -m pip install 'cmake>=4.3,<5'
+          }
           if ($env:TARGET_VENDOR -eq 'linux' -and $env:TARGET_ARCHITECTURE -eq 'x86') {
             sudo apt-get update
             sudo apt-get install -y gcc-multilib g++-multilib
@@ -135,8 +141,9 @@ jobs:
             '-DCMAKE_CXX_EXTENSIONS=OFF'
           )
           if ($env:TARGET_VENDOR -eq 'microsoft') {
+            $generator = if ($env:TARGET_ARCHITECTURE -eq 'arm64') { 'Visual Studio 18 2026' } else { 'Visual Studio 17 2022' }
             $arguments += @(
-              '-G', 'Visual Studio 17 2022', '-A', $env:VS_PLATFORM,
+              '-G', $generator, '-A', $env:VS_PLATFORM,
               '-DCMAKE_C_STANDARD=17', '-DCMAKE_CXX_STANDARD=14',
               '-DCMAKE_C_FLAGS_INIT=/Zc:__STDC__',
               '-DCMAKE_CXX_FLAGS_INIT=/Zc:__cplusplus'
@@ -183,18 +190,16 @@ jobs:
           $output = "build/$env:TARGET_VENDOR/$env:TARGET_SYSTEM/$env:TARGET_ARCHITECTURE/release"
           $suffix = if ($IsWindows) { '.exe' } else { '' }
           $modules = 'catte', 'catmm', 'catrl', 'cattr', 'catoo'
-          $cross = $IsWindows -and $env:TARGET_ARCHITECTURE -eq 'arm64'
           cmake --install target/publish --config Release --prefix "${PWD}/package"
           foreach ($module in $modules) {
             foreach ($kind in 'test', 'perf') {
               $name = "${kind}_${module}lib$suffix"
               $program = Join-Path $output $name
               if (!(Test-Path $program -PathType Leaf)) { throw "Missing $program" }
-              if ($kind -eq 'test' -and !$cross) { & $program }
+              if ($kind -eq 'test') { & $program }
               Copy-Item $program package/
             }
           }
-          if ($cross) { Write-Warning 'Windows ARM64 is cross-compiled; its executables are not run on the x64 host.' }
           $name = "lib-core-c-$env:RELEASE_TAG-$env:TARGET_VENDOR-$env:TARGET_SYSTEM-$env:TARGET_ARCHITECTURE"
           New-Item -ItemType Directory -Force dist | Out-Null
           if ($IsWindows) {
