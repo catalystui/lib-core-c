@@ -49,10 +49,23 @@ configure_target(
 target_link_libraries(catrllib_shared PUBLIC catmmlib_shared)
 target_link_libraries(catrllib_static PUBLIC catmmlib_static)
 
+# catoolib
+add_library(catoolib_shared SHARED)
+add_library(catoolib_static STATIC)
+configure_target(
+    NAME catoo
+    TARGETS catoolib_shared catoolib_static
+    SOURCES
+        src/catoolib.cpp
+)
+target_link_libraries(catoolib_shared PUBLIC catrllib_shared)
+target_link_libraries(catoolib_static PUBLIC catrllib_static)
+
 # Export each shared library's C ABI and propagate its import definition.
 target_compile_definitions(cattelib_shared PRIVATE CATTELIB_EXPORTS INTERFACE CATTELIB_USE_DLL)
 target_compile_definitions(catmmlib_shared PRIVATE CATMMLIB_EXPORTS INTERFACE CATMMLIB_USE_DLL)
 target_compile_definitions(catrllib_shared PRIVATE CATRLLIB_EXPORTS INTERFACE CATRLLIB_USE_DLL)
+target_compile_definitions(catoolib_shared PRIVATE CATOOLIB_EXPORTS INTERFACE CATOOLIB_USE_DLL)
 
 # Define test executables
 define_test_executables(
@@ -67,14 +80,16 @@ target_link_libraries(test_catmmlib PRIVATE catmmlib_static)
 target_link_libraries(perf_catmmlib PRIVATE catmmlib_static)
 target_link_libraries(test_catrllib PRIVATE catrllib_static)
 target_link_libraries(perf_catrllib PRIVATE catrllib_static)
+target_link_libraries(test_catoolib PRIVATE catoolib_static)
 
 # Release optimization is local to Core; preserve Debug and the selected target ISA.
 set(CATALYST_RELEASE_LIBRARIES
     cattelib_shared cattelib_static
     catmmlib_shared catmmlib_static
     catrllib_shared catrllib_static
+    catoolib_shared catoolib_static
 )
-set(CATALYST_RELEASE_EXECUTABLES test_cattelib test_catmmlib test_catrllib perf_cattelib perf_catmmlib perf_catrllib)
+set(CATALYST_RELEASE_EXECUTABLES test_cattelib test_catmmlib test_catrllib test_catoolib perf_cattelib perf_catmmlib perf_catrllib)
 
 foreach(TARGET_NAME IN LISTS CATALYST_RELEASE_LIBRARIES CATALYST_RELEASE_EXECUTABLES)
     get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)

@@ -36,6 +36,11 @@
                     "title": "CATRLLIB",
                     "path": "/api-reference/catrllib",
                     "alignment": "block"
+                },
+                {
+                    "title": "CATOOLIB",
+                    "path": "/api-reference/catoolib",
+                    "alignment": "block"
                 }
             ]
         }
