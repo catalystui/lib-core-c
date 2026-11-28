@@ -36,6 +36,11 @@
                     "title": "CATRLLIB",
                     "path": "/api-reference/catrllib",
                     "alignment": "block"
+                },
+                {
+                    "title": "CATTRLIB",
+                    "path": "/api-reference/cattrlib",
+                    "alignment": "block"
                 }
             ]
         }

@@ -70,6 +70,15 @@ Core is designed to be implementable even on 8-bit systems while taking advantag
 <small style="opacity:0.8;margin-top:auto;">Link: <code>catrl</code></small>
 </div>
 
+<div style="flex:1 1 calc(50% - 0.5rem);min-width:min(100%, 15rem);box-sizing:border-box;padding:1.2rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:12px;background:color-mix(in srgb, currentColor 4%, transparent);display:flex;flex-direction:column;align-items:center;text-align:center;">
+<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;width:32px;height:32px;margin:0.15rem auto 0.8rem;opacity:0.9;"><rect x="9" y="3" width="6" height="6" rx="1"/><path d="M12 9v4M5 13h14M5 13v3m14-3v3"/><rect x="2" y="16" width="6" height="5" rx="1"/><rect x="16" y="16" width="6" height="5" rx="1"/></svg>
+
+**[CATTRLIB](api-reference/cattrlib/index.md)**
+
+<p style="margin:0 0 0.85rem;max-width:20rem;">Represent processes, execute threads, and dispatch work.</p>
+<small style="opacity:0.8;margin-top:auto;">Link: <code>cattr</code></small>
+</div>
+
 </div>
 
 ## Getting Started
