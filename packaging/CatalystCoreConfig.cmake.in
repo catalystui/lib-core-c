@@ -30,7 +30,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/CatalystCoreTargets.cmake")
 # configure_target supplies the real ABI name explicitly on Unix. CMake's
 # NO_SONAME build property only disables its automatic naming; the binary
 # does have a SONAME/install name. Restore that information for consumers.
-foreach(MODULE catte catmm catrl cattr)
+foreach(MODULE catte catmm catrl cattr catoo)
     if(TARGET Catalyst::${MODULE}_shared)
         get_target_property(IS_IMPORTED Catalyst::${MODULE}_shared IMPORTED)
         get_target_property(ABI_NAME Catalyst::${MODULE}_shared CATALYST_ABI_NAME)
