@@ -82,13 +82,17 @@ static BOOL native_resize(NativeObject* o, size_t capacity) {
 static BOOL native_expand(NativeObject* o, size_t capacity) {
     return capacity <= o->capacity ? TRUE : native_resize(o, capacity);
 }
-static BOOL native_append_known(NativeObject* o, unsigned char key, const void* data, size_t size) {
+static BOOL native_append_payload(NativeObject* o, const void* data, size_t size) {
     if (o->count == o->capacity || size == 0) return FALSE;
     NativeMember m;
     if (!native_member_init(&m, size)) return FALSE;
     ::memcpy(m.data, data, size);
-    o->keys[o->count] = key;
     o->members[o->count++] = m;
+    return TRUE;
+}
+static BOOL native_append_known(NativeObject* o, unsigned char key, const void* data, size_t size) {
+    if (!native_append_payload(o, data, size)) return FALSE;
+    o->keys[o->count - 1] = key;
     return TRUE;
 }
 static BOOL native_add(NativeObject* o, unsigned char key, const void* data, size_t size) {
@@ -118,8 +122,9 @@ static BOOL native_free(NativeObject* o) {
 static BOOL native_clone(NativeObject* out, const NativeObject* source) {
     native_init(out);
     if (!native_expand(out, source->count)) { native_free(out); return FALSE; }
+    if (source->count != 0) ::memcpy(out->keys, source->keys, source->count);
     for (size_t i = 0; i < source->count; ++i) {
-        if (!native_append_known(out, source->keys[i], source->members[i].data, source->members[i].size)) {
+        if (!native_append_payload(out, source->members[i].data, source->members[i].size)) {
             native_free(out); return FALSE;
         }
     }
@@ -142,8 +147,9 @@ static BOOL native_extend(NativeObject* out, const NativeObject* base) {
     }
     size_t original = out->count;
     if (base->count > (size_t) -1 - original || !native_expand(out, original + base->count)) return FALSE;
+    if (base->count != 0) ::memcpy(out->keys + original, base->keys, base->count);
     for (size_t i = 0; i < base->count; ++i) {
-        if (!native_append_known(out, base->keys[i], base->members[i].data, base->members[i].size)) {
+        if (!native_append_payload(out, base->members[i].data, base->members[i].size)) {
             while (out->count > original) native_member_free(&out->members[--out->count]);
             return FALSE;
         }

@@ -190,25 +190,36 @@ static RESULT catoo_clone_cleanup(OBJECT* destination, RESULT failure, CONTEXT_C
 
 /* A distinct source key and spare destination capacity are established.
  * Commit the owned record only after allocation and copying succeed. */
-static RESULT catoo_append_copy(OBJECT* destination, POINTER key, const MEMBER* source) {
+/* The caller reserves the complete destination range and copies its keys.
+ * Publish each member only after allocation and payload copy succeed. */
+static RESULT catoo_append_copy(OBJECT* destination, const MEMBER* source) {
     MEMBER copy;
     RESULT allocated = catoo_member_init(&copy, source->size);
     if (!status_code_is_success(allocated.status)) return allocated;
     catmm_copy(copy.data, source->data, source->size);
-    catrl_map_append_known(&destination->members, key, &copy);
+    MAP* map = &destination->members;
+    catrl_store((BYTE*) map->values + (NUINT) (map->cardinality * map->vsize), &copy, map->vsize);
+    ++map->cardinality;
     return allocated;
+}
+
+/* Source and destination are disjoint; successful reservation establishes
+ * representable extents. Keys beyond the live prefix are not published. */
+static void catoo_copy_keys(MAP* destination, const MAP* source) {
+    if (source->cardinality != 0)
+        catmm_copy((BYTE*) destination->keys + (NUINT) (destination->cardinality * destination->ksize),
+            source->keys, (NUINT) (source->cardinality * source->ksize));
 }
 
 static RESULT catoo_clone(OBJECT* destination, const OBJECT* source, CONTEXT_CODE context) {
     catoo_object_init(destination, source->members.ksize);
     RESULT expanded = catoo_object_expand(destination, source->members.cardinality);
     if (!status_code_is_success(expanded.status)) return catoo_clone_cleanup(destination, expanded, context, 0x01, 0x03);
-    const BYTE* key = (const BYTE*) source->members.keys;
+    catoo_copy_keys(&destination->members, &source->members);
     const MEMBER* member = (const MEMBER*) source->members.values;
     for (NUINT i = 0; i < source->members.cardinality; ++i) {
-        RESULT added = catoo_append_copy(destination, key, member);
+        RESULT added = catoo_append_copy(destination, member);
         if (!status_code_is_success(added.status)) return catoo_clone_cleanup(destination, added, context, 0x02, 0x04);
-        key += source->members.ksize;
         ++member;
     }
     return RESULT(STATUS_CODE_SUCCESS, context, 0x05, 0);
@@ -274,10 +285,10 @@ CATALYST_RESULT catoo_class_extend(CLASS* class_, const CLASS* base) {
     if (source->members.cardinality > (NUINT) (CATALYST_NUINT_MAX - original)) return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x19, 0x04, 0);
     RESULT expanded = catoo_object_expand(destination, (NUINT) (original + source->members.cardinality));
     if (!status_code_is_success(expanded.status)) return RESULT(expanded.status, 0x19, 0x05, expanded.detail);
-    const BYTE* key = (const BYTE*) source->members.keys;
+    catoo_copy_keys(&destination->members, &source->members);
     const MEMBER* member = (const MEMBER*) source->members.values;
     for (NUINT i = 0; i < source->members.cardinality; ++i) {
-        RESULT added = catoo_append_copy(destination, key, member);
+        RESULT added = catoo_append_copy(destination, member);
         if (!status_code_is_success(added.status)) {
             while (destination->members.cardinality > original) {
                 NUINT last = (NUINT) (destination->members.cardinality - (NUINT) 1);
@@ -290,7 +301,6 @@ CATALYST_RESULT catoo_class_extend(CLASS* class_, const CLASS* base) {
             }
             return RESULT(added.status, 0x19, 0x06, added.detail);
         }
-        key += source->members.ksize;
         ++member;
     }
     return RESULT(STATUS_CODE_SUCCESS, 0x19, 0x08, 0);
