@@ -80,7 +80,7 @@ inline RESULT thread_free(THREAD* thread) {
  * C++ API :: DISPATCHER OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Establish a dispatcher with the specified capacity and dispatch rule. A null rule selects FIFO order. */
+/** Establish a dispatcher with nonzero capacity and a dispatch rule. A null rule selects FIFO order. The rule receives a nonempty Set of opaque submission references and returns one member (not its storage address). */
 inline RESULT dispatcher_create(DISPATCHER* dispatcher, THREAD* thread, POINTER (*rule)(const SET*), NUINT capacity) {
     return ::cattr_dispatcher_create(dispatcher, thread, rule, capacity);
 }
@@ -88,6 +88,11 @@ inline RESULT dispatcher_create(DISPATCHER* dispatcher, THREAD* thread, POINTER 
 /** Submit an independent invocation for execution. Operation must reference a void (CATMMLIB_POINTERW) function. On the associated thread, awaited submission is invalid and asynchronous admission is nonblocking. */
 inline RESULT dispatcher_submit(DISPATCHER* dispatcher, POINTERX operation, POINTERW arguments, BOOL wait, NUINT timeout) {
     return ::cattr_dispatcher_submit(dispatcher, operation, arguments, wait, timeout);
+}
+
+/** Inspect a live submission reference during a dispatch rule. Outputs its executable reference and borrowed arguments. */
+inline void dispatcher_inspect(POINTER submission, POINTERX* operation, POINTERW* arguments) {
+    ::cattr_dispatcher_inspect(submission, operation, arguments);
 }
 
 /** Retrieve the number of submissions awaiting execution. */

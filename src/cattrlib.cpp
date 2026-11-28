@@ -334,6 +334,12 @@ CATALYST_RESULT cattr_dispatcher_submit(DISPATCHER* dispatcher, POINTERX operati
     return RESULT(STATUS_CODE_SUCCESS, 0x0B, 0x09, 0);
 }
 
+void cattr_dispatcher_inspect(POINTER submission, POINTERX* operation, POINTERW* arguments) {
+    const CATTRLIB_INVOCATION* invocation = (const CATTRLIB_INVOCATION*) submission;
+    *operation = invocation->operation;
+    *arguments = invocation->arguments;
+}
+
 CATALYST_NUINT cattr_dispatcher_count(const DISPATCHER* dispatcher) {
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
     cattr_platform_monitor_lock(state->monitor);

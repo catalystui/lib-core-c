@@ -74,13 +74,23 @@ static void append_value(POINTERW arguments) {
     ++state->length;
 }
 
-/* The rule returns a stored invocation reference, not its Set slot. The
- * test deliberately selects the last member of the current contiguous Set. */
+/* Select highest priority using only the public rule inspection contract. */
 static POINTER select_last(const SET* work) {
-    POINTERW selected;
-    catmm_copy(&selected, (const BYTE*) work->data +
-        (NUINT) ((work->cardinality - (NUINT) 1) * work->size),
-        (NUINT) sizeof(selected));
+    POINTERW selected = 0;
+    BYTE priority = 0;
+    for (NUINT i = 0; i < work->cardinality; ++i) {
+        POINTERW candidate;
+        catmm_copy(&candidate, (const BYTE*) work->data + (NUINT) (i * work->size), (NUINT) sizeof(candidate));
+        POINTERX operation;
+        POINTERW arguments;
+        dispatcher_inspect(candidate, &operation, &arguments);
+        if (operation != (POINTERX) append_value) continue;
+        BYTE value = ((const ORDER_ARGUMENT*) arguments)->value;
+        if (selected == 0 || value > priority) {
+            selected = candidate;
+            priority = value;
+        }
+    }
     return selected;
 }
 
