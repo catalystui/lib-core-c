@@ -149,16 +149,12 @@ static CATTRLIB_INVOCATION* cattr_invocation_at(POINTER member) {
     return (CATTRLIB_INVOCATION*) value;
 }
 
-/* Monitor held. Invocation is pending and belongs to this dispatcher.
+/* Monitor held. Cancel a pending invocation belonging to this dispatcher.
  * Remove using the exact identity representation originally inserted. */
-static void cattr_remove_pending(DISPATCHER* dispatcher, CATTRLIB_INVOCATION* invocation, BOOL selected) {
+static void cattr_remove_pending(DISPATCHER* dispatcher, CATTRLIB_INVOCATION* invocation) {
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
     catrl_set_remove(&dispatcher->work, &invocation->identity);
     if (dispatcher->rule != 0) return;
-    if (selected) {
-        catrl_queue_dequeue(&state->order, 0);
-        return;
-    }
     /* Cancellation is uncommon and may target any pending member. Rotate
      * exactly the original queue length, retaining relative FIFO order. */
     NUINT length = state->order.length;
@@ -171,11 +167,15 @@ static void cattr_remove_pending(DISPATCHER* dispatcher, CATTRLIB_INVOCATION* in
 
 /* Monitor held, pending set nonempty. The rule is read-only/non-reentrant
  * and returns an opaque record reference, not the address of its Set slot.
- * Custom selection validates and removes the chosen member in one operation;
- * FIFO selection leaves removal to the caller. */
+ * Both paths remove the selected member from pending storage. */
 static CATTRLIB_INVOCATION* cattr_select(DISPATCHER* dispatcher) {
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
-    if (dispatcher->rule == 0) return cattr_invocation_at(catrl_queue_peek(&state->order));
+    if (dispatcher->rule == 0) {
+        POINTERW identity;
+        catrl_queue_dequeue(&state->order, &identity);
+        catrl_set_remove(&dispatcher->work, &identity);
+        return (CATTRLIB_INVOCATION*) identity;
+    }
     POINTER selected = dispatcher->rule(&dispatcher->work);
     POINTERW identity = (POINTERW) selected;
     /* Set removal validates membership before dereferencing the result.
@@ -287,7 +287,7 @@ CATALYST_RESULT cattr_dispatcher_submit(DISPATCHER* dispatcher, POINTERX operati
         return RESULT(STATUS_CODE_SUCCESS, 0x0B, 0x05, 0);
     }
     if (invocation->stage == INVOCATION_PENDING) {
-        cattr_remove_pending(dispatcher, invocation, FALSE);
+        cattr_remove_pending(dispatcher, invocation);
         BOOL was_full = state->pool.cardinality == state->pool.capacity ? TRUE : FALSE;
         catrl_pool_release(&state->pool, invocation->index);
         if (was_full) cattr_platform_monitor_notify(dispatcher->state);
@@ -324,7 +324,6 @@ void cattr_dispatcher_inspect(POINTER submission, POINTERX* operation, POINTERW*
 }
 
 CATALYST_NUINT cattr_dispatcher_count(const DISPATCHER* dispatcher) {
-    CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
     cattr_platform_monitor_lock(dispatcher->state);
     NUINT count = dispatcher->work.cardinality;
     cattr_platform_monitor_unlock(dispatcher->state);
@@ -371,7 +370,6 @@ CATALYST_RESULT cattr_dispatcher_poll(DISPATCHER* dispatcher) {
         cattr_platform_monitor_unlock(dispatcher->state);
         return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x0E, 0x05, 0);
     }
-    if (dispatcher->rule == 0) cattr_remove_pending(dispatcher, invocation, TRUE);
     invocation->stage = INVOCATION_RUNNING;
     state->polling = TRUE;
     /* Completion or the original deadline will wake the awaited caller.
