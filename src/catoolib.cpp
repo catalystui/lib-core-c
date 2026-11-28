@@ -230,16 +230,16 @@ CATALYST_RESULT catoo_class_extend(CLASS* class_, const CLASS* base) {
     key = (const BYTE*) source->members.keys;
     const MEMBER* member = (const MEMBER*) source->members.values;
     for (NUINT i = 0; i < source->members.cardinality; ++i) {
-        RESULT added = catoo_object_add(destination, key, member->data, member->size);
+        RESULT added = catoo_append_copy(destination, key, member);
         if (!status_code_is_success(added.status)) {
             while (destination->members.cardinality > original) {
                 NUINT last = (NUINT) (destination->members.cardinality - (NUINT) 1);
-                POINTER last_key = (const BYTE*) destination->members.keys + (NUINT) (last * destination->members.ksize);
-                RESULT removed = catoo_object_remove(destination, last_key);
+                RESULT removed = catoo_member_free((MEMBER*) destination->members.values + last);
                 if (!status_code_is_success(removed.status)) {
                     if (status_code_is_fatal(added.status)) return RESULT(added.status, 0x19, 0x07, added.detail);
                     return RESULT(removed.status, 0x19, 0x07, removed.detail);
                 }
+                catrl_map_remove_at(&destination->members, last);
             }
             return RESULT(added.status, 0x19, 0x06, added.detail);
         }
