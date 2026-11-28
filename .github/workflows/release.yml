@@ -1,0 +1,256 @@
+name: Publish Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: catalyst-core-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - name: Require main
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -ne 'refs/heads/main') {
+            throw 'Publish Release must be run from main.'
+          }
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Determine version
+        id: version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $metadata = [regex]::Match((Get-Content CMakeLists.txt -Raw), '(?m)^metadata\("catalyst" (\d+) (\d+) (\d+) "([0-9A-Za-z.-]*)" ')
+          if (!$metadata.Success) { throw 'Unable to read Core version metadata.' }
+          $tag = 'v{0}.{1}.{2}' -f $metadata.Groups[1].Value, $metadata.Groups[2].Value, $metadata.Groups[3].Value
+          $prerelease = $metadata.Groups[4].Value
+          if ($prerelease) { $tag += "-$prerelease" }
+          if (git ls-remote --tags origin "refs/tags/$tag") {
+            throw "Tag $tag already exists. Bump Core before publishing again."
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "prerelease=$([string](![string]::IsNullOrEmpty($prerelease)).ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
+  build:
+    needs: prepare
+    name: ${{ matrix.system }} / ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            vendor: linux
+            system: linux
+            arch: x86
+          - runner: ubuntu-24.04
+            vendor: linux
+            system: linux
+            arch: x64
+          - runner: ubuntu-24.04-arm
+            vendor: linux
+            system: linux
+            arch: arm64
+          - runner: macos-15-intel
+            vendor: apple
+            system: darwin24.6
+            arch: x64
+          - runner: macos-15
+            vendor: apple
+            system: darwin24.6
+            arch: arm64
+          - runner: windows-2022
+            vendor: microsoft
+            system: nt10.0
+            arch: x86
+            platform: Win32
+          - runner: windows-2022
+            vendor: microsoft
+            system: nt10.0
+            arch: x64
+            platform: x64
+          - runner: windows-2022
+            vendor: microsoft
+            system: nt10.0
+            arch: arm64
+            platform: ARM64
+
+    defaults:
+      run:
+        shell: pwsh
+
+    env:
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      TARGET_VENDOR: ${{ matrix.vendor }}
+      TARGET_SYSTEM: ${{ matrix.system }}
+      TARGET_ARCHITECTURE: ${{ matrix.arch }}
+      VS_PLATFORM: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install build dependencies
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m pip install 'cmake>=4.3,<5'
+          if ($env:TARGET_VENDOR -eq 'linux' -and $env:TARGET_ARCHITECTURE -eq 'x86') {
+            sudo apt-get update
+            sudo apt-get install -y gcc-multilib g++-multilib
+          }
+
+      - name: Configure Release
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $arguments = @(
+            '-S', '.', '-B', 'target/publish',
+            '-DCMAKE_BUILD_TYPE=Release',
+            "-DTARGET_VENDOR=$env:TARGET_VENDOR",
+            "-DTARGET_SYSTEM=$env:TARGET_SYSTEM",
+            "-DTARGET_ARCHITECTURE=$env:TARGET_ARCHITECTURE",
+            '-DCATALYST_CORE_BUILD_TESTS=ON',
+            '-DCATALYST_CORE_INSTALL=ON',
+            '-DCATALYST_RELEASE_STATIC_IPO=OFF',
+            '-DCMAKE_C_STANDARD_REQUIRED=ON',
+            '-DCMAKE_CXX_STANDARD_REQUIRED=ON',
+            '-DCMAKE_C_EXTENSIONS=OFF',
+            '-DCMAKE_CXX_EXTENSIONS=OFF'
+          )
+          if ($env:TARGET_VENDOR -eq 'microsoft') {
+            $arguments += @(
+              '-G', 'Visual Studio 17 2022', '-A', $env:VS_PLATFORM,
+              '-DCMAKE_C_STANDARD=17', '-DCMAKE_CXX_STANDARD=14',
+              '-DCMAKE_C_FLAGS_INIT=/Zc:__STDC__',
+              '-DCMAKE_CXX_FLAGS_INIT=/Zc:__cplusplus'
+            )
+          } elseif ($env:TARGET_VENDOR -eq 'apple') {
+            $architecture = if ($env:TARGET_ARCHITECTURE -eq 'x64') { 'x86_64' } else { 'arm64' }
+            $arguments += @(
+              '-G', 'Ninja',
+              '-DCMAKE_C_COMPILER=clang', '-DCMAKE_CXX_COMPILER=clang++',
+              '-DCMAKE_C_STANDARD=99', '-DCMAKE_CXX_STANDARD=11',
+              "-DCMAKE_OSX_ARCHITECTURES=$architecture",
+              '-DCMAKE_OSX_DEPLOYMENT_TARGET=15.7'
+            )
+          } else {
+            $arguments += @(
+              '-G', 'Ninja',
+              '-DCMAKE_C_COMPILER=gcc', '-DCMAKE_CXX_COMPILER=g++',
+              '-DCMAKE_C_STANDARD=99', '-DCMAKE_CXX_STANDARD=11'
+            )
+            if ($env:TARGET_ARCHITECTURE -eq 'x86') {
+              $arguments += @('-DCMAKE_C_STANDARD=90', '-DCMAKE_CXX_STANDARD=98', '-DCMAKE_C_FLAGS=-m32', '-DCMAKE_CXX_FLAGS=-m32')
+            }
+          }
+          cmake @arguments
+          $header = Get-Content target/publish/generated/cmakecfg.h -Raw
+          $expectedWidth = if ($env:TARGET_ARCHITECTURE -eq 'x86') { 4 } else { 8 }
+          if ($header -notmatch "(?m)^#define TARGET_SIZEOF_VOID_P $expectedWidth\s*$") {
+            throw 'Configured pointer width does not match the requested architecture.'
+          }
+          $version = [regex]::Match($header, '(?m)^#define METADATA_VERSION "([^"]+)"').Groups[1].Value
+          if ('v' + ($version -split '\+')[0] -ne $env:RELEASE_TAG) {
+            throw 'Generated version does not match the release tag.'
+          }
+
+      - name: Build all libraries and verification programs
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          cmake --build target/publish --config Release --parallel
+
+      - name: Test and package
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $output = "build/$env:TARGET_VENDOR/$env:TARGET_SYSTEM/$env:TARGET_ARCHITECTURE/release"
+          $suffix = if ($IsWindows) { '.exe' } else { '' }
+          $modules = 'catte', 'catmm', 'catrl', 'cattr', 'catoo'
+          $cross = $IsWindows -and $env:TARGET_ARCHITECTURE -eq 'arm64'
+          cmake --install target/publish --config Release --prefix "${PWD}/package"
+          foreach ($module in $modules) {
+            foreach ($kind in 'test', 'perf') {
+              $name = "${kind}_${module}lib$suffix"
+              $program = Join-Path $output $name
+              if (!(Test-Path $program -PathType Leaf)) { throw "Missing $program" }
+              if ($kind -eq 'test' -and !$cross) { & $program }
+              Copy-Item $program package/
+            }
+          }
+          if ($cross) { Write-Warning 'Windows ARM64 is cross-compiled; its executables are not run on the x64 host.' }
+          $name = "lib-core-c-$env:RELEASE_TAG-$env:TARGET_VENDOR-$env:TARGET_SYSTEM-$env:TARGET_ARCHITECTURE"
+          New-Item -ItemType Directory -Force dist | Out-Null
+          if ($IsWindows) {
+            Push-Location package
+            try { cmake -E tar cf "../dist/$name.zip" --format=zip . }
+            finally { Pop-Location }
+          } else {
+            # Archive the installed tree directly to retain Unix symlinks and modes.
+            tar -czf "dist/$name.tar.gz" -C package .
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: core-${{ matrix.vendor }}-${{ matrix.system }}-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: core-*
+          path: dist
+          merge-multiple: true
+      - name: Publish complete release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $main = (git ls-remote origin refs/heads/main) -split '\s+' | Select-Object -First 1
+          if ($main -ne $env:GITHUB_SHA) {
+            throw 'main changed during the build. Run Publish Release again to publish its new HEAD.'
+          }
+          if (git ls-remote --tags origin "refs/tags/$env:RELEASE_TAG") {
+            throw "Tag $env:RELEASE_TAG already exists; refusing to overwrite."
+          }
+          $archives = @(Get-ChildItem dist -File | Where-Object { $_.Name -match '\.(zip|tar\.gz)$' } | Sort-Object Name)
+          if ($archives.Count -ne 8) { throw "Expected eight target archives, found $($archives.Count)." }
+          $checksums = foreach ($archive in $archives) {
+            $hash = (Get-FileHash $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($archive.Name)"
+          }
+          $checksums | Set-Content dist/SHA256SUMS -Encoding utf8
+          $assets = @(Get-ChildItem dist -File | ForEach-Object { $_.FullName })
+          # Create a draft first so a failed asset upload does not publish an incomplete release.
+          # GitHub creates the missing tag at the specified commit when publishing.
+          $arguments = @('release', 'create', $env:RELEASE_TAG, '--target', $env:GITHUB_SHA, '--title', $env:RELEASE_TAG, '--generate-notes', '--draft')
+          if ($env:PRERELEASE -eq 'true') { $arguments += '--prerelease' }
+          gh @arguments @assets
+          gh release edit $env:RELEASE_TAG --draft=false
