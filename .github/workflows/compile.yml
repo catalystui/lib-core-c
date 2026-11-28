@@ -60,7 +60,7 @@ jobs:
             -DTARGET_VENDOR=linux -DTARGET_SYSTEM=linux -DTARGET_ARCHITECTURE=${{ matrix.arch }}
 
       - name: Compile libraries
-        run: cmake --build target/ci --parallel --target cattelib_static cattelib_shared
+        run: cmake --build target/ci --parallel --target cattelib_static cattelib_shared catoolib_static catoolib_shared
 
       - name: Verify library artifacts and ABI names
         run: |
@@ -72,7 +72,7 @@ jobs:
           $abi = "$major.$minor"
           $version = "$abi.$patch"
           $output = 'build/linux/linux/${{ matrix.arch }}/release'
-          foreach ($name in 'catte') {
+          foreach ($name in 'catte','catmm','catrl','catoo') {
             $base = "lib$name"
             $linker = "$base.so"
             $soname = "$linker.$abi"
@@ -128,11 +128,14 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           $output = 'build/linux/linux/${{ matrix.arch }}/release'
           g++ ${{ matrix.flags }} -std=c++${{ matrix.cpp }} -Iinclude -Itarget/ci/generated test/test_cattelib.cpp "-L$output/lib" -lcatte '-Wl,-rpath,$ORIGIN' -o "$output/test_cattelib_dynamic"
+          g++ ${{ matrix.flags }} -std=c++${{ matrix.cpp }} -Iinclude -Itarget/ci/generated test/test_catoolib.cpp "-L$output/lib" -lcatoo -lcatrl -lcatmm '-Wl,-rpath,$ORIGIN' -o "$output/test_catoolib_dynamic"
           $runtime = 'target/ci/runtime-check'
           New-Item -ItemType Directory -Path $runtime -Force | Out-Null
           Get-ChildItem "$output/lib*.so.*" | ForEach-Object { /bin/cp -P $_.FullName "$runtime/" }
           Copy-Item "$output/test_cattelib_dynamic" "$runtime/"
+          Copy-Item "$output/test_catoolib_dynamic" "$runtime/"
           & "$runtime/test_cattelib_dynamic"
+          & "$runtime/test_catoolib_dynamic"
 
       - name: Compile public C headers
         run: |
