@@ -51,7 +51,7 @@ CATALYST_RESULT catoo_object_add(OBJECT* object, POINTER key, POINTER data, NUIN
     MEMBER member;
     RESULT allocated = catoo_member_init(&member, size);
     if (!status_code_is_success(allocated.status)) return RESULT(allocated.status, 0x06, 0x04, allocated.detail);
-    catoo_member_set(&member, data);
+    catmm_copy(member.data, data, size);
     /* Absence and spare capacity were established above. Transfer payload
      * ownership into the map's copied record; no further allocation occurs. */
     catrl_map_append_known(&object->members, key, &member);
