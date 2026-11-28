@@ -16,11 +16,11 @@ typedef ::CATTRLIB_POINTERX POINTERX;
  * C++ API :: THREADING STRUCTURES
  * ------------------------------------------------------------------------------------------------- */
 
-/** A bounded flow of execution which transforms input into output. */
+/** A bounded flow of execution which transforms input into output. Owns its captured state; do not copy or free while a thread borrows it. */
 typedef ::CATTRLIB_PROCESS PROCESS;
-/** A path of execution contained within a process. */
+/** A path of execution contained within a process. Owns its state and borrows its process. Keep initialized objects and entry arguments live through execution and cleanup; do not copy or mutate them. */
 typedef ::CATTRLIB_THREAD THREAD;
-/** A mechanism which selects work for execution on an associated thread. Owns its internal storage; borrows the thread until free. Do not copy an initialized dispatcher or mutate its work directly. */
+/** A mechanism which selects work for execution on an associated thread. Owns its internal storage; borrows the thread until free. Do not copy or mutate an initialized dispatcher. Before its thread stops servicing work, close admission if other callers may still submit or wait. The caller coordinates thread startup and shutdown. */
 typedef ::CATTRLIB_DISPATCHER DISPATCHER;
 
 /* -------------------------------------------------------------------------------------------------
@@ -46,32 +46,32 @@ inline RESULT process_free(PROCESS* process) {
  * C++ API :: THREAD OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Establish a thread within the specified process. Entry must reference a void (CATMMLIB_POINTERW) function. */
+/** Establish a thread within the current process. Entry must reference a void (CATMMLIB_POINTERW) function and return normally. Failed creation permits free only. */
 inline RESULT thread_create(THREAD* thread, PROCESS* process, POINTERX entry, POINTERW arguments) {
     return ::cattr_thread_create(thread, process, entry, arguments);
 }
 
-/** Retrieve the thread associated with the current execution. */
+/** Capture the thread associated with the current execution. The captured native identity must remain live until its last use (except free). */
 inline RESULT thread_current(THREAD* thread, PROCESS* process) {
     return ::cattr_thread_current(thread, process);
 }
 
-/** Begin execution of a thread. */
+/** Begin execution of a created thread. Serialize startup against other callers; entry may use the thread after native identity publication. Failed startup permits free only. */
 inline RESULT thread_start(THREAD* thread) {
     return ::cattr_thread_start(thread);
 }
 
-/** Wait for a thread to complete execution. */
+/** Join a started thread from another thread. Serialize joining against external thread and dispatcher operations; the executing entry may continue until joined. */
 inline RESULT thread_wait(THREAD* thread) {
     return ::cattr_thread_wait(thread);
 }
 
-/** Determine whether two threads represent the same instance of execution. */
+/** Determine whether two threads represent the same instance of execution. Distinct captures are comparable only while their native identities remain live; a joined object equals only itself. */
 inline BOOL thread_equals(const THREAD* thread1, const THREAD* thread2) {
     return ::cattr_thread_equals(thread1, thread2);
 }
 
-/** Release the resources associated with a thread. */
+/** Release a captured, unstarted, joined or failed thread after all users and borrowing dispatchers are finished. */
 inline RESULT thread_free(THREAD* thread) {
     return ::cattr_thread_free(thread);
 }
@@ -85,7 +85,7 @@ inline RESULT dispatcher_create(DISPATCHER* dispatcher, THREAD* thread, POINTER 
     return ::cattr_dispatcher_create(dispatcher, thread, rule, capacity);
 }
 
-/** Submit an independent invocation for execution. Operation must reference a void (CATMMLIB_POINTERW) function. On the associated thread, awaited submission is invalid and asynchronous admission is nonblocking. Callers must avoid cyclic awaited dependencies between execution threads. Timeout is milliseconds (zero polls, NUINT_MAX is indefinite), covering admission and the pending interval; once an awaited callback starts, it completes before return. Arguments remain valid through execution or cancellation. */
+/** Submit an independent invocation for execution. Operation must reference a void (CATMMLIB_POINTERW) function. On the associated thread, awaited submission is invalid and asynchronous admission is nonblocking. Callers must avoid cyclic awaited dependencies between execution threads. Timeout is milliseconds (zero polls, NUINT_MAX is indefinite), covering admission and the pending interval; once an awaited callback starts, it completes before return. Readiness observed on reacquiring the monitor wins a race with expiry; the timeout excludes acquiring the monitor. Arguments remain valid through execution or cancellation. Callbacks must return normally. */
 inline RESULT dispatcher_submit(DISPATCHER* dispatcher, POINTERX operation, POINTERW arguments, BOOL wait, NUINT timeout) {
     return ::cattr_dispatcher_submit(dispatcher, operation, arguments, wait, timeout);
 }
@@ -100,12 +100,12 @@ inline NUINT dispatcher_count(const DISPATCHER* dispatcher) {
     return ::cattr_dispatcher_count(dispatcher);
 }
 
-/** Wait on the associated thread until work becomes available or the dispatcher closes. Do not wait on work that requires the waiting callback to finish. Timeout is milliseconds; zero polls and NUINT_MAX is indefinite. */
+/** Wait on the associated thread until work becomes available or the dispatcher closes. Do not wait on work that requires the waiting callback to finish. Timeout is milliseconds; zero polls and NUINT_MAX is indefinite. Readiness observed on reacquiring the monitor wins a race with expiry. */
 inline RESULT dispatcher_wait(DISPATCHER* dispatcher, NUINT timeout) {
     return ::cattr_dispatcher_wait(dispatcher, timeout);
 }
 
-/** Select and execute pending work according to the dispatch rule. */
+/** Select and execute one pending invocation on the associated thread. The callback must return normally; recursive polling is invalid. */
 inline RESULT dispatcher_poll(DISPATCHER* dispatcher) {
     return ::cattr_dispatcher_poll(dispatcher);
 }

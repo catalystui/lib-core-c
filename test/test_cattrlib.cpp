@@ -155,6 +155,8 @@ static BOOL test_order(int* failed, PROCESS* process, POINTER (*rule)(const SET*
         check(failed, state.length == 3 && state.values[0] == (rule == 0 ? 1 : 3) &&
             state.values[1] == 2 && state.values[2] == (rule == 0 ? 3 : 1), "selected execution order");
         check(failed, dispatcher_count(&dispatcher) == 0, "all pending work removed");
+        check(failed, matches(dispatcher_submit(&dispatcher, (POINTERX) append_value, &items[0], FALSE, 0),
+            STATUS_CODE_ERROR_INVALID_STATE, 0x0B, 0x0A), "joined thread rejects submission");
     }
     check(failed, matches(dispatcher_close(&dispatcher), STATUS_CODE_SUCCESS, 0x0F, 0x02), "close ordering dispatcher");
     check(failed, matches(dispatcher_close(&dispatcher), STATUS_CODE_SUCCESS_NOOP, 0x0F, 0x01), "repeat close");

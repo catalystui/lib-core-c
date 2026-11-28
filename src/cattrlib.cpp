@@ -260,6 +260,11 @@ CATALYST_RESULT cattr_dispatcher_submit(DISPATCHER* dispatcher, POINTERX operati
         cattr_platform_monitor_unlock(dispatcher->state);
         return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x0B, 0x01, 0);
     }
+    const CATTRLIB_THREAD_STATE* thread = (const CATTRLIB_THREAD_STATE*) dispatcher->thread->state;
+    if (thread->stage == THREAD_JOINED || thread->stage == THREAD_CLEANUP) {
+        cattr_platform_monitor_unlock(dispatcher->state);
+        return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x0B, 0x0A, 0);
+    }
     /* The associated thread cannot block awaiting its own dispatch.
      * Asynchronous submissions still enter the Set and obey the rule. */
     if (cattr_thread_is_current(dispatcher->thread)) {
