@@ -179,6 +179,20 @@ struct NativeInvocation {
     Octet* completion;
 };
 
+/* Priority fixture used by both independent selection algorithms.
+ * All priority arguments are distinct and live through their batch. */
+struct PriorityArgument {
+    NUINT priority;
+    NUINT* next;
+};
+
+static void verify_priority(POINTERW arguments) {
+    PriorityArgument* argument = (PriorityArgument*) arguments;
+    require(*argument->next != 0 && argument->priority == (NUINT) (*argument->next - (NUINT) 1),
+        "priority selection order");
+    --*argument->next;
+}
+
 struct NativeDispatcher {
     NativeThread* thread;
     NativeMonitor monitor;
@@ -188,6 +202,7 @@ struct NativeDispatcher {
     NUINT length;
     NUINT occupied;
     Flag closed;
+    Flag priority;
 };
 
 // Benchmark adapters normalize outcomes for identical verification.
@@ -267,7 +282,7 @@ struct Native {
         t->captured = FALSE;
         return STATUS_CODE_SUCCESS;
     }
-    static Status dispatcher_create(Dispatcher* d, Thread* t, NUINT capacity) {
+    static Status dispatcher_create(Dispatcher* d, Thread* t, NUINT capacity, Flag priority = FALSE) {
         require(capacity != 0 && capacity <= native_max_capacity, "native capacity");
         monitor_init(&d->monitor);
         d->thread = t;
@@ -276,6 +291,7 @@ struct Native {
         d->length = 0;
         d->occupied = 0;
         d->closed = FALSE;
+        d->priority = priority;
         return STATUS_CODE_SUCCESS;
     }
     static Status dispatcher_submit(Dispatcher* d, Entry entry, POINTERW args, Flag wait, NUINT timeout) {
@@ -360,9 +376,22 @@ struct Native {
             monitor_unlock(&d->monitor);
             return result;
         }
-        NativeInvocation work = d->entries[d->head];
-        d->head = (NUINT) ((d->head + (NUINT) 1) % d->capacity);
-        --d->length;
+        NativeInvocation work;
+        if (d->priority) {
+            // Independent contiguous priority scan with unordered removal.
+            NUINT selected = 0;
+            for (NUINT i = 1; i < d->length; ++i) {
+                if (((const PriorityArgument*) d->entries[i].arguments)->priority >
+                    ((const PriorityArgument*) d->entries[selected].arguments)->priority) selected = i;
+            }
+            work = d->entries[selected];
+            --d->length;
+            if (selected != d->length) d->entries[selected] = d->entries[d->length];
+        } else {
+            work = d->entries[d->head];
+            d->head = (NUINT) ((d->head + (NUINT) 1) % d->capacity);
+            --d->length;
+        }
         monitor_unlock(&d->monitor);
         work.entry(work.arguments);
         monitor_lock(&d->monitor);
@@ -401,6 +430,25 @@ struct Native {
     }
 };
 
+static POINTER select_priority(const SET* work) {
+    POINTERW selected = 0;
+    NUINT priority = 0;
+    for (NUINT i = 0; i < work->cardinality; ++i) {
+        POINTERW candidate;
+        catmm_copy(&candidate, (const BYTE*) work->data + (NUINT) (i * work->size), (NUINT) sizeof(candidate));
+        POINTERX operation;
+        POINTERW arguments;
+        dispatcher_inspect(candidate, &operation, &arguments);
+        require(operation == (POINTERX) verify_priority, "priority executable");
+        NUINT value = ((const PriorityArgument*) arguments)->priority;
+        if (selected == 0 || value > priority) {
+            selected = candidate;
+            priority = value;
+        }
+    }
+    return selected;
+}
+
 // The comparison uses only exported Catalyst functionality.
 struct Catalyst {
     typedef PROCESS Process;
@@ -415,7 +463,7 @@ struct Catalyst {
     static Status thread_start(Thread* t) { return catalyst::thread_start(t).status; }
     static Status thread_wait(Thread* t) { return catalyst::thread_wait(t).status; }
     static Status thread_free(Thread* t) { return catalyst::thread_free(t).status; }
-    static Status dispatcher_create(Dispatcher* d, Thread* t, NUINT c) { return catalyst::dispatcher_create(d, t, 0, c).status; }
+    static Status dispatcher_create(Dispatcher* d, Thread* t, NUINT c, Flag priority = FALSE) { return catalyst::dispatcher_create(d, t, priority ? select_priority : 0, c).status; }
     static Status dispatcher_submit(Dispatcher* d, Entry e, POINTERW a, Flag w, NUINT timeout) {
         return catalyst::dispatcher_submit(d, (POINTERX) e, a, w, timeout).status;
     }
@@ -497,7 +545,7 @@ template<class API> static void producer_entry(POINTERW arguments) {
 enum Kind {
     PROCESS_CAPTURE, PROCESS_EQUAL, THREAD_CAPTURE, THREAD_EQUAL, THREAD_LIFECYCLE,
     DISPATCHER_LIFECYCLE, COUNT_EMPTY, WAIT_EMPTY, POLL_EMPTY, INLINE_SUBMIT,
-    PENDING_TIMEOUT, FULL_ADMISSION, SYNC_ROUNDTRIP, BATCH_FIFO, CONTENTION, CLOSE_JOIN
+    PENDING_TIMEOUT, FULL_ADMISSION, SYNC_ROUNDTRIP, BATCH_FIFO, PRIORITY_BATCH, CONTENTION, CLOSE_JOIN
 };
 
 struct Benchmark {
@@ -527,6 +575,8 @@ static const Benchmark benchmarks[] = {
     { "dispatcher FIFO batch (8)", BATCH_FIFO, 8, 8, 4096UL },
     { "dispatcher FIFO batch (32)", BATCH_FIFO, 32, 32, 4096UL },
     { "dispatcher FIFO batch (128)", BATCH_FIFO, 128, 128, 1024UL },
+    { "priority batch (32)", PRIORITY_BATCH, 32, 32, 4096UL },
+    { "priority batch (128)", PRIORITY_BATCH, 128, 128, 1024UL },
     { "4 producers / capacity 2", CONTENTION, 2, 4, 4096UL },
     { "4 producers / capacity 128", CONTENTION, 128, 4, 4096UL },
     { "dispatcher close / worker join", CLOSE_JOIN, 1, 1, 1024UL }
@@ -581,6 +631,29 @@ template<class API> static double measure(const Benchmark* b, unsigned long call
             expect(API::thread_free(&current), STATUS_CODE_SUCCESS);
         }
         if (b->kind == THREAD_LIFECYCLE) require(count_matches(&value, calls), "thread callback output");
+    } else if (b->kind == PRIORITY_BATCH) {
+        expect(API::thread_current(&thread, &process), STATUS_CODE_SUCCESS);
+        expect(API::dispatcher_create(&dispatcher, &thread, b->capacity, TRUE), STATUS_CODE_SUCCESS);
+        PriorityArgument arguments[native_max_capacity];
+        NUINT next = 0;
+        for (NUINT i = 0; i < b->capacity; ++i) {
+            arguments[i].priority = i;
+            arguments[i].next = &next;
+        }
+        start = now_seconds();
+        for (unsigned long i = 0; i < calls; ++i) {
+            next = b->capacity;
+            for (NUINT j = 0; j < b->capacity; ++j) {
+                expect(API::dispatcher_submit(&dispatcher, verify_priority, &arguments[j], FALSE, 0), STATUS_CODE_SUCCESS);
+            }
+            for (NUINT j = 0; j < b->capacity; ++j) expect(API::dispatcher_poll(&dispatcher), STATUS_CODE_SUCCESS);
+            require(next == 0, "all priority work completed");
+        }
+        end = now_seconds();
+        require(API::dispatcher_count(&dispatcher) == 0, "priority pending count");
+        expect(API::dispatcher_close(&dispatcher), STATUS_CODE_SUCCESS);
+        expect(API::dispatcher_free(&dispatcher), STATUS_CODE_SUCCESS);
+        expect(API::thread_free(&thread), STATUS_CODE_SUCCESS);
     } else if (b->kind == CONTENTION) {
         Worker<API> worker;
         worker.dispatcher = &dispatcher;
@@ -740,6 +813,7 @@ int main() {
     std::printf("Native caller-owned handles and fixed FIFO storage; Catalyst owns its bookkeeping.\n");
     std::printf("Cross-thread rows include scheduling and completion; batch rows divide by completed invocations.\n");
     std::printf("Four-producer rows include producer startup/join and mixed async/awaited work.\n");
+    std::printf("Priority rows measure enqueue and selection/drain on one thread, checking descending priority.\n");
     std::printf("Lifecycle rows report the named group, not individual calls. Close/join includes clock overhead.\n");
     std::printf("Zero-timeout rows measure nonblocking outcomes, not timer accuracy.\n");
     std::printf("Relative difference includes algorithm and ownership costs, not Result reporting alone.\n\n");

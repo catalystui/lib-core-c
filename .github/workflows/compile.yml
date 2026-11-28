@@ -112,6 +112,8 @@ jobs:
           cmake --build target/ci --parallel --target cattrlib_shared test_cattrlib perf_cattrlib
           $output = 'build/linux/linux/${{ matrix.arch }}/release'
           & "$output/test_cattrlib"
+          # Bound benchmark execution so a synchronization regression cannot hang CI.
+          timeout 120s "$output/perf_cattrlib"
 
       - name: Verify relocatable shared-library runtime
         run: |
