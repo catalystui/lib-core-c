@@ -21,7 +21,7 @@ Provides Set, Map, Array, File, Stream, Queue, Stack, Pool, HashSet, and HashMap
 
 Collection-owned storage uses CATMMLIB's managed heap. Callers release it only through the owning collection operations; backing storage may be retained for reuse.
 
-CATRLLIB uses [CATMMLIB](../catmmlib/index.md) for internal storage and lifecycle. It requires no wider numeric representation or platform-specific operation of its own.
+CATRLLIB uses [CATMMLIB](../catmmlib/index.md) for internal storage and lifecycle. It requires no wider numeric representation or platform-specific operation of its own. Set and Map lookups search their contiguous live representations; optional word-parallel and compiler-supported vector comparisons accelerate byte equality without changing search results or reading beyond the live extent. Scalar fallbacks remain available on narrow targets.
 
 Initialize unused collection storage only; do not shallow-copy owning collections or modify bookkeeping directly. Synchronize access externally.
 

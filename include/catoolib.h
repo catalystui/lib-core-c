@@ -118,13 +118,13 @@ CATOOLIB_API CATALYST_RESULT catoo_object_remove(CATOOLIB_OBJECT* object, CATMML
 /** Test a readable ksize-byte key against an initialized object. */
 CATOOLIB_API CATALYST_BOOL catoo_object_contains(const CATOOLIB_OBJECT* object, CATMMLIB_POINTER key);
 
-/** Borrow the member associated with a readable key, or return null if absent. Do not free it separately; reacquire after removal, clear, resize or free attempts. */
+/** Borrow the member associated with a readable key, or return null if absent. Do not free it separately; reacquire after removal, clear, map resize or free attempts that may invalidate the descriptor. */
 CATOOLIB_API CATOOLIB_MEMBER* catoo_object_get(CATOOLIB_OBJECT* object, CATMMLIB_POINTER key);
 
 /** Expand the initialized member map to the requested capacity; smaller/equal requests are no-ops. Failure retains members and logical capacity; key aliases may be invalidated. */
 CATOOLIB_API CATALYST_RESULT catoo_object_expand(CATOOLIB_OBJECT* object, CATALYST_NUINT capacity);
 
-/** Halve capacity without dropping members; failure may retain a smaller logical capacity. Reacquire borrowed fields after resize attempts. */
+/** Halve map capacity without dropping members; failure may retain a smaller logical capacity. Reacquire borrowed members and fields after map resize attempts. */
 CATOOLIB_API CATALYST_RESULT catoo_object_shrink(CATOOLIB_OBJECT* object);
 
 /** Release and remove all members, retaining map capacity. On failure, already removed members remain removed; remaining members are live. */

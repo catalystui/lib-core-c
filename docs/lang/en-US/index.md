@@ -24,12 +24,12 @@
 </div>
 </div>
 
-Core provides portable building blocks based on the [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/specifications/languages/fdefspec/). Its native C ABI allows libraries to share data representations and operations independently of programming language, operating system, or hardware.
+Core provides portable building blocks based on the [Foundational Definitions Specification (FDEFSPEC)](https://catalystui.org/specifications/languages/fdefspec/) and [Foundational Relationships Specification (FRELSPEC)](https://catalystui.org/specifications/languages/frelspec/). Its native C ABI allows libraries to share data representations and operations independently of programming language, operating system, or hardware.
 
 Core is designed to be implementable even on 8-bit systems while taking advantage of wider numeric representations where beneficial. It is independent of every layer and sensory domain of the CatalystUI model, and exists to support them all.
 
 > [!NOTE]
-> Core is in early development (1.0.0-alpha.2). Core types, native memory operations, text encoding, and collections are implemented. API and ABI stability are not yet guaranteed.
+> Core is in early development (1.0.0-alpha.2). Core types, text encoding, memory, collections, process and thread operations (on supported platforms), and object-oriented composite relationships are implemented. API and ABI stability are not yet guaranteed.
 
 ## Libraries
 
@@ -79,6 +79,15 @@ Core is designed to be implementable even on 8-bit systems while taking advantag
 <small style="opacity:0.8;margin-top:auto;">Link: <code>cattr</code></small>
 </div>
 
+<div style="flex:1 1 calc(50% - 0.5rem);min-width:min(100%, 15rem);box-sizing:border-box;padding:1.2rem;border:1px solid color-mix(in srgb, currentColor 22%, transparent);border-radius:12px;background:color-mix(in srgb, currentColor 4%, transparent);display:flex;flex-direction:column;align-items:center;text-align:center;">
+<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;width:32px;height:32px;margin:0.15rem auto 0.8rem;opacity:0.9;"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 9v12M12 13h5m-5 4h5"/></svg>
+
+**[CATOOLIB](api-reference/catoolib/index.md)**
+
+<p style="margin:0 0 0.85rem;max-width:20rem;">Compose Objects, resolve Fields, invoke Methods and Properties, and represent Structures, Classes, and Interfaces.</p>
+<small style="opacity:0.8;margin-top:auto;">Link: <code>catoo</code></small>
+</div>
+
 </div>
 
 ## Getting Started
@@ -115,6 +124,7 @@ Core provides the same namespaced CMake targets when built from source or instal
 | CATMMLIB | `Catalyst::catmm_static` | `Catalyst::catmm_shared` |
 | CATRLLIB | `Catalyst::catrl_static` | `Catalyst::catrl_shared` |
 | CATTRLIB (where implemented) | `Catalyst::cattr_static` | `Catalyst::cattr_shared` |
+| CATOOLIB | `Catalyst::catoo_static` | `Catalyst::catoo_shared` |
 
 Targets propagate public include directories, the generated target configuration, shared-library import definitions, and required library dependencies. Choose a consistent static or shared dependency chain; do not embed independent copies of stateful Core libraries into multiple shared libraries.
 

@@ -71,7 +71,7 @@ inline BOOL object_contains(const OBJECT* object, POINTER key) {
     return ::catoo_object_contains(object, key);
 }
 
-/** Borrow the member associated with a readable key, or return null if absent. Do not free it separately; reacquire after removal, clear, resize or free attempts. */
+/** Borrow the member associated with a readable key, or return null if absent. Do not free it separately; reacquire after removal, clear, map resize or free attempts that may invalidate the descriptor. */
 inline MEMBER* object_get(OBJECT* object, POINTER key) {
     return ::catoo_object_get(object, key);
 }
@@ -81,7 +81,7 @@ inline RESULT object_expand(OBJECT* object, NUINT capacity) {
     return ::catoo_object_expand(object, capacity);
 }
 
-/** Halve capacity without dropping members; failure may retain a smaller logical capacity. Reacquire borrowed fields after resize attempts. */
+/** Halve map capacity without dropping members; failure may retain a smaller logical capacity. Reacquire borrowed members and fields after map resize attempts. */
 inline RESULT object_shrink(OBJECT* object) {
     return ::catoo_object_shrink(object);
 }

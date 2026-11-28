@@ -13,13 +13,13 @@ The Object-Oriented Library represents the composite relationships defined by FR
 
 Objects own their CATRLLIB map records and each nonzero-size member's separately allocated payload (CATMMLIB managed heap). A member copies bytes, not objects or resources referenced by those bytes. Initialize unused, disjoint storage, do not shallow-copy owning objects or members, and release resources through their corresponding free operations. An object can be reused after successful free. After failed free, retry free only. Synchronize accesses and lifecycle operations externally.
 
-Keys have a single nonzero byte width per object and are compared as bytes. Expand capacity before adding; a duplicate is a no-op. The map's exposed fields are not an alternative mutation API. Borrowed members and fields are invalidated by removal, clear, resize or free attempts. Fields borrow the object's stored keys, not the caller's lookup buffers. Do not independently free borrowed members or directly change their ownership or size fields. Use `catoo_member_resize` on a live standalone or borrowed member to change its byte extent without changing its key. Payload addresses may change, so references into the old payload must be reacquired after successful resize. The member descriptor and resolved Field remain live.
+Keys have a single nonzero byte width per object and are compared as bytes. Expand capacity before adding; a duplicate is a no-op. The map's exposed fields are not an alternative mutation API. Reacquire borrowed members and fields after removal, clear, map expansion or shrinkage, class extension, or free attempts that may relocate or release their storage. Fields borrow the object's stored keys, not the caller's lookup buffers. Do not independently free borrowed members or directly change their ownership or size fields. Use `catoo_member_resize` on a live standalone or borrowed member to change its byte extent without changing its key. Payload addresses may change, so references into the old payload must be reacquired after successful resize. The member descriptor and resolved Field remain live.
 
 A method is stored by copying the bytes of a native `CATOOLIB_METHOD` function pointer; a property is stored by copying a `CATOOLIB_PROPERTY`. Callers establish the exact callable types and callback contracts before invoking; no runtime type metadata is introduced. Callback results preserve status/detail under CATOOLIB context/operation codes, except interface validation remaps invalid-argument details and dispatch rejects out-of-range callback argument indices as invalid state. Receiver index zero corresponds to the public Field argument. A callback may invalidate a resolved field by mutating its object.
 
-Structures have fixed keys by API contract, not compiler enforcement. Classes store default member bytes and create independent instances; references embedded in those bytes remain shared. Class extension copies disjoint layouts. Reserve anticipated total member slots through `catoo_object_expand(&class_->object, capacity)` before a series of extensions to avoid repeated map growth; extension preserves sufficient existing capacity. Conflicting keys are intentionally unsupported until a policy is approved. No nominal inheritance, class identity tracking, or automatic lifecycle callbacks are implied.
+Structures have fixed keys by API contract, not compiler enforcement. Classes store default member bytes and create independent instances; references embedded in those bytes remain shared. Class extension copies disjoint layouts. Cloning and extension copy the key layout contiguously and publish each member only after its independent payload has been allocated and copied. Reserve anticipated total member slots through `catoo_object_expand(&class_->object, capacity)` before a series of extensions to avoid repeated map growth; extension preserves sufficient existing capacity. Conflicting keys are intentionally unsupported until a policy is approved. No nominal inheritance, class identity tracking, or automatic lifecycle callbacks are implied.
 
-Interfaces require a subset of the object's keys and validate each corresponding member using the supplied rule. An empty interface accepts every object; a nonempty interface requires matching key widths and a callable validator. The rule must not modify either object and must write a Catalyst Boolean on SUCCESS. Non-SUCCESS results stop without writing the caller's validity output.
+Interfaces require a subset of the object's keys and validate each corresponding member using the supplied rule. An empty interface accepts every object; a nonempty interface requires matching key widths and a callable validator. The rule must not modify either object and must write a Catalyst Boolean on SUCCESS. Validation visits requirements in their stored order, resolving matching layouts directly and searching by key otherwise. Non-SUCCESS results stop without writing the caller's validity output.
 
 For Core-wide requirements, see [Assumptions](../../assumptions/index.md).
 
@@ -51,9 +51,9 @@ For Core-wide requirements, see [Assumptions](../../assumptions/index.md).
 | [`catoo_object_add`](#catoo_object_add) | Copy a distinct key and nonzero size readable payload bytes into an initialized object. Duplicate keys are no-ops; exhausted capacity is an error. Key must be outside the map and its allocations. Failure retains existing members. |
 | [`catoo_object_remove`](#catoo_object_remove) | Remove a keyed member and release its payload. Absent keys are no-ops; release failure retains the member. The key must be readable during lookup; it need not outlive the removed payload. |
 | [`catoo_object_contains`](#catoo_object_contains) | Test a readable ksize-byte key against an initialized object. |
-| [`catoo_object_get`](#catoo_object_get) | Borrow the member associated with a readable key, or return null if absent. Do not free it separately; reacquire after removal, clear, resize or free attempts. |
+| [`catoo_object_get`](#catoo_object_get) | Borrow the member associated with a readable key, or return null if absent. Do not free it separately; reacquire after removal, clear, map resize or free attempts that may invalidate the descriptor. |
 | [`catoo_object_expand`](#catoo_object_expand) | Expand the initialized member map to the requested capacity; smaller/equal requests are no-ops. Failure retains members and logical capacity; key aliases may be invalidated. |
-| [`catoo_object_shrink`](#catoo_object_shrink) | Halve capacity without dropping members; failure may retain a smaller logical capacity. Reacquire borrowed fields after resize attempts. |
+| [`catoo_object_shrink`](#catoo_object_shrink) | Halve map capacity without dropping members; failure may retain a smaller logical capacity. Reacquire borrowed members and fields after map resize attempts. |
 | [`catoo_object_clear`](#catoo_object_clear) | Release and remove all members, retaining map capacity. On failure, already removed members remain removed; remaining members are live. |
 | [`catoo_object_free`](#catoo_object_free) | Release all members then map storage. Failure retains unreleased resources for retry with object_free; success leaves a reusable empty object. |
 | [`catoo_field_init`](#catoo_field_init) | Resolve a borrowed field from an initialized object using a readable key. The field borrows the object's stored key and member; input key storage is not retained. Reacquire after invalidating map operations. Absence clears the field and returns FALSE. |
@@ -77,7 +77,7 @@ For Core-wide requirements, see [Assumptions](../../assumptions/index.md).
 
 ### CATOOLIB_API
 
-Native C ABI export/import annotation. On Windows/Cygwin, `CATOOLIB_EXPORTS` selects `__declspec(dllexport)` and `CATOOLIB_USE_DLL` selects `__declspec(dllimport)`; otherwise the macro is empty. `catoolib_static` and `catoolib_shared` link the corresponding CATRLLIB dependency.
+Native C ABI export/import annotation. On Windows/Cygwin, `CATOOLIB_EXPORTS` selects `__declspec(dllexport)` and `CATOOLIB_USE_DLL` selects `__declspec(dllimport)`; otherwise the macro is empty. The build targets `catoolib_static` and `catoolib_shared` link the corresponding CATRLLIB dependency. Consumers use `Catalyst::catoo_static` or `Catalyst::catoo_shared`, respectively.
 
 ### CATOOLIB_MEMBER
 
@@ -403,7 +403,7 @@ Test a readable ksize-byte key against an initialized object.
 CATOOLIB_MEMBER* catoo_object_get(CATOOLIB_OBJECT* object, CATMMLIB_POINTER key);
 ```
 
-Borrow the member associated with a readable key, or return null if absent. Do not free it separately; reacquire after removal, clear, resize or free attempts.
+Borrow the member associated with a readable key, or return null if absent. Do not free it separately; reacquire after removal, clear, map resize or free attempts that may invalidate the descriptor.
 
 **Parameters:**  
 `object` — initialized writable object.  
@@ -441,7 +441,7 @@ Expand the initialized member map to the requested capacity; smaller/equal reque
 CATALYST_RESULT catoo_object_shrink(CATOOLIB_OBJECT* object);
 ```
 
-Halve capacity without dropping members; failure may retain a smaller logical capacity. Reacquire borrowed fields after resize attempts.
+Halve map capacity without dropping members; failure may retain a smaller logical capacity. Reacquire borrowed members and fields after map resize attempts.
 
 **Parameters:**  
 `object` — initialized writable object; target capacity is the greater of cardinality and half the current capacity rounded down.
@@ -828,7 +828,7 @@ Check each required key and its validator. Missing/incompatible keys produce FAL
 | `0x001C0200` | SUCCESS | Required key absent. | — |
 | `0x811C0301` | ERROR_INVALID_ARGUMENT | Validator rejects candidate member argument. | Object parameter. |
 | `0x811C0400` | ERROR_INVALID_ARGUMENT | Validator rejects requirement argument. | Interface parameter. |
-| `0x821C0500` | ERROR_INVALID_STATE | Validator reports invalid internal output argument. | — |
+| `0x821C0500` | ERROR_INVALID_STATE | Validator reports an invalid argument index of 2 or greater (not a public argument). | — |
 | `0xSS1C06DD` | Variable status | Other non-SUCCESS validator outcome. | Callback detail. |
 | `0x001C0700` | SUCCESS | Member did not satisfy requirement. | — |
 | `0x001C0800` | SUCCESS | All requirements satisfied. | — |
