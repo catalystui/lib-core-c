@@ -33,7 +33,6 @@ configure_target(
     TARGETS catmmlib_shared catmmlib_static
     SOURCES
         src/catmmlib.cpp
-        src/catmmlib.heap.cpp
         src/catmmlib.internal.hpp
         ${CATMMLIB_PLATFORM_SOURCE}
 )
@@ -49,37 +48,6 @@ configure_target(
 )
 target_link_libraries(catrllib_shared PUBLIC catmmlib_shared)
 target_link_libraries(catrllib_static PUBLIC catmmlib_static)
-
-# cattrlib
-if(TARGET_PLATFORM_WIN32 OR TARGET_PLATFORM_LINUX OR TARGET_PLATFORM_DARWIN)
-    if(TARGET_PLATFORM_WIN32)
-        set(CATTRLIB_PLATFORM_SOURCE src/cattrlib.win32.cpp)
-    elseif(TARGET_PLATFORM_DARWIN)
-        set(CATTRLIB_PLATFORM_SOURCE src/cattrlib.darwin.mm src/cattrlib.pthread.hpp)
-    elseif(TARGET_PLATFORM_LINUX)
-        set(CATTRLIB_PLATFORM_SOURCE src/cattrlib.linux.cpp src/cattrlib.pthread.hpp)
-        # On Linux this supplies the native pthread compiler/linker flags
-        # when required by the selected system and toolchain.
-        find_package(Threads REQUIRED)
-    endif()
-    add_library(cattrlib_shared SHARED)
-    add_library(cattrlib_static STATIC)
-    configure_target(
-        NAME cattr
-        TARGETS cattrlib_shared cattrlib_static
-        SOURCES
-            src/cattrlib.cpp
-            src/cattrlib.internal.hpp
-            ${CATTRLIB_PLATFORM_SOURCE}
-    )
-    target_link_libraries(cattrlib_shared PUBLIC catrllib_shared)
-    target_link_libraries(cattrlib_static PUBLIC catrllib_static)
-    if(TARGET_PLATFORM_LINUX)
-        target_link_libraries(cattrlib_shared PRIVATE Threads::Threads)
-        target_link_libraries(cattrlib_static PRIVATE Threads::Threads)
-    endif()
-    target_compile_definitions(cattrlib_shared PRIVATE CATTRLIB_EXPORTS INTERFACE CATTRLIB_USE_DLL)
-endif()
 
 # Export each shared library's C ABI and propagate its import definition.
 target_compile_definitions(cattelib_shared PRIVATE CATTELIB_EXPORTS INTERFACE CATTELIB_USE_DLL)
@@ -99,13 +67,6 @@ target_link_libraries(test_catmmlib PRIVATE catmmlib_static)
 target_link_libraries(perf_catmmlib PRIVATE catmmlib_static)
 target_link_libraries(test_catrllib PRIVATE catrllib_static)
 target_link_libraries(perf_catrllib PRIVATE catrllib_static)
-if(TARGET cattrlib_static)
-    target_link_libraries(test_cattrlib PRIVATE cattrlib_static)
-    target_link_libraries(perf_cattrlib PRIVATE cattrlib_static)
-    if(TARGET_PLATFORM_LINUX)
-        target_link_libraries(perf_cattrlib PRIVATE Threads::Threads)
-    endif()
-endif()
 
 # Release optimization is local to Core; preserve Debug and the selected target ISA.
 set(CATALYST_RELEASE_LIBRARIES
@@ -114,10 +75,6 @@ set(CATALYST_RELEASE_LIBRARIES
     catrllib_shared catrllib_static
 )
 set(CATALYST_RELEASE_EXECUTABLES test_cattelib test_catmmlib test_catrllib perf_cattelib perf_catmmlib perf_catrllib)
-if(TARGET cattrlib_static)
-    list(APPEND CATALYST_RELEASE_LIBRARIES cattrlib_shared cattrlib_static)
-    list(APPEND CATALYST_RELEASE_EXECUTABLES test_cattrlib perf_cattrlib)
-endif()
 
 foreach(TARGET_NAME IN LISTS CATALYST_RELEASE_LIBRARIES CATALYST_RELEASE_EXECUTABLES)
     get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
@@ -165,8 +122,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|MSVC)$")
                 continue()
             endif()
             # CheckIPOSupported does not probe Objective-C++; require the same
-            # toolchain and CMake's Objective-C++ IPO support for native Core backends.
-            if(TARGET_PLATFORM_DARWIN AND TARGET_NAME MATCHES "^(catmmlib|cattrlib)_" AND
+            # toolchain and CMake's Objective-C++ IPO support for CATMMLIB.
+            if(TARGET_PLATFORM_DARWIN AND TARGET_NAME MATCHES "^catmmlib_" AND
                (NOT CMAKE_OBJCXX_COMPILER_ID STREQUAL CMAKE_CXX_COMPILER_ID OR
                 NOT CMAKE_OBJCXX_COMPILER_VERSION STREQUAL CMAKE_CXX_COMPILER_VERSION OR
                 NOT CMAKE_OBJCXX_COMPILE_OPTIONS_IPO))

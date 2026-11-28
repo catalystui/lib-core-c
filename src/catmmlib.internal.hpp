@@ -7,9 +7,23 @@
 #error "CATMMLIB requires a supported native memory-management backend."
 #endif
 
+/* Supported targets use flat byte addresses. The address representation must
+ * accommodate the full pointer-width extent. */
+typedef char CATMMLIB_address_extent_fits[(sizeof(CATMMLIB_ADDRESS) >= sizeof(CATALYST_NUINT)) ? 1 : -1];
+
+/* The managed heap requires a representable slab extent and lock-free byte
+ * synchronization. Otherwise the heap API uses native allocation. */
+#if TARGET_SIZEOF_ADDRESS >= 2 && ((TARGET_PLATFORM_WIN32 && defined(_MSC_VER)) || (!defined(_MSC_VER) && defined(__GCC_ATOMIC_CHAR_LOCK_FREE) && __GCC_ATOMIC_CHAR_LOCK_FREE == 2))
+#define CATMMLIB_MANAGED_HEAP 1
+#else
+#define CATMMLIB_MANAGED_HEAP 0
+#endif
+
 /* Private object representation copied to/from the allocation prefix. Never
  * interpret mapped bytes as a constructed or suitably aligned header object.
- * requested_size excludes the prefix. For managed allocations and mapping
+ * requested_size and backing_size exclude the prefix. backing_size identifies
+ * the original backing extent or nominal pooled capacity after resizing.
+ * For managed allocations and mapping
  * backends, pending is null unless both old-block release and replacement cleanup failed during
  * resize. Such a replacement remains owned and reachable from the old block.
  * Its own header supplies its extent; it must be released before another
@@ -17,6 +31,7 @@
  */
 typedef struct CATMMLIB_MEMORY_HEADER {
     CATALYST_NUINT requested_size;
+    CATALYST_NUINT backing_size;
     CATMMLIB_POINTERW pending;
 } CATMMLIB_MEMORY_HEADER;
 
@@ -54,21 +69,21 @@ CATMMLIB_PRIVATE CATALYST_RESULT catmm_platform_alloc(CATMMLIB_POINTERW* memory,
  * mutation occurs; representable page size was established on allocation.
  */
 CATMMLIB_PRIVATE CATALYST_BOOL catmm_platform_extent_matches(CATALYST_NUINT old_size, CATALYST_NUINT new_size);
+/* Shrink a live native mapping across a page boundary, preserving it on failure. */
+/* Attempt to extend a mapping without moving it. Failure leaves it unchanged;
+ * the caller falls back to allocation/copy/release. */
+CATMMLIB_PRIVATE CATALYST_BOOL catmm_platform_try_grow(CATMMLIB_POINTERW memory, CATALYST_NUINT old_size, CATALYST_NUINT new_size);
+CATMMLIB_PRIVATE CATALYST_RESULT catmm_platform_shrink(CATMMLIB_POINTERW memory, CATALYST_NUINT old_size, CATALYST_NUINT new_size);
 #endif
 #if TARGET_PLATFORM_WIN32
 CATMMLIB_PRIVATE CATALYST_RESULT catmm_platform_realloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT size);
 #endif
 CATMMLIB_PRIVATE CATALYST_RESULT catmm_platform_free(CATMMLIB_POINTERW memory, CATALYST_NUINT size);
-/* Managed storage uses the same native extent and alignment contract.
- * Alloc/free have contexts 04/06; reserve operations 01/02 for the private
- * extent boundary, with the shared public operations beginning at 03.
- * Nonzero extents include the prefix; free and matches receive the original
- * extent of a live allocation. Matches is a non-mutating same-class test.
- */
-CATMMLIB_PRIVATE CATALYST_RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT size);
-CATMMLIB_PRIVATE CATALYST_RESULT catmm_heap_extent_free(CATMMLIB_POINTERW memory, CATALYST_NUINT size);
-CATMMLIB_PRIVATE CATALYST_BOOL catmm_heap_extent_matches(CATALYST_NUINT old_size, CATALYST_NUINT new_size);
-/* Yield the current thread during contention; no allocation or failure contract. */
-CATMMLIB_PRIVATE void catmm_platform_yield();
+#if CATMMLIB_MANAGED_HEAP
+/* Lock starts at zero. Acquire waits for exclusive ownership; release requires
+ * ownership. All accesses to the lock byte during use are atomic. */
+CATMMLIB_PRIVATE void catmm_platform_lock(CATALYST_BYTE* lock);
+CATMMLIB_PRIVATE void catmm_platform_unlock(CATALYST_BYTE* lock);
+#endif
 #undef CATMMLIB_PRIVATE
 #endif /* CATMMLIB_INTERNAL_HPP */

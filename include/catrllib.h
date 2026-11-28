@@ -74,6 +74,36 @@ struct CATRLLIB_STREAM {
 };
 
 /* -------------------------------------------------------------------------------------------------
+ * C API :: COLLECTION EXTENSIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/** A finite, ordered collection of fixed-size elements stored contiguously and retrieved in first-in, first-out (FIFO) order. */
+typedef struct CATRLLIB_QUEUE {
+    CATMMLIB_POINTERW data;
+    CATALYST_NUINT size;
+    CATALYST_NUINT length;
+    CATALYST_NUINT capacity;
+    CATALYST_NUINT head;
+} CATRLLIB_QUEUE;
+
+/** A finite, ordered collection of fixed-size elements stored contiguously and retrieved in last-in, first-out (LIFO) order. */
+typedef struct CATRLLIB_STACK {
+    CATMMLIB_POINTERW data;
+    CATALYST_NUINT size;
+    CATALYST_NUINT length;
+    CATALYST_NUINT capacity;
+} CATRLLIB_STACK;
+
+/** A finite collection of fixed-size, reusable element slots stored contiguously, each of which may be independently acquired or released. */
+typedef struct CATRLLIB_POOL {
+    CATMMLIB_POINTERW data;
+    CATMMLIB_POINTERW occupied;
+    CATALYST_NUINT size;
+    CATALYST_NUINT cardinality;
+    CATALYST_NUINT capacity;
+} CATRLLIB_POOL;
+
+/* -------------------------------------------------------------------------------------------------
  * C API :: SET OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
@@ -197,6 +227,94 @@ CATRLLIB_API CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST
 
 /** Release all managed state and chunk allocations. */
 CATRLLIB_API CATALYST_RESULT catrl_stream_free(CATRLLIB_STREAM* stream);
+
+/* -------------------------------------------------------------------------------------------------
+ * C API :: QUEUE OPERATIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/** Initialize an empty queue with elements of the specified size in bytes. */
+CATRLLIB_API void catrl_queue_init(CATRLLIB_QUEUE* queue, CATALYST_NUINT size);
+
+/** Append an element to the queue. Requires sufficient capacity. */
+CATRLLIB_API void catrl_queue_enqueue(CATRLLIB_QUEUE* queue, CATMMLIB_POINTER element);
+
+/** Remove the first element from the queue and copy it to output if present. */
+CATRLLIB_API CATALYST_BOOL catrl_queue_dequeue(CATRLLIB_QUEUE* queue, CATMMLIB_POINTERW output);
+
+/** Borrow the first element in the queue, or null if empty. */
+CATRLLIB_API CATMMLIB_POINTERW catrl_queue_peek(CATRLLIB_QUEUE* queue);
+
+/** Remove all elements from the queue without changing its capacity. */
+CATRLLIB_API void catrl_queue_clear(CATRLLIB_QUEUE* queue);
+
+/** Increase the queue's capacity to accommodate the specified number of elements. */
+CATRLLIB_API CATALYST_RESULT catrl_queue_expand(CATRLLIB_QUEUE* queue, CATALYST_NUINT capacity);
+
+/** Reduce the queue's capacity to accommodate its existing elements. */
+CATRLLIB_API CATALYST_RESULT catrl_queue_shrink(CATRLLIB_QUEUE* queue);
+
+/** Release the resources owned by the queue. */
+CATRLLIB_API CATALYST_RESULT catrl_queue_free(CATRLLIB_QUEUE* queue);
+
+
+/* -------------------------------------------------------------------------------------------------
+ * C API :: STACK OPERATIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/** Initialize an empty stack with elements of the specified size in bytes. */
+CATRLLIB_API void catrl_stack_init(CATRLLIB_STACK* stack, CATALYST_NUINT size);
+
+/** Append an element to the stack. Requires sufficient capacity. */
+CATRLLIB_API void catrl_stack_push(CATRLLIB_STACK* stack, CATMMLIB_POINTER element);
+
+/** Remove the last element from the stack and copy it to output if present. */
+CATRLLIB_API CATALYST_BOOL catrl_stack_pop(CATRLLIB_STACK* stack, CATMMLIB_POINTERW output);
+
+/** Borrow the last element in the stack, or null if empty. */
+CATRLLIB_API CATMMLIB_POINTERW catrl_stack_peek(CATRLLIB_STACK* stack);
+
+/** Remove all elements from the stack without changing its capacity. */
+CATRLLIB_API void catrl_stack_clear(CATRLLIB_STACK* stack);
+
+/** Increase the stack's capacity to accommodate the specified number of elements. */
+CATRLLIB_API CATALYST_RESULT catrl_stack_expand(CATRLLIB_STACK* stack, CATALYST_NUINT capacity);
+
+/** Reduce the stack's capacity to accommodate its existing elements. */
+CATRLLIB_API CATALYST_RESULT catrl_stack_shrink(CATRLLIB_STACK* stack);
+
+/** Release the resources owned by the stack. */
+CATRLLIB_API CATALYST_RESULT catrl_stack_free(CATRLLIB_STACK* stack);
+
+/* -------------------------------------------------------------------------------------------------
+ * C API :: POOL OPERATIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/** Initialize an empty pool with slots of the specified size in bytes. */
+CATRLLIB_API void catrl_pool_init(CATRLLIB_POOL* pool, CATALYST_NUINT size);
+
+/** Acquire an available slot and output its index if one is available. */
+CATRLLIB_API CATALYST_BOOL catrl_pool_acquire(CATRLLIB_POOL* pool, CATALYST_NUINT* index);
+
+/** Release an acquired slot at the specified index. */
+CATRLLIB_API CATALYST_BOOL catrl_pool_release(CATRLLIB_POOL* pool, CATALYST_NUINT index);
+
+/** Determine whether the slot at the specified index is occupied. */
+CATRLLIB_API CATALYST_BOOL catrl_pool_contains(const CATRLLIB_POOL* pool, CATALYST_NUINT index);
+
+/** Borrow the element at the specified occupied index, or null if unavailable. */
+CATRLLIB_API CATMMLIB_POINTERW catrl_pool_get(CATRLLIB_POOL* pool, CATALYST_NUINT index);
+
+/** Release all acquired slots without changing the pool's capacity. */
+CATRLLIB_API void catrl_pool_clear(CATRLLIB_POOL* pool);
+
+/** Increase the pool's capacity to accommodate the specified number of slots. */
+CATRLLIB_API CATALYST_RESULT catrl_pool_expand(CATRLLIB_POOL* pool, CATALYST_NUINT capacity);
+
+/** Reduce the pool's capacity by removing trailing unoccupied slots. */
+CATRLLIB_API CATALYST_RESULT catrl_pool_shrink(CATRLLIB_POOL* pool);
+
+/** Release the resources owned by the pool. */
+CATRLLIB_API CATALYST_RESULT catrl_pool_free(CATRLLIB_POOL* pool);
 
 #ifdef __cplusplus
 } /* extern C */

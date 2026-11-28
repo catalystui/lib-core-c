@@ -21,6 +21,17 @@ typedef ::CATRLLIB_FILE FILE;
 typedef ::CATRLLIB_STREAM STREAM;
 
 /* -------------------------------------------------------------------------------------------------
+ * C++ API :: COLLECTION EXTENSIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/** Alias of the C collection type; retains its ownership and lifetime contracts. */
+typedef ::CATRLLIB_QUEUE QUEUE;
+/** Alias of the C collection type; retains its ownership and lifetime contracts. */
+typedef ::CATRLLIB_STACK STACK;
+/** Alias of the C collection type; retains its ownership and lifetime contracts. */
+typedef ::CATRLLIB_POOL POOL;
+
+/* -------------------------------------------------------------------------------------------------
  * C++ API :: SET OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
@@ -214,6 +225,143 @@ inline RESULT stream_next(STREAM* stream, NUINT csize, POINTERW* output) {
 /** Release all owned chunks and state/bookkeeping; freed or failed-init Streams are no-ops. Synchronize externally, do not shallow-copy ownership or alter fields, and clean up producer-owned references before free. Free ends production; failure retains unreleased allocations for retry with stream_free only. */
 inline RESULT stream_free(STREAM* stream) {
     return ::catrl_stream_free(stream);
+}
+
+/* -------------------------------------------------------------------------------------------------
+ * C++ API :: QUEUE OPERATIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/** Initialize an empty queue with elements of the specified size in bytes. */
+inline void queue_init(QUEUE* queue, NUINT size) {
+    ::catrl_queue_init(queue, size);
+}
+
+/** Append an element to the queue. Requires sufficient capacity. */
+inline void queue_enqueue(QUEUE* queue, POINTER element) {
+    ::catrl_queue_enqueue(queue, element);
+}
+
+/** Remove the first element from the queue and copy it to output if present. */
+inline BOOL queue_dequeue(QUEUE* queue, POINTERW output) {
+    return ::catrl_queue_dequeue(queue, output);
+}
+
+/** Borrow the first element in the queue, or null if empty. */
+inline POINTERW queue_peek(QUEUE* queue) {
+    return ::catrl_queue_peek(queue);
+}
+
+/** Remove all elements from the queue without changing its capacity. */
+inline void queue_clear(QUEUE* queue) {
+    ::catrl_queue_clear(queue);
+}
+
+/** Increase the queue's capacity to accommodate the specified number of elements. */
+inline RESULT queue_expand(QUEUE* queue, NUINT capacity) {
+    return ::catrl_queue_expand(queue, capacity);
+}
+
+/** Reduce the queue's capacity to accommodate its existing elements. */
+inline RESULT queue_shrink(QUEUE* queue) {
+    return ::catrl_queue_shrink(queue);
+}
+
+/** Release the resources owned by the queue. */
+inline RESULT queue_free(QUEUE* queue) {
+    return ::catrl_queue_free(queue);
+}
+
+/* -------------------------------------------------------------------------------------------------
+ * C++ API :: STACK OPERATIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/** Initialize an empty stack with elements of the specified size in bytes. */
+inline void stack_init(STACK* stack, NUINT size) {
+    ::catrl_stack_init(stack, size);
+}
+
+/** Append an element to the stack. Requires sufficient capacity. */
+inline void stack_push(STACK* stack, POINTER element) {
+    ::catrl_stack_push(stack, element);
+}
+
+/** Remove the last element from the stack and copy it to output if present. */
+inline BOOL stack_pop(STACK* stack, POINTERW output) {
+    return ::catrl_stack_pop(stack, output);
+}
+
+/** Borrow the last element in the stack, or null if empty. */
+inline POINTERW stack_peek(STACK* stack) {
+    return ::catrl_stack_peek(stack);
+}
+
+/** Remove all elements from the stack without changing its capacity. */
+inline void stack_clear(STACK* stack) {
+    ::catrl_stack_clear(stack);
+}
+
+/** Increase the stack's capacity to accommodate the specified number of elements. */
+inline RESULT stack_expand(STACK* stack, NUINT capacity) {
+    return ::catrl_stack_expand(stack, capacity);
+}
+
+/** Reduce the stack's capacity to accommodate its existing elements. */
+inline RESULT stack_shrink(STACK* stack) {
+    return ::catrl_stack_shrink(stack);
+}
+
+/** Release the resources owned by the stack. */
+inline RESULT stack_free(STACK* stack) {
+    return ::catrl_stack_free(stack);
+}
+
+/* -------------------------------------------------------------------------------------------------
+ * C++ API :: POOL OPERATIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/** Initialize an empty pool with slots of the specified size in bytes. */
+inline void pool_init(POOL* pool, NUINT size) {
+    ::catrl_pool_init(pool, size);
+}
+
+/** Acquire an available slot and output its index if one is available. */
+inline BOOL pool_acquire(POOL* pool, NUINT* index) {
+    return ::catrl_pool_acquire(pool, index);
+}
+
+/** Release an acquired slot at the specified index. */
+inline BOOL pool_release(POOL* pool, NUINT index) {
+    return ::catrl_pool_release(pool, index);
+}
+
+/** Determine whether the slot at the specified index is occupied. */
+inline BOOL pool_contains(const POOL* pool, NUINT index) {
+    return ::catrl_pool_contains(pool, index);
+}
+
+/** Borrow the element at the specified occupied index, or null if unavailable. */
+inline POINTERW pool_get(POOL* pool, NUINT index) {
+    return ::catrl_pool_get(pool, index);
+}
+
+/** Release all acquired slots without changing the pool's capacity. */
+inline void pool_clear(POOL* pool) {
+    ::catrl_pool_clear(pool);
+}
+
+/** Increase the pool's capacity to accommodate the specified number of slots. */
+inline RESULT pool_expand(POOL* pool, NUINT capacity) {
+    return ::catrl_pool_expand(pool, capacity);
+}
+
+/** Reduce the pool's capacity by removing trailing unoccupied slots. */
+inline RESULT pool_shrink(POOL* pool) {
+    return ::catrl_pool_shrink(pool);
+}
+
+/** Release the resources owned by the pool. */
+inline RESULT pool_free(POOL* pool) {
+    return ::catrl_pool_free(pool);
 }
 
 } /* namespace catalyst */

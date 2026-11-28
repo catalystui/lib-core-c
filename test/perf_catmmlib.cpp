@@ -106,7 +106,7 @@ static catalyst::BOOL os_resize(POINTERW* memory, NUINT oldSize, NUINT size) {
     *memory = replacement;
     return TRUE;
 #else
-    // Match the mapping-based resize strategy, including Darwin page reuse.
+    // Baseline mapping resize: reuse equal page extents, otherwise allocate/copy/free.
     // No private Core headers or prefix are needed for the native baseline.
 #if TARGET_PLATFORM_DARWIN
     if (vm_page_size != 0 &&
@@ -135,7 +135,7 @@ static const char* osResizeName = "HeapReAlloc";
 static const char* osFreeName = "HeapFree";
 #elif TARGET_PLATFORM_DARWIN
 static const char* osAllocName = "vm_allocate";
-static const char* osResizeName = "native page reuse / allocate-copy-free";
+static const char* osResizeName = "page reuse / allocate-copy-free baseline";
 static const char* osFreeName = "vm_deallocate";
 #elif TARGET_PLATFORM_LINUX
 static const char* osAllocName = "mmap";
@@ -255,6 +255,16 @@ static const NUINT sizes[] = {
 // Independent verification and timing of memory operations.
 // ------------------------------------------------------------
 enum Measurement { MEASURE_OK, MEASURE_CLOCK, MEASURE_FAIL };
+static const NUINT memorySizes[] = {
+    0, 1, 8, 16, 32,
+#if TARGET_SIZEOF_ADDRESS >= 2
+    128, 256, 1024,
+#endif
+#if TARGET_SIZEOF_ADDRESS >= 4
+    4096, 32768, 65536,
+#endif
+};
+
 static volatile SBYTE observedResult = 0;
 
 static catalyst::BOOL elapsed(std::clock_t start, unsigned long* ticks) {
@@ -733,8 +743,8 @@ static void benchmark_memory(Summary& summary) {
             std::printf("\n%s\n", benchmark.method);
             previous = benchmark.method;
         }
-        for (catalyst::BYTE i = 0; i < sizeof(sizes) / sizeof(sizes[0]) + 2; ++i) {
-            NUINT size = i < 2 ? (NUINT) i : sizes[i - 2];
+        for (catalyst::BYTE i = 0; i < sizeof(memorySizes) / sizeof(memorySizes[0]); ++i) {
+            NUINT size = memorySizes[i];
             if (size == 0 && (benchmark.kind == COMPARE_FIRST || benchmark.kind == COMPARE_LAST)) continue;
             char label[40];
             std::sprintf(label, "%lu B (%s)", (unsigned long) size, benchmark.workload);
@@ -763,6 +773,7 @@ int main() {
         return 2;
     }
     std::printf("CATMMLIB Performance (Release recommended)\n");
+    std::printf("Target: %s/%s/%s (%u-byte addresses)\n", TARGET_VENDOR, TARGET_SYSTEM, TARGET_ARCHITECTURE, (unsigned int) TARGET_SIZEOF_ADDRESS);
     std::printf("Standard C library / OS APIs are the baseline. Lower time is better.\n");
     std::printf("Difference: +10%% means Catalyst takes 10%% longer; -10%% means 10%% less time.\n");
     std::printf("Time per operation or pair: median of 3 paired samples; %lu clock ticks/second.\n", (unsigned long) CLOCKS_PER_SEC);
@@ -784,7 +795,7 @@ int main() {
     summary.unavailable += 8;
 #endif
     std::printf("\nManaged allocation (warm reuse; one persistent block, standard C heap baseline)\n");
-    std::printf("Sizes outside managed size classes still use native backing allocation (including 64 KiB payloads).\n");
+    std::printf("Payloads outside supported size classes bypass pooling; 64 KiB payloads can be pooled on supported wide-address targets.\n");
     benchmark_warm_heap(summary);
     std::printf("\nManaged allocation (burst; up to %u live blocks, standard C heap baseline)\n", (unsigned int) BATCH_CAPACITY);
     benchmark_allocations(nativeAllocator, heapAllocator, TRUE, "calloc", "realloc + zero growth", "free", summary);

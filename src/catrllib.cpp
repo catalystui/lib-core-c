@@ -23,14 +23,77 @@ using namespace catalyst;
 
 /* Nonzero size, count * size readable data bytes when count is nonzero, and size readable element bytes. Return count for absence; extents were checked when capacity was established. */
 static NUINT catrl_find(POINTER data, NUINT count, NUINT size, POINTER element) {
+    if (count == 0) return 0;
     const BYTE* current = (const BYTE*) data;
+    const BYTE* target = (const BYTE*) element;
+    const BYTE first = target[0];
     NUINT index = 0;
+    if (size == (NUINT) 1) {
+#if CATALYST_SUPPORTS_64BIT || CATALYST_SUPPORTS_32BIT
+        if (count >= (NUINT) 32) {
+            if (current[0] == first) return 0;
+#if CATALYST_SUPPORTS_64BIT
+            typedef ULONG CATRL_SEARCH_WORD;
+            const CATRL_SEARCH_WORD ones = (CATRL_SEARCH_WORD) (CATALYST_ULONG_MAX / (ULONG) CATALYST_BYTE_MAX);
+#else
+            typedef UINT CATRL_SEARCH_WORD;
+            const CATRL_SEARCH_WORD ones = (CATRL_SEARCH_WORD) (CATALYST_UINT_MAX / (UINT) CATALYST_BYTE_MAX);
+#endif
+            const CATRL_SEARCH_WORD high = (CATRL_SEARCH_WORD) (ones << 7);
+            const CATRL_SEARCH_WORD pattern = (CATRL_SEARCH_WORD) (ones * (CATRL_SEARCH_WORD) first);
+            const NUINT width = (NUINT) sizeof(CATRL_SEARCH_WORD);
+            // XOR makes matching bytes zero. Subtracting the repeated 1 mask
+            // detects any zero byte via its high bit, regardless of byte order.
+            // Read through byte pointers for unaligned inputs; locate the first
+            // match in memory order with the original byte loop below.
+            while ((NUINT) (count - index) >= (NUINT) (width + width)) {
+                CATRL_SEARCH_WORD a, b;
+                for (BYTE i = 0; i < (BYTE) sizeof(a); ++i) {
+                    ((BYTE*) &a)[i] = current[i];
+                    ((BYTE*) &b)[i] = current[width + i];
+                }
+                a ^= pattern;
+                b ^= pattern;
+                if (((((a - ones) & ~a) | ((b - ones) & ~b)) & high) != 0) break;
+                current += (NUINT) (width + width);
+                index = (NUINT) (index + width + width);
+            }
+        }
+#endif
+        while ((NUINT) (count - index) >= (NUINT) 4) {
+            if (current[0] == first) return index;
+            if (current[1] == first) return (NUINT) (index + (NUINT) 1);
+            if (current[2] == first) return (NUINT) (index + (NUINT) 2);
+            if (current[3] == first) return (NUINT) (index + (NUINT) 3);
+            current += 4;
+            index = (NUINT) (index + (NUINT) 4);
+        }
+        while (index < count) {
+            if (*current++ == first) return index;
+            ++index;
+        }
+        return count;
+    }
     while (index < count) {
-        if (catmm_compare(current, element, size) == 0) return index;
+        if (current[0] == first && catmm_compare(current + 1, target + 1, (NUINT) (size - (NUINT) 1)) == 0) return index;
         current += size;
         ++index;
     }
     return count;
+}
+
+/* Store one small element without a general-purpose transfer call. All input
+ * and output bytes obey the same non-overlap contract as catmm_copy. */
+static inline void catrl_store(POINTERW destination, POINTER source, NUINT size) {
+    BYTE* output = (BYTE*) destination;
+    const BYTE* input = (const BYTE*) source;
+    if (size == (NUINT) 1) {
+        output[0] = input[0];
+    } else if (size == (NUINT) 8) {
+        for (BYTE i = 0; i < (BYTE) 8; ++i) output[i] = input[i];
+    } else {
+        catmm_copy(destination, source, size);
+    }
 }
 
 /* -------------------------------------------------------------------------------------------------
@@ -46,7 +109,7 @@ void catrl_set_init(CATRLLIB_SET* set, CATALYST_NUINT size) {
 
 CATALYST_BOOL catrl_set_add(CATRLLIB_SET* set, CATMMLIB_POINTER element) {
     if (catrl_find(set->data, set->cardinality, set->size, element) != set->cardinality) return FALSE;
-    catmm_copy((BYTE*) set->data + (NUINT) (set->cardinality * set->size), element, set->size);
+    catrl_store((BYTE*) set->data + (NUINT) (set->cardinality * set->size), element, set->size);
     ++set->cardinality;
     return TRUE;
 }
@@ -56,7 +119,7 @@ CATALYST_BOOL catrl_set_remove(CATRLLIB_SET* set, CATMMLIB_POINTER element) {
     if (index == set->cardinality) return FALSE;
     --set->cardinality;
     if (index != set->cardinality) {
-        catmm_copy((BYTE*) set->data + (NUINT) (index * set->size), (const BYTE*) set->data + (NUINT) (set->cardinality * set->size), set->size);
+        catrl_store((BYTE*) set->data + (NUINT) (index * set->size), (const BYTE*) set->data + (NUINT) (set->cardinality * set->size), set->size);
     }
     return TRUE;
 }
@@ -76,7 +139,9 @@ CATALYST_RESULT catrl_set_expand(CATRLLIB_SET* set, CATALYST_NUINT capacity) {
     if (capacity > (NUINT) (CATALYST_NUINT_MAX / set->size)) {
         return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x06, 0x02, 0);
     }
-    RESULT resize = catmm_heap_realloc(&set->data, (NUINT) (capacity * set->size));
+    RESULT resize = set->data == 0
+        ? catmm_heap_alloc(&set->data, (NUINT) (capacity * set->size))
+        : catmm_heap_realloc(&set->data, (NUINT) (capacity * set->size));
     if (!status_code_is_success(resize.status)) {
         return RESULT(resize.status, 0x06, 0x03, resize.detail);
     }
@@ -127,8 +192,8 @@ void catrl_map_init(CATRLLIB_MAP* map, CATALYST_NUINT ksize, CATALYST_NUINT vsiz
 
 CATALYST_BOOL catrl_map_add(CATRLLIB_MAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTER value) {
     if (catrl_find(map->keys, map->cardinality, map->ksize, key) != map->cardinality) return FALSE;
-    catmm_copy((BYTE*) map->keys + (NUINT) (map->cardinality * map->ksize), key, map->ksize);
-    catmm_copy((BYTE*) map->values + (NUINT) (map->cardinality * map->vsize), value, map->vsize);
+    catrl_store((BYTE*) map->keys + (NUINT) (map->cardinality * map->ksize), key, map->ksize);
+    catrl_store((BYTE*) map->values + (NUINT) (map->cardinality * map->vsize), value, map->vsize);
     ++map->cardinality;
     return TRUE;
 }
@@ -138,8 +203,8 @@ CATALYST_BOOL catrl_map_remove(CATRLLIB_MAP* map, CATMMLIB_POINTER key) {
     if (index == map->cardinality) return FALSE;
     --map->cardinality;
     if (index != map->cardinality) {
-        catmm_copy((BYTE*) map->keys + (NUINT) (index * map->ksize), (const BYTE*) map->keys + (NUINT) (map->cardinality * map->ksize), map->ksize);
-        catmm_copy((BYTE*) map->values + (NUINT) (index * map->vsize), (const BYTE*) map->values + (NUINT) (map->cardinality * map->vsize), map->vsize);
+        catrl_store((BYTE*) map->keys + (NUINT) (index * map->ksize), (const BYTE*) map->keys + (NUINT) (map->cardinality * map->ksize), map->ksize);
+        catrl_store((BYTE*) map->values + (NUINT) (index * map->vsize), (const BYTE*) map->values + (NUINT) (map->cardinality * map->vsize), map->vsize);
     }
     return TRUE;
 }
@@ -157,7 +222,7 @@ CATMMLIB_POINTERW catrl_map_get(CATRLLIB_MAP* map, CATMMLIB_POINTER key) {
 CATALYST_BOOL catrl_map_set(CATRLLIB_MAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTER value) {
     NUINT index = catrl_find(map->keys, map->cardinality, map->ksize, key);
     if (index == map->cardinality) return FALSE;
-    catmm_copy((BYTE*) map->values + (NUINT) (index * map->vsize), value, map->vsize);
+    catrl_store((BYTE*) map->values + (NUINT) (index * map->vsize), value, map->vsize);
     return TRUE;
 }
 
@@ -175,14 +240,18 @@ CATALYST_RESULT catrl_map_expand(CATRLLIB_MAP* map, CATALYST_NUINT capacity) {
     if (capacity > (NUINT) (CATALYST_NUINT_MAX / map->vsize)) {
         return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x10, 0x03, 0);
     }
-    RESULT keys = catmm_heap_realloc(&map->keys, (NUINT) (capacity * map->ksize));
+    RESULT keys = map->keys == 0
+        ? catmm_heap_alloc(&map->keys, (NUINT) (capacity * map->ksize))
+        : catmm_heap_realloc(&map->keys, (NUINT) (capacity * map->ksize));
     if (!status_code_is_success(keys.status)) {
         return RESULT(keys.status, 0x10, 0x04, keys.detail);
     }
     /* Commit the logical capacity only when both buffers can hold it. If the
      * second resize fails, the larger key buffer is still owned by the map.
      */
-    RESULT values = catmm_heap_realloc(&map->values, (NUINT) (capacity * map->vsize));
+    RESULT values = map->values == 0
+        ? catmm_heap_alloc(&map->values, (NUINT) (capacity * map->vsize))
+        : catmm_heap_realloc(&map->values, (NUINT) (capacity * map->vsize));
     if (!status_code_is_success(values.status)) {
         return RESULT(values.status, 0x10, 0x05, values.detail);
     }
@@ -246,7 +315,7 @@ void catrl_array_init(CATRLLIB_ARRAY* array, CATALYST_NUINT size) {
 }
 
 void catrl_array_add(CATRLLIB_ARRAY* array, CATMMLIB_POINTER element) {
-    catmm_copy((BYTE*) array->data + (NUINT) (array->length * array->size), element, array->size);
+    catrl_store((BYTE*) array->data + (NUINT) (array->length * array->size), element, array->size);
     ++array->length;
 }
 
@@ -256,7 +325,7 @@ void catrl_array_insert(CATRLLIB_ARRAY* array, CATALYST_NUINT index, CATMMLIB_PO
     if (index < array->length) {
         catmm_move(destination + array->size, destination, (NUINT) ((array->length - index) * array->size));
     }
-    catmm_copy(destination, element, array->size);
+    catrl_store(destination, element, array->size);
     ++array->length;
 }
 
@@ -277,7 +346,7 @@ CATMMLIB_POINTERW catrl_array_get(CATRLLIB_ARRAY* array, CATALYST_NUINT index) {
 }
 
 void catrl_array_set(CATRLLIB_ARRAY* array, CATALYST_NUINT index, CATMMLIB_POINTER element) {
-    catmm_copy((BYTE*) array->data + (NUINT) (index * array->size), element, array->size);
+    catrl_store((BYTE*) array->data + (NUINT) (index * array->size), element, array->size);
 }
 
 void catrl_array_clear(CATRLLIB_ARRAY* array) {
@@ -291,7 +360,9 @@ CATALYST_RESULT catrl_array_expand(CATRLLIB_ARRAY* array, CATALYST_NUINT capacit
     if (capacity > (NUINT) (CATALYST_NUINT_MAX / array->size)) {
         return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x1B, 0x02, 0);
     }
-    RESULT resize = catmm_heap_realloc(&array->data, (NUINT) (capacity * array->size));
+    RESULT resize = array->data == 0
+        ? catmm_heap_alloc(&array->data, (NUINT) (capacity * array->size))
+        : catmm_heap_realloc(&array->data, (NUINT) (capacity * array->size));
     if (!status_code_is_success(resize.status)) {
         return RESULT(resize.status, 0x1B, 0x03, resize.detail);
     }
@@ -435,8 +506,6 @@ CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize,
             }
             capacity = (NUINT) (capacity * (NUINT) 2);
         }
-    }
-    if (capacity != memory.spare.capacity) {
         RESULT resize = catmm_heap_realloc(&memory.spare.data, capacity);
         if (!status_code_is_success(resize.status)) {
             return RESULT(resize.status, 0x22, 0x01, resize.detail);
@@ -455,20 +524,21 @@ CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize,
         memory.spare = expired;
         ++memory.cursor;
         if (memory.cursor == memory.lifetime) memory.cursor = 0;
-        catmm_copy(bookkeeping, &memory, (NUINT) sizeof(memory));
         /* Only the expired chunk is now scratch; never resize the published chunk or a retained slot. Quarter utilization provides hysteresis before halving. */
         if (required <= (NUINT) (memory.spare.capacity / (NUINT) 4)) {
             NUINT smaller = (NUINT) (memory.spare.capacity / (NUINT) 2);
             RESULT shrink = catmm_heap_realloc(&memory.spare.data, smaller);
             if (!status_code_is_success(shrink.status)) {
+                // Production is already published; commit the rotated state even on failure.
+                catmm_copy(bookkeeping, &memory, (NUINT) sizeof(memory));
                 if (status_code_is_fatal(shrink.status)) {
                     return RESULT(shrink.status, 0x22, 0x05, shrink.detail);
                 }
                 return RESULT(STATUS_CODE_WARNING, 0x22, 0x04, shrink.status);
             }
             memory.spare.capacity = smaller;
-            catmm_copy(bookkeeping, &memory, (NUINT) sizeof(memory));
         }
+        catmm_copy(bookkeeping, &memory, (NUINT) sizeof(memory));
     }
     /* Map producer csize to public argument 1; rejecting the managed chunk indicates invalid internal state. */
     if (production.status == STATUS_CODE_ERROR_INVALID_ARGUMENT) {
@@ -519,4 +589,390 @@ CATALYST_RESULT catrl_stream_free(CATRLLIB_STREAM* stream) {
     stream->state = 0;
     stream->ssize = 0;
     return RESULT(STATUS_CODE_SUCCESS, 0x23, 0x05, 0);
+}
+
+/* -------------------------------------------------------------------------------------------------
+ * C API :: QUEUE OPERATIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/* Queue expand/shrink/free contexts: 29/2A/2B.
+ * Stack expand/shrink/free: 31/32/33.
+ * Pool expand/shrink/free: 3A/3B/3C.
+ * Single-buffer result sites follow the earlier collection conventions.
+ * Pool expand: 01 no-op, 02 overflow, 03 bitmap resize, 04 data resize, 05 success.
+ * Pool shrink: 01 no-op, 02 data resize, 03 bitmap resize, 04 success.
+ * Pool free: 01 no-op, 02 data release, 03 bitmap release, 04 success.
+ */
+
+/* Rotate two adjacent nonempty byte ranges using a bounded temporary.
+ * Each swap reduces the unsorted extent. Once one range fits in the
+ * temporary, move the other range in bulk instead of swapping tiny blocks. */
+static void catrl_rotate(BYTE* data, NUINT left, NUINT right) {
+    BYTE scratch[32];
+    while (left > (NUINT) sizeof(scratch) && right > (NUINT) sizeof(scratch)) {
+        NUINT count = left < right ? left : right;
+        BYTE* other = data + (left < right ? right : left);
+        for (NUINT offset = 0; offset < count;) {
+            NUINT size = (NUINT) (count - offset);
+            if (size > (NUINT) sizeof(scratch)) size = (NUINT) sizeof(scratch);
+            catmm_copy(scratch, data + offset, size);
+            catmm_copy(data + offset, other + offset, size);
+            catmm_copy(other + offset, scratch, size);
+            offset = (NUINT) (offset + size);
+        }
+        if (left == right) return;
+        if (left < right) {
+            right = (NUINT) (right - left);
+        } else {
+            data += right;
+            left = (NUINT) (left - right);
+        }
+    }
+    if (left <= right) {
+        catmm_copy(scratch, data, left);
+        catmm_move(data, data + left, right);
+        catmm_copy(data + right, scratch, left);
+    } else {
+        catmm_copy(scratch, data + left, right);
+        catmm_move(data + right, data, left);
+        catmm_copy(data, scratch, right);
+    }
+}
+
+/* Normalize an initialized ring. Extra bytes are available immediately
+ * after the old extent on successful expansion, or zero before shrinking.
+ * Never move unused slots; preserve logical order without another allocation. */
+static void catrl_queue_normalize(CATRLLIB_QUEUE* queue, NUINT extra) {
+    if (queue->head == 0) return;
+    BYTE* data = (BYTE*) queue->data;
+    NUINT offset = (NUINT) (queue->head * queue->size);
+    NUINT extent = (NUINT) (queue->capacity * queue->size);
+    NUINT live = (NUINT) (queue->length * queue->size);
+    NUINT tail = (NUINT) (extent - offset);
+    if (live <= tail) {
+        catmm_move(data, data + offset, live);
+    } else {
+        NUINT prefix = (NUINT) (live - tail);
+        if (prefix <= extra && (prefix <= tail || tail > extra)) {
+            catmm_copy(data + extent, data, prefix);
+            catmm_move(data, data + offset, tail);
+            catmm_copy(data + tail, data + extent, prefix);
+        } else if (tail <= extra) {
+            catmm_copy(data + extent, data + offset, tail);
+            catmm_move(data + tail, data, prefix);
+            catmm_copy(data, data + extent, tail);
+        } else {
+            /* Compact the gap, then rotate only the two live ranges. */
+            if (prefix != offset) catmm_move(data + prefix, data + offset, tail);
+            catrl_rotate(data, prefix, tail);
+        }
+    }
+    queue->head = 0;
+}
+
+void catrl_queue_init(CATRLLIB_QUEUE* queue, CATALYST_NUINT size) {
+    queue->data = 0;
+    queue->size = size;
+    queue->length = 0;
+    queue->capacity = 0;
+    queue->head = 0;
+}
+
+void catrl_queue_enqueue(CATRLLIB_QUEUE* queue, CATMMLIB_POINTER element) {
+    NUINT remaining = (NUINT) (queue->capacity - queue->head);
+    NUINT tail = queue->length < remaining
+        ? (NUINT) (queue->head + queue->length)
+        : (NUINT) (queue->length - remaining);
+    catrl_store((BYTE*) queue->data + (NUINT) (tail * queue->size), element, queue->size);
+    ++queue->length;
+}
+
+CATALYST_BOOL catrl_queue_dequeue(CATRLLIB_QUEUE* queue, CATMMLIB_POINTERW output) {
+    if (queue->length == 0) return FALSE;
+    catrl_store(output, (const BYTE*) queue->data + (NUINT) (queue->head * queue->size), queue->size);
+    --queue->length;
+    ++queue->head;
+    if (queue->length == 0 || queue->head == queue->capacity) queue->head = 0;
+    return TRUE;
+}
+
+CATMMLIB_POINTERW catrl_queue_peek(CATRLLIB_QUEUE* queue) {
+    if (queue->length == 0) return 0;
+    return (BYTE*) queue->data + (NUINT) (queue->head * queue->size);
+}
+
+void catrl_queue_clear(CATRLLIB_QUEUE* queue) {
+    queue->length = 0;
+    queue->head = 0;
+}
+
+CATALYST_RESULT catrl_queue_expand(CATRLLIB_QUEUE* queue, CATALYST_NUINT capacity) {
+    if (capacity <= queue->capacity) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x29, 0x01, 0);
+    }
+    if (capacity > (NUINT) (CATALYST_NUINT_MAX / queue->size)) {
+        return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x29, 0x02, 0);
+    }
+    RESULT resize = catmm_heap_realloc(&queue->data, (NUINT) (capacity * queue->size));
+    if (!status_code_is_success(resize.status)) {
+        return RESULT(resize.status, 0x29, 0x03, resize.detail);
+    }
+    catrl_queue_normalize(queue, (NUINT) ((capacity - queue->capacity) * queue->size));
+    queue->capacity = capacity;
+    return RESULT(STATUS_CODE_SUCCESS, 0x29, 0x04, 0);
+}
+
+CATALYST_RESULT catrl_queue_shrink(CATRLLIB_QUEUE* queue) {
+    NUINT capacity = (NUINT) (queue->capacity / (NUINT) 2);
+    if (capacity < queue->length) capacity = queue->length;
+    if (capacity == queue->capacity) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x2A, 0x01, 0);
+    }
+    /* Normalize before truncation; failure preserves logical order, not physical placement. */
+    catrl_queue_normalize(queue, 0);
+    RESULT resize = catmm_heap_realloc(&queue->data, (NUINT) (capacity * queue->size));
+    if (!status_code_is_success(resize.status)) {
+        return RESULT(resize.status, 0x2A, 0x02, resize.detail);
+    }
+    queue->capacity = capacity;
+    return RESULT(STATUS_CODE_SUCCESS, 0x2A, 0x03, 0);
+}
+
+CATALYST_RESULT catrl_queue_free(CATRLLIB_QUEUE* queue) {
+    if (queue->data == 0) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x2B, 0x01, 0);
+    }
+    RESULT release = catmm_heap_free(queue->data);
+    if (!status_code_is_success(release.status)) {
+        return RESULT(release.status, 0x2B, 0x02, release.detail);
+    }
+    queue->data = 0;
+    queue->capacity = 0;
+    catrl_queue_clear(queue);
+    return RESULT(STATUS_CODE_SUCCESS, 0x2B, 0x03, 0);
+}
+
+/* -------------------------------------------------------------------------------------------------
+ * C API :: STACK OPERATIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+void catrl_stack_init(CATRLLIB_STACK* stack, CATALYST_NUINT size) {
+    stack->data = 0;
+    stack->size = size;
+    stack->length = 0;
+    stack->capacity = 0;
+}
+
+void catrl_stack_push(CATRLLIB_STACK* stack, CATMMLIB_POINTER element) {
+    catrl_store((BYTE*) stack->data + (NUINT) (stack->length * stack->size), element, stack->size);
+    ++stack->length;
+}
+
+CATALYST_BOOL catrl_stack_pop(CATRLLIB_STACK* stack, CATMMLIB_POINTERW output) {
+    if (stack->length == 0) return FALSE;
+    --stack->length;
+    catrl_store(output, (const BYTE*) stack->data + (NUINT) (stack->length * stack->size), stack->size);
+    return TRUE;
+}
+
+CATMMLIB_POINTERW catrl_stack_peek(CATRLLIB_STACK* stack) {
+    if (stack->length == 0) return 0;
+    return (BYTE*) stack->data + (NUINT) ((stack->length - (NUINT) 1) * stack->size);
+}
+
+void catrl_stack_clear(CATRLLIB_STACK* stack) {
+    stack->length = 0;
+}
+
+CATALYST_RESULT catrl_stack_expand(CATRLLIB_STACK* stack, CATALYST_NUINT capacity) {
+    if (capacity <= stack->capacity) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x31, 0x01, 0);
+    }
+    if (capacity > (NUINT) (CATALYST_NUINT_MAX / stack->size)) {
+        return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x31, 0x02, 0);
+    }
+    RESULT resize = catmm_heap_realloc(&stack->data, (NUINT) (capacity * stack->size));
+    if (!status_code_is_success(resize.status)) {
+        return RESULT(resize.status, 0x31, 0x03, resize.detail);
+    }
+    stack->capacity = capacity;
+    return RESULT(STATUS_CODE_SUCCESS, 0x31, 0x04, 0);
+}
+
+CATALYST_RESULT catrl_stack_shrink(CATRLLIB_STACK* stack) {
+    NUINT capacity = (NUINT) (stack->capacity / (NUINT) 2);
+    if (capacity < stack->length) capacity = stack->length;
+    if (capacity == stack->capacity) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x32, 0x01, 0);
+    }
+    RESULT resize = catmm_heap_realloc(&stack->data, (NUINT) (capacity * stack->size));
+    if (!status_code_is_success(resize.status)) {
+        return RESULT(resize.status, 0x32, 0x02, resize.detail);
+    }
+    stack->capacity = capacity;
+    return RESULT(STATUS_CODE_SUCCESS, 0x32, 0x03, 0);
+}
+
+CATALYST_RESULT catrl_stack_free(CATRLLIB_STACK* stack) {
+    if (stack->data == 0) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x33, 0x01, 0);
+    }
+    RESULT release = catmm_heap_free(stack->data);
+    if (!status_code_is_success(release.status)) {
+        return RESULT(release.status, 0x33, 0x02, release.detail);
+    }
+    stack->data = 0;
+    stack->length = 0;
+    stack->capacity = 0;
+    return RESULT(STATUS_CODE_SUCCESS, 0x33, 0x03, 0);
+}
+
+/* -------------------------------------------------------------------------------------------------
+ * C API :: POOL OPERATIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/* Round up without overflowing a pointer-width count. */
+static NUINT catrl_pool_bitmap_size(NUINT capacity) {
+    return (NUINT) (capacity / (NUINT) 8 + (capacity % (NUINT) 8 != 0 ? (NUINT) 1 : (NUINT) 0));
+}
+
+/* Bit zero is the lowest index in each byte. Any representable index is valid here. */
+static BYTE catrl_pool_mask(NUINT index) {
+    return (BYTE) ((BYTE) 1 << (BYTE) (index % (NUINT) 8));
+}
+
+void catrl_pool_init(CATRLLIB_POOL* pool, CATALYST_NUINT size) {
+    pool->data = 0;
+    pool->occupied = 0;
+    pool->size = size;
+    pool->cardinality = 0;
+    pool->capacity = 0;
+}
+
+CATALYST_BOOL catrl_pool_acquire(CATRLLIB_POOL* pool, CATALYST_NUINT* index) {
+    if (pool->cardinality == pool->capacity) return FALSE;
+    BYTE* occupied = (BYTE*) pool->occupied;
+    NUINT bytes = catrl_pool_bitmap_size(pool->capacity);
+    for (NUINT i = 0; i < bytes; ++i) {
+        if (occupied[i] == CATALYST_BYTE_MAX) continue;
+        for (BYTE bit = 0; bit < (BYTE) 8; ++bit) {
+            BYTE mask = (BYTE) ((BYTE) 1 << bit);
+            if ((occupied[i] & mask) != 0) continue;
+            /* A free logical slot exists, so the first zero bit is not padding. */
+            occupied[i] = (BYTE) (occupied[i] | mask);
+            ++pool->cardinality;
+            *index = (NUINT) (i * (NUINT) 8 + (NUINT) bit);
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+CATALYST_BOOL catrl_pool_contains(const CATRLLIB_POOL* pool, CATALYST_NUINT index) {
+    if (index >= pool->capacity) return FALSE;
+    return (((const BYTE*) pool->occupied)[index / (NUINT) 8] & catrl_pool_mask(index)) != 0 ? TRUE : FALSE;
+}
+
+CATALYST_BOOL catrl_pool_release(CATRLLIB_POOL* pool, CATALYST_NUINT index) {
+    if (!catrl_pool_contains(pool, index)) return FALSE;
+    BYTE* occupied = (BYTE*) pool->occupied + index / (NUINT) 8;
+    *occupied = (BYTE) (*occupied & (BYTE) ~catrl_pool_mask(index));
+    --pool->cardinality;
+    return TRUE;
+}
+
+CATMMLIB_POINTERW catrl_pool_get(CATRLLIB_POOL* pool, CATALYST_NUINT index) {
+    if (!catrl_pool_contains(pool, index)) return 0;
+    return (BYTE*) pool->data + (NUINT) (index * pool->size);
+}
+
+void catrl_pool_clear(CATRLLIB_POOL* pool) {
+    if (pool->capacity != 0) catmm_fill(pool->occupied, 0, catrl_pool_bitmap_size(pool->capacity));
+    pool->cardinality = 0;
+}
+
+CATALYST_RESULT catrl_pool_expand(CATRLLIB_POOL* pool, CATALYST_NUINT capacity) {
+    if (capacity <= pool->capacity) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x3A, 0x01, 0);
+    }
+    if (capacity > (NUINT) (CATALYST_NUINT_MAX / pool->size)) {
+        return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x3A, 0x02, 0);
+    }
+    NUINT bytes = catrl_pool_bitmap_size(capacity);
+    if (bytes != catrl_pool_bitmap_size(pool->capacity)) {
+        RESULT bitmap = catmm_heap_realloc(&pool->occupied, bytes);
+        if (!status_code_is_success(bitmap.status)) {
+            return RESULT(bitmap.status, 0x3A, 0x03, bitmap.detail);
+        }
+    }
+    /* The bitmap may retain extra zero bits on data resize failure. */
+    RESULT data = catmm_heap_realloc(&pool->data, (NUINT) (capacity * pool->size));
+    if (!status_code_is_success(data.status)) {
+        return RESULT(data.status, 0x3A, 0x04, data.detail);
+    }
+    pool->capacity = capacity;
+    return RESULT(STATUS_CODE_SUCCESS, 0x3A, 0x05, 0);
+}
+
+CATALYST_RESULT catrl_pool_shrink(CATRLLIB_POOL* pool) {
+    NUINT capacity = (NUINT) (pool->capacity / (NUINT) 2);
+    if (capacity < pool->cardinality) capacity = pool->cardinality;
+    /* Never truncate a live index. Skip empty bitmap bytes when seeking the last live slot. */
+    NUINT end = pool->capacity;
+    if (pool->cardinality != 0) {
+        const BYTE* occupied = (const BYTE*) pool->occupied;
+        while (end > capacity) {
+            NUINT last = (NUINT) (end - (NUINT) 1);
+            NUINT byte = (NUINT) (last / (NUINT) 8);
+            if (occupied[byte] == 0) {
+                NUINT start = (NUINT) (byte * (NUINT) 8);
+                end = start < capacity ? capacity : start;
+            } else if ((occupied[byte] & catrl_pool_mask(last)) != 0) {
+                capacity = end;
+                break;
+            } else {
+                --end;
+            }
+        }
+    }
+    if (capacity == pool->capacity) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x3B, 0x01, 0);
+    }
+    NUINT old_bytes = catrl_pool_bitmap_size(pool->capacity);
+    RESULT data = catmm_heap_realloc(&pool->data, (NUINT) (capacity * pool->size));
+    if (!status_code_is_success(data.status)) {
+        return RESULT(data.status, 0x3B, 0x02, data.detail);
+    }
+    pool->capacity = capacity;
+    NUINT bytes = catrl_pool_bitmap_size(capacity);
+    if (bytes != old_bytes) {
+        RESULT bitmap = catmm_heap_realloc(&pool->occupied, bytes);
+        if (!status_code_is_success(bitmap.status)) {
+            return RESULT(bitmap.status, 0x3B, 0x03, bitmap.detail);
+        }
+    }
+    return RESULT(STATUS_CODE_SUCCESS, 0x3B, 0x04, 0);
+}
+
+CATALYST_RESULT catrl_pool_free(CATRLLIB_POOL* pool) {
+    if (pool->data == 0 && pool->occupied == 0) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x3C, 0x01, 0);
+    }
+    if (pool->data != 0) {
+        RESULT data = catmm_heap_free(pool->data);
+        if (!status_code_is_success(data.status)) {
+            return RESULT(data.status, 0x3C, 0x02, data.detail);
+        }
+        pool->data = 0;
+        catrl_pool_clear(pool);
+        pool->capacity = 0;
+    }
+    if (pool->occupied != 0) {
+        RESULT bitmap = catmm_heap_free(pool->occupied);
+        if (!status_code_is_success(bitmap.status)) {
+            return RESULT(bitmap.status, 0x3C, 0x03, bitmap.detail);
+        }
+        pool->occupied = 0;
+    }
+    return RESULT(STATUS_CODE_SUCCESS, 0x3C, 0x04, 0);
 }

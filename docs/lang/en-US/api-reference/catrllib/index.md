@@ -1,6 +1,6 @@
 # CATRLLIB
 
-Provides Set, Map, Array, File, and Stream operations with managed memory.
+Provides Set, Map, Array, File, Stream, Queue, Stack, and Pool operations with managed memory.
 
 **C Header:** `catrllib.h`  
 **C++ Header:** `catrllib.hpp`  
@@ -25,11 +25,11 @@ CATRLLIB uses [CATMMLIB](../catmmlib/index.md) for internal storage and lifecycl
 
 Initialize unused collection storage only; do not shallow-copy owning collections or modify bookkeeping directly. Synchronize access externally.
 
-Set, Map, and Array own copies of fixed-size byte representations. Initialize representation bytes consistently, including padding. Collections do not perform typed comparisons, construct or destroy objects, release referenced objects, or securely erase removed data.
+Set, Map, Array, Queue, and Stack own copies of fixed-size byte representations. Initialize representation bytes consistently, including padding. Collections do not perform typed comparisons, construct or destroy objects, release referenced objects, or securely erase removed data.
 
-Capacity counts slots, not bytes. Reserve space before insertion; insertion never allocates. Only live slots represent elements. Use current pointers after Map resizing, including partial failure. Allocation extents use `CATALYST_NUINT` and follow CATMMLIB's allocation and resizing guarantees.
+Capacity counts slots, not bytes. Reserve space before insertion; insertion never allocates. Only live slots represent elements. Pool owns its slot and bitmap storage; clients initialize acquired slot contents before reading them. Queue, Stack, and Pool borrow pointers only while their relevant slot remains live; reacquire after mutation or resize/free attempts. Use current pointers after Map resizing, including partial failure. Allocation extents use `CATALYST_NUINT` and follow CATMMLIB's allocation and resizing guarantees.
 
-Copy inputs must lie outside the collection object and its allocations. Search inputs may identify live elements or keys, including Map replacement keys.
+Copy inputs and removal outputs must lie outside the collection object and its allocations. Search inputs may identify live elements or keys, including Map replacement keys.
 
 File resolvers define metadata interpretation and resolved-output ownership. Stream producers define chunk contents, sequencing, and exhaustion; CATRLLIB owns the raw Stream state and chunk storage, not resources referenced by those bytes.
 
@@ -44,6 +44,9 @@ For Core-wide requirements, see [Assumptions](../../assumptions/index.md).
 | [CATRLLIB_ARRAY](#catrllib_array) | Finite collection with contiguous indices. |
 | [CATRLLIB_FILE](#catrllib_file) | Public metadata/data Arrays interpreted by a resolver. |
 | [CATRLLIB_STREAM](#catrllib_stream) | Managed state and chunk storage for a finite or infinite producer-defined sequence. |
+| [CATRLLIB_QUEUE](#catrllib_queue) | A finite ordered collection of fixed-size elements retrieved in first-in, first-out order. |
+| [CATRLLIB_STACK](#catrllib_stack) | A finite ordered collection of fixed-size elements retrieved in last-in, first-out order. |
+| [CATRLLIB_POOL](#catrllib_pool) | A finite collection of fixed-size, reusable slots, each independently acquired or released. |
 
 | Macro | Meaning |
 | --- | --- |
@@ -86,6 +89,31 @@ For Core-wide requirements, see [Assumptions](../../assumptions/index.md).
 | [catrl_stream_init](#catrl_stream_init) | Allocate managed state and chunk-lifetime bookkeeping. |
 | [catrl_stream_next](#catrl_stream_next) | Produce an exact-sized chunk into managed storage. |
 | [catrl_stream_free](#catrl_stream_free) | Release managed chunks, state, and bookkeeping. |
+| [catrl_queue_init](#catrl_queue_init) | Initialize an empty Queue without allocation; all fields except size become zero or null. |
+| [catrl_queue_enqueue](#catrl_queue_enqueue) | Copy an element to the logical end without allocation. |
+| [catrl_queue_dequeue](#catrl_queue_dequeue) | Remove and copy the oldest element without allocation; retain capacity. |
+| [catrl_queue_peek](#catrl_queue_peek) | Borrow the writable oldest element without removing it. |
+| [catrl_queue_clear](#catrl_queue_clear) | Empty the Queue without changing capacity or erasing element bytes. |
+| [catrl_queue_expand](#catrl_queue_expand) | Increase capacity to the exact requested slot count; smaller or equal requests are no-ops. |
+| [catrl_queue_shrink](#catrl_queue_shrink) | Reduce capacity to `max(length, capacity / 2)`, rounded down. |
+| [catrl_queue_free](#catrl_queue_free) | Release owned data and clear capacity and length, retaining element size for reuse. |
+| [catrl_stack_init](#catrl_stack_init) | Initialize an empty Stack without allocation; all fields except size become zero or null. |
+| [catrl_stack_push](#catrl_stack_push) | Copy an element to the top without allocation. |
+| [catrl_stack_pop](#catrl_stack_pop) | Remove and copy the most recently inserted element without allocation; retain capacity. |
+| [catrl_stack_peek](#catrl_stack_peek) | Borrow the writable top element without removing it. |
+| [catrl_stack_clear](#catrl_stack_clear) | Empty the Stack without changing capacity or erasing element bytes. |
+| [catrl_stack_expand](#catrl_stack_expand) | Increase capacity to the exact requested slot count; smaller or equal requests are no-ops. |
+| [catrl_stack_shrink](#catrl_stack_shrink) | Reduce capacity to `max(length, capacity / 2)`, rounded down. |
+| [catrl_stack_free](#catrl_stack_free) | Release owned data and clear capacity and length, retaining element size for reuse. |
+| [catrl_pool_init](#catrl_pool_init) | Initialize an empty Pool without allocation; all fields except size become zero or null. |
+| [catrl_pool_acquire](#catrl_pool_acquire) | Mark the lowest available slot occupied without allocation or initialization of its bytes. |
+| [catrl_pool_release](#catrl_pool_release) | Mark an occupied slot free without moving any other slot or erasing its bytes. |
+| [catrl_pool_contains](#catrl_pool_contains) | Test whether an index identifies an acquired slot. |
+| [catrl_pool_get](#catrl_pool_get) | Borrow the writable occupied slot. |
+| [catrl_pool_clear](#catrl_pool_clear) | Empty the Pool without changing capacity or erasing element bytes. |
+| [catrl_pool_expand](#catrl_pool_expand) | Increase capacity to the exact requested slot count; smaller or equal requests are no-ops. |
+| [catrl_pool_shrink](#catrl_pool_shrink) | Reduce capacity to the larger of half the current capacity (rounded down) and one past the highest occupied index (zero if empty). |
+| [catrl_pool_free](#catrl_pool_free) | Release data, then bitmap, retaining slot size for reuse. |
 
 ## Macros
 
@@ -232,6 +260,82 @@ State and chunks have CATMMLIB fundamental alignment, not extended alignment. Ze
 A lifetime of three retains the three most recently published chunks; publishing a fourth expires the first. Calls without publication do not expire chunks. Returned pointers are borrowed until expiration or a free attempt; do not resize or free them independently.
 
 There is no universal end-of-stream status or pointer sentinel. The producer defines whether further calls are valid.
+
+### CATRLLIB_QUEUE
+
+A finite ordered collection of fixed-size elements retrieved in first-in, first-out order. Duplicate values are permitted. The backing allocation is contiguous; the live sequence may wrap around its end.
+
+```c
+typedef struct CATRLLIB_QUEUE {
+    CATMMLIB_POINTERW data;
+    CATALYST_NUINT size;
+    CATALYST_NUINT length;
+    CATALYST_NUINT capacity;
+    CATALYST_NUINT head;
+} CATRLLIB_QUEUE;
+```
+
+**Fields:**
+
+- `data`: Owned circular-buffer storage; null when unallocated.  
+- `size`: Nonzero bytes per element, fixed at initialization.  
+- `length`: Number of live elements, at most `capacity`.  
+- `capacity`: Number of allocated element slots; the byte extent must be representable and allocatable.  
+- `head`: Physical index of the first live element, zero when empty.
+
+**C++ equivalent:** `catalyst::QUEUE`.
+
+Enqueue and dequeue take constant slot-address work apart from copying one element. Resizing may normalize the ring to head zero; never derive a persistent identity from a physical slot.
+
+### CATRLLIB_STACK
+
+A finite ordered collection of fixed-size elements retrieved in last-in, first-out order. Duplicate values are permitted.
+
+```c
+typedef struct CATRLLIB_STACK {
+    CATMMLIB_POINTERW data;
+    CATALYST_NUINT size;
+    CATALYST_NUINT length;
+    CATALYST_NUINT capacity;
+} CATRLLIB_STACK;
+```
+
+**Fields:**
+
+- `data`: Owned contiguous storage; null when unallocated.  
+- `size`: Nonzero bytes per element, fixed at initialization.  
+- `length`: Number of live elements in the contiguous prefix.  
+- `capacity`: Number of element slots; the byte extent must be representable and allocatable.
+
+**C++ equivalent:** `catalyst::STACK`.
+
+Push, pop, and peek take constant slot-address work apart from copying an element where applicable.
+
+### CATRLLIB_POOL
+
+A finite collection of fixed-size, reusable slots, each independently acquired or released. Values are not compared for uniqueness.
+
+```c
+typedef struct CATRLLIB_POOL {
+    CATMMLIB_POINTERW data;
+    CATMMLIB_POINTERW occupied;
+    CATALYST_NUINT size;
+    CATALYST_NUINT cardinality;
+    CATALYST_NUINT capacity;
+} CATRLLIB_POOL;
+```
+
+**Fields:**
+
+- `data`: Owned contiguous slot storage.  
+- `occupied`: Independently owned bitmap of at least `ceil(capacity / 8)` bytes. A set bit marks an acquired slot; bit zero of each byte denotes its lowest index. Padding bits are zero.  
+- `size`: Nonzero bytes per slot, fixed at initialization.  
+- `cardinality`: Number of acquired slots, at most `capacity`.  
+- `capacity`: Number of logically available slots, including occupied ones; both allocations can accommodate this count.
+
+**C++ equivalent:** `catalyst::POOL`.
+
+Acquire scans for the lowest free index; release, contains, and get address the bitmap directly. Live indices survive resizing; pointers do not. Released indices may be reused, with no generation counter. Unoccupied bytes are not elements and may contain old contents; acquisition does not initialize them. Partial resize or cleanup can retain extra owned bitmap storage even at zero logical capacity.
 
 ## Functions
 
@@ -1083,3 +1187,531 @@ On failure, unreleased allocations remain owned, with `state` and `ssize` retain
 | `0x00230500` | `SUCCESS` | All owned storage released; public fields cleared | — |
 
 **See Also:** [catrl_stream_init](#catrl_stream_init), [catmm_heap_free](../catmmlib/index.md#catmm_heap_free)
+
+### catrl_queue_init
+
+```c
+void catrl_queue_init(CATRLLIB_QUEUE* queue, CATALYST_NUINT size);
+```
+
+Initialize an empty Queue without allocation; all fields except size become zero or null.
+
+**Parameters:**
+
+- `queue`: Valid writable unused `CATRLLIB_QUEUE` storage.  
+- `size`: Nonzero bytes per element.
+
+**C++ equivalent:** `catalyst::queue_init`.
+
+### catrl_queue_enqueue
+
+```c
+void catrl_queue_enqueue(CATRLLIB_QUEUE* queue, CATMMLIB_POINTER element);
+```
+
+Copy an element to the logical end without allocation. Duplicate values are permitted.
+
+**Parameters:**
+
+- `queue`: Valid initialized Queue. Requires `length < capacity`.  
+- `element`: Non-null pointer to `queue->size` readable bytes outside the queue object and its owned allocation.
+
+**C++ equivalent:** `catalyst::queue_enqueue`.
+
+### catrl_queue_dequeue
+
+```c
+CATALYST_BOOL catrl_queue_dequeue(CATRLLIB_QUEUE* queue, CATMMLIB_POINTERW output);
+```
+
+Remove and copy the oldest element without allocation; retain capacity.
+
+**Parameters:**
+
+- `queue`: Valid initialized Queue.  
+- `output`: Non-null pointer to `queue->size` writable bytes outside the queue object and its owned allocation.
+
+**C++ equivalent:** `catalyst::queue_dequeue`.
+
+**Returns:** `CATALYST_TRUE` if removed and exactly size bytes copied; `CATALYST_FALSE` if empty, with output and collection unchanged.
+
+### catrl_queue_peek
+
+```c
+CATMMLIB_POINTERW catrl_queue_peek(CATRLLIB_QUEUE* queue);
+```
+
+Borrow the writable oldest element without removing it. Do not free independently; reacquire after mutation, clear, resize, or free attempts.
+
+**Parameters:**
+
+- `queue`: Valid initialized Queue.
+
+**C++ equivalent:** `catalyst::queue_peek`.
+
+**Returns:** Pointer to the live element, or null when empty.
+
+### catrl_queue_clear
+
+```c
+void catrl_queue_clear(CATRLLIB_QUEUE* queue);
+```
+
+Empty the Queue without changing capacity or erasing element bytes. All former element aliases cease to identify live elements. Reset head to zero.
+
+**Parameters:**
+
+- `queue`: Valid initialized Queue.
+
+**C++ equivalent:** `catalyst::queue_clear`.
+
+### catrl_queue_expand
+
+```c
+CATALYST_RESULT catrl_queue_expand(CATRLLIB_QUEUE* queue, CATALYST_NUINT capacity);
+```
+
+Increase capacity to the exact requested slot count; smaller or equal requests are no-ops. Preserve all elements and order. After successful allocation normalize the ring to head zero; resize failure leaves the queue unchanged.
+
+**Parameters:**
+
+- `queue`: Valid initialized Queue.  
+- `capacity`: Requested slot count, not a byte count; zero is a no-op.
+
+**C++ equivalent:** `catalyst::queue_expand`.
+
+**Context:** `0x29`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x01290100` | `SUCCESS_NOOP`: Requested capacity is not larger | Keep storage | — |
+| `0x90290200` | `ERROR_BUFFER_OVERFLOW`: Capacity times element size is unrepresentable | Reject extent | — |
+| `0x82290300` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize storage | — |
+| `0x84290300` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize storage | — |
+| `0x86290300` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize storage | — |
+| `0x90290300` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB extent unrepresentable | Resize storage | — |
+| `0x91290300` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize storage | — |
+| `0x82290384` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize storage | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x84290382` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize storage | Other failure is `ERROR_INVALID_STATE` |
+| `0x00290400` | `SUCCESS` | Commit requested capacity | — |
+
+### catrl_queue_shrink
+
+```c
+CATALYST_RESULT catrl_queue_shrink(CATRLLIB_QUEUE* queue);
+```
+
+Reduce capacity to `max(length, capacity / 2)`, rounded down. Preserve elements and order; release data at zero capacity. Unchanged target is a no-op. Normalize before shrinking; resize failure preserves logical order, length and capacity but may change head and physical placement.
+
+**Parameters:**
+
+- `queue`: Valid initialized Queue.
+
+**C++ equivalent:** `catalyst::queue_shrink`.
+
+**Context:** `0x2A`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x012A0100` | `SUCCESS_NOOP`: Target equals current capacity | Keep storage | — |
+| `0x822A0200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize storage | — |
+| `0x842A0200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize storage | — |
+| `0x862A0200` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize storage | — |
+| `0x902A0200` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB extent unrepresentable | Resize storage | — |
+| `0x912A0200` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize storage | — |
+| `0x822A0284` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize storage | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x842A0282` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize storage | Other failure is `ERROR_INVALID_STATE` |
+| `0x002A0300` | `SUCCESS` | Commit smaller capacity | — |
+
+### catrl_queue_free
+
+```c
+CATALYST_RESULT catrl_queue_free(CATRLLIB_QUEUE* queue);
+```
+
+Release owned data and clear capacity and length, retaining element size for reuse. Reset head to zero. An unallocated collection is a no-op; failure leaves it unchanged.
+
+**Parameters:**
+
+- `queue`: Valid initialized Queue, including a previously freed or partially cleaned up object.
+
+**C++ equivalent:** `catalyst::queue_free`.
+
+**Context:** `0x2B`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x012B0100` | `SUCCESS_NOOP`: No owned allocation | Keep empty collection | — |
+| `0x822B0200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release storage | — |
+| `0x842B0200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Release storage | — |
+| `0x002B0300` | `SUCCESS` | Clear ownership and count | — |
+
+### catrl_stack_init
+
+```c
+void catrl_stack_init(CATRLLIB_STACK* stack, CATALYST_NUINT size);
+```
+
+Initialize an empty Stack without allocation; all fields except size become zero or null.
+
+**Parameters:**
+
+- `stack`: Valid writable unused `CATRLLIB_STACK` storage.  
+- `size`: Nonzero bytes per element.
+
+**C++ equivalent:** `catalyst::stack_init`.
+
+### catrl_stack_push
+
+```c
+void catrl_stack_push(CATRLLIB_STACK* stack, CATMMLIB_POINTER element);
+```
+
+Copy an element to the top without allocation. Duplicate values are permitted.
+
+**Parameters:**
+
+- `stack`: Valid initialized Stack. Requires `length < capacity`.  
+- `element`: Non-null pointer to `stack->size` readable bytes outside the stack object and its owned allocation.
+
+**C++ equivalent:** `catalyst::stack_push`.
+
+### catrl_stack_pop
+
+```c
+CATALYST_BOOL catrl_stack_pop(CATRLLIB_STACK* stack, CATMMLIB_POINTERW output);
+```
+
+Remove and copy the most recently inserted element without allocation; retain capacity.
+
+**Parameters:**
+
+- `stack`: Valid initialized Stack.  
+- `output`: Non-null pointer to `stack->size` writable bytes outside the stack object and its owned allocation.
+
+**C++ equivalent:** `catalyst::stack_pop`.
+
+**Returns:** `CATALYST_TRUE` if removed and exactly size bytes copied; `CATALYST_FALSE` if empty, with output and collection unchanged.
+
+### catrl_stack_peek
+
+```c
+CATMMLIB_POINTERW catrl_stack_peek(CATRLLIB_STACK* stack);
+```
+
+Borrow the writable top element without removing it. Do not free independently; reacquire after mutation, clear, resize, or free attempts.
+
+**Parameters:**
+
+- `stack`: Valid initialized Stack.
+
+**C++ equivalent:** `catalyst::stack_peek`.
+
+**Returns:** Pointer to the live element, or null when empty.
+
+### catrl_stack_clear
+
+```c
+void catrl_stack_clear(CATRLLIB_STACK* stack);
+```
+
+Empty the Stack without changing capacity or erasing element bytes. All former element aliases cease to identify live elements.
+
+**Parameters:**
+
+- `stack`: Valid initialized Stack.
+
+**C++ equivalent:** `catalyst::stack_clear`.
+
+### catrl_stack_expand
+
+```c
+CATALYST_RESULT catrl_stack_expand(CATRLLIB_STACK* stack, CATALYST_NUINT capacity);
+```
+
+Increase capacity to the exact requested slot count; smaller or equal requests are no-ops. Preserve all elements and order. Resize failure leaves the stack unchanged.
+
+**Parameters:**
+
+- `stack`: Valid initialized Stack.  
+- `capacity`: Requested slot count, not a byte count; zero is a no-op.
+
+**C++ equivalent:** `catalyst::stack_expand`.
+
+**Context:** `0x31`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x01310100` | `SUCCESS_NOOP`: Requested capacity is not larger | Keep storage | — |
+| `0x90310200` | `ERROR_BUFFER_OVERFLOW`: Capacity times element size is unrepresentable | Reject extent | — |
+| `0x82310300` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize storage | — |
+| `0x84310300` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize storage | — |
+| `0x86310300` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize storage | — |
+| `0x90310300` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB extent unrepresentable | Resize storage | — |
+| `0x91310300` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize storage | — |
+| `0x82310384` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize storage | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x84310382` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize storage | Other failure is `ERROR_INVALID_STATE` |
+| `0x00310400` | `SUCCESS` | Commit requested capacity | — |
+
+### catrl_stack_shrink
+
+```c
+CATALYST_RESULT catrl_stack_shrink(CATRLLIB_STACK* stack);
+```
+
+Reduce capacity to `max(length, capacity / 2)`, rounded down. Preserve elements and order; release data at zero capacity. Unchanged target is a no-op. Failure leaves the stack unchanged.
+
+**Parameters:**
+
+- `stack`: Valid initialized Stack.
+
+**C++ equivalent:** `catalyst::stack_shrink`.
+
+**Context:** `0x32`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x01320100` | `SUCCESS_NOOP`: Target equals current capacity | Keep storage | — |
+| `0x82320200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize storage | — |
+| `0x84320200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize storage | — |
+| `0x86320200` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize storage | — |
+| `0x90320200` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB extent unrepresentable | Resize storage | — |
+| `0x91320200` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize storage | — |
+| `0x82320284` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize storage | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x84320282` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize storage | Other failure is `ERROR_INVALID_STATE` |
+| `0x00320300` | `SUCCESS` | Commit smaller capacity | — |
+
+### catrl_stack_free
+
+```c
+CATALYST_RESULT catrl_stack_free(CATRLLIB_STACK* stack);
+```
+
+Release owned data and clear capacity and length, retaining element size for reuse. An unallocated collection is a no-op; failure leaves it unchanged.
+
+**Parameters:**
+
+- `stack`: Valid initialized Stack, including a previously freed or partially cleaned up object.
+
+**C++ equivalent:** `catalyst::stack_free`.
+
+**Context:** `0x33`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x01330100` | `SUCCESS_NOOP`: No owned allocation | Keep empty collection | — |
+| `0x82330200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release storage | — |
+| `0x84330200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Release storage | — |
+| `0x00330300` | `SUCCESS` | Clear ownership and count | — |
+
+### catrl_pool_init
+
+```c
+void catrl_pool_init(CATRLLIB_POOL* pool, CATALYST_NUINT size);
+```
+
+Initialize an empty Pool without allocation; all fields except size become zero or null.
+
+**Parameters:**
+
+- `pool`: Valid writable unused `CATRLLIB_POOL` storage.  
+- `size`: Nonzero bytes per slot.
+
+**C++ equivalent:** `catalyst::pool_init`.
+
+### catrl_pool_acquire
+
+```c
+CATALYST_BOOL catrl_pool_acquire(CATRLLIB_POOL* pool, CATALYST_NUINT* index);
+```
+
+Mark the lowest available slot occupied without allocation or initialization of its bytes.
+
+**Parameters:**
+
+- `pool`: Valid initialized Pool.  
+- `index`: Non-null writable index output outside the Pool and both allocations.
+
+**C++ equivalent:** `catalyst::pool_acquire`.
+
+**Returns:** `CATALYST_TRUE` if acquired, with index written; `CATALYST_FALSE` if full, leaving output and Pool unchanged.
+
+### catrl_pool_release
+
+```c
+CATALYST_BOOL catrl_pool_release(CATRLLIB_POOL* pool, CATALYST_NUINT index);
+```
+
+Mark an occupied slot free without moving any other slot or erasing its bytes. Invalidate its borrowed pointers.
+
+**Parameters:**
+
+- `pool`: Valid initialized Pool.  
+- `index`: Slot index; out-of-range indices are treated as absent.
+
+**C++ equivalent:** `catalyst::pool_release`.
+
+**Returns:** `CATALYST_TRUE` if released; `CATALYST_FALSE` if absent, without mutation.
+
+### catrl_pool_contains
+
+```c
+CATALYST_BOOL catrl_pool_contains(const CATRLLIB_POOL* pool, CATALYST_NUINT index);
+```
+
+Test whether an index identifies an acquired slot.
+
+**Parameters:**
+
+- `pool`: Valid initialized Pool.  
+- `index`: Slot index; out-of-range indices are treated as absent.
+
+**C++ equivalent:** `catalyst::pool_contains`.
+
+**Returns:** `CATALYST_TRUE` if occupied; `CATALYST_FALSE` otherwise.
+
+### catrl_pool_get
+
+```c
+CATMMLIB_POINTERW catrl_pool_get(CATRLLIB_POOL* pool, CATALYST_NUINT index);
+```
+
+Borrow the writable occupied slot. Do not release storage independently; reacquire pointers after any resize or free attempt and after release/reacquisition of a slot.
+
+**Parameters:**
+
+- `pool`: Valid initialized Pool.  
+- `index`: Slot index; out-of-range indices are treated as absent.
+
+**C++ equivalent:** `catalyst::pool_get`.
+
+**Returns:** Pointer to the slot, or null if unoccupied or out of range.
+
+### catrl_pool_clear
+
+```c
+void catrl_pool_clear(CATRLLIB_POOL* pool);
+```
+
+Empty the Pool without changing capacity or erasing element bytes. All former element aliases cease to identify live elements. Clear all logical occupancy bits.
+
+**Parameters:**
+
+- `pool`: Valid initialized Pool.
+
+**C++ equivalent:** `catalyst::pool_clear`.
+
+### catrl_pool_expand
+
+```c
+CATALYST_RESULT catrl_pool_expand(CATRLLIB_POOL* pool, CATALYST_NUINT capacity);
+```
+
+Increase capacity to the exact requested slot count; smaller or equal requests are no-ops. Preserve occupied indices and contents. Resize the bitmap first and data second; failure preserves logical capacity and live contents, but the bitmap may retain extra storage.
+
+**Parameters:**
+
+- `pool`: Valid initialized Pool.  
+- `capacity`: Requested slot count, not a byte count; zero is a no-op.
+
+**C++ equivalent:** `catalyst::pool_expand`.
+
+**Context:** `0x3A`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x013A0100` | `SUCCESS_NOOP`: Requested capacity is not larger | Keep storage | — |
+| `0x903A0200` | `ERROR_BUFFER_OVERFLOW`: Capacity times element size is unrepresentable | Reject extent | — |
+| `0x823A0300` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize bitmap | — |
+| `0x843A0300` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize bitmap | — |
+| `0x863A0300` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize bitmap | — |
+| `0x903A0300` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB extent unrepresentable | Resize bitmap | — |
+| `0x913A0300` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize bitmap | — |
+| `0x823A0384` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize bitmap | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x843A0382` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize bitmap | Other failure is `ERROR_INVALID_STATE` |
+| `0x823A0400` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize data | — |
+| `0x843A0400` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize data | — |
+| `0x863A0400` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize data | — |
+| `0x903A0400` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB extent unrepresentable | Resize data | — |
+| `0x913A0400` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize data | — |
+| `0x823A0484` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize data | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x843A0482` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize data | Other failure is `ERROR_INVALID_STATE` |
+| `0x003A0500` | `SUCCESS` | Commit requested capacity | — |
+
+### catrl_pool_shrink
+
+```c
+CATALYST_RESULT catrl_pool_shrink(CATRLLIB_POOL* pool);
+```
+
+Reduce capacity to the larger of half the current capacity (rounded down) and one past the highest occupied index (zero if empty). Never move live indices. Resize data first; if bitmap resizing then fails, the smaller logical capacity remains and extra bitmap storage is retained. Unchanged target is a no-op; at zero capacity a retained bitmap can be released by free.
+
+**Parameters:**
+
+- `pool`: Valid initialized Pool.
+
+**C++ equivalent:** `catalyst::pool_shrink`.
+
+**Context:** `0x3B`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x013B0100` | `SUCCESS_NOOP`: Target equals current capacity | Keep storage | — |
+| `0x823B0200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize data | — |
+| `0x843B0200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize data | — |
+| `0x863B0200` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize data | — |
+| `0x903B0200` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB extent unrepresentable | Resize data | — |
+| `0x913B0200` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize data | — |
+| `0x823B0284` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize data | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x843B0282` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize data | Other failure is `ERROR_INVALID_STATE` |
+| `0x823B0300` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize bitmap | — |
+| `0x843B0300` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize bitmap | — |
+| `0x863B0300` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize bitmap | — |
+| `0x903B0300` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB extent unrepresentable | Resize bitmap | — |
+| `0x913B0300` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize bitmap | — |
+| `0x823B0384` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize bitmap | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x843B0382` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize bitmap | Other failure is `ERROR_INVALID_STATE` |
+| `0x003B0400` | `SUCCESS` | Commit smaller capacity | — |
+
+### catrl_pool_free
+
+```c
+CATALYST_RESULT catrl_pool_free(CATRLLIB_POOL* pool);
+```
+
+Release data, then bitmap, retaining slot size for reuse. After successful data release the Pool is logically empty with capacity zero and its bitmap cleared; if bitmap release fails, retain it for retry. No owned allocations is a no-op.
+
+**Parameters:**
+
+- `pool`: Valid initialized Pool, including a previously freed or partially cleaned up object.
+
+**C++ equivalent:** `catalyst::pool_free`.
+
+**Context:** `0x3C`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x013C0100` | `SUCCESS_NOOP`: No owned allocations | Keep empty collection | — |
+| `0x823C0200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release data | — |
+| `0x843C0200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Release data | — |
+| `0x823C0300` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release bitmap | — |
+| `0x843C0300` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Release bitmap | — |
+| `0x003C0400` | `SUCCESS` | Clear ownership | — |

@@ -225,14 +225,22 @@ static int test_memory(BOOL managed) {
             { "single byte", 1, FALSE }, { "normal", 31, FALSE },
             { "larger buffer", 128, FALSE }, { "zero length", 0, FALSE },
             { "identical addresses", 128, TRUE }, { "identical empty extent", 0, TRUE }
+#if TARGET_SIZEOF_ADDRESS >= 2
+            , { "large unaligned block", 511, FALSE }, { "large identical extent", 511, TRUE }
+#endif
         };
+#if TARGET_SIZEOF_ADDRESS >= 2
+        const NUINT extent = 514;
+#else
+        const NUINT extent = 130;
+#endif
         for (NUINT test = 0; test < (NUINT) (sizeof(tests) / sizeof(tests[0])); ++test) {
-            BYTE source[130];
-            BYTE destination[130];
-            for (NUINT i = 0; i < (NUINT) 130; ++i) { source[i] = (BYTE) i; destination[i] = 0xCC; }
+            BYTE source[extent];
+            BYTE destination[extent];
+            for (NUINT i = 0; i < extent; ++i) { source[i] = (BYTE) i; destination[i] = 0xCC; }
             catmm_copy(tests[test].identical ? source + 1 : destination + 1, source + 1, tests[test].size);
             BOOL passed = TRUE;
-            for (NUINT i = 0; i < (NUINT) 130; ++i) {
+            for (NUINT i = 0; i < extent; ++i) {
                 BYTE expected = !tests[test].identical && i > 0 && i <= tests[test].size ? (BYTE) i : (BYTE) 0xCC;
                 if (source[i] != (BYTE) i || destination[i] != expected) passed = FALSE;
             }
@@ -256,17 +264,26 @@ static int test_memory(BOOL managed) {
             { "one-byte backward overlap", 1, 2, 128 }, { "one-byte forward overlap", 2, 1, 128 },
             { "adjacent regions", 0, 66, 66 }, { "single byte", 4, 5, 1 },
             { "identical addresses", 3, 3, 97 }, { "zero length", 4, 9, 0 }
+#if TARGET_SIZEOF_ADDRESS >= 2
+            , { "large backward overlap", 1, 2, 511 }, { "large forward overlap", 2, 1, 511 },
+            { "large backward unaligned overlap", 3, 10, 257 }
+#endif
         };
+#if TARGET_SIZEOF_ADDRESS >= 2
+        const NUINT extent = 520;
+#else
+        const NUINT extent = 132;
+#endif
         for (NUINT test = 0; test < (NUINT) (sizeof(tests) / sizeof(tests[0])); ++test) {
-            BYTE bytes[132];
-            BYTE expected[132];
-            for (NUINT i = 0; i < (NUINT) 132; ++i) { bytes[i] = (BYTE) i; expected[i] = (BYTE) i; }
+            BYTE bytes[extent];
+            BYTE expected[extent];
+            for (NUINT i = 0; i < extent; ++i) { bytes[i] = (BYTE) i; expected[i] = (BYTE) i; }
             for (NUINT i = 0; i < tests[test].size; ++i) {
                 expected[tests[test].destination + i] = (BYTE) (tests[test].source + i);
             }
             catmm_move(bytes + tests[test].destination, bytes + tests[test].source, tests[test].size);
             BOOL passed = TRUE;
-            for (NUINT i = 0; i < (NUINT) 132; ++i) {
+            for (NUINT i = 0; i < extent; ++i) {
                 if (bytes[i] != expected[i]) passed = FALSE;
             }
             if (!passed) {
@@ -527,7 +544,7 @@ static int test_memory(BOOL managed) {
             std::printf("PASS: independent live allocations and zero-filled reuse\n");
         }
     }
-    // Exercise reusable native spans and transitions between extent classes.
+    // Exercise reusable slabs and transitions between capacity classes.
     {
         NUINT sizes[] = { 12000, 13000, 11000, 13000, 24000, 25000, 40000, 60000, 70000, 24000 };
         POINTERW blocks[3] = { 0 };
@@ -567,10 +584,10 @@ static int test_memory(BOOL managed) {
                 result.operation != 0x04 || result.detail != 0) passed = FALSE;
         }
         if (!passed) {
-            std::printf("FAIL: multi-block span growth, shrink and reuse\n");
+            std::printf("FAIL: multi-block slab growth, shrink and reuse\n");
             ++failed;
         } else {
-            std::printf("PASS: multi-block span growth, shrink and reuse\n");
+            std::printf("PASS: multi-block slab growth, shrink and reuse\n");
         }
     }
 #endif

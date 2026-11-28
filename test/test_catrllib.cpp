@@ -454,6 +454,292 @@ int main() {
         }
     }
 
+    // Search block boundaries, unaligned input, and late-byte mismatches.
+    {
+        const BYTE widths[] = {1, 2,
+#if TARGET_SIZEOF_ADDRESS >= 2
+            8, 16,
+#endif
+        };
+        BOOL passed = TRUE;
+        for (BYTE w = 0; w < (BYTE) (sizeof(widths) / sizeof(widths[0])); ++w) {
+            NUINT width = widths[w];
+            SET set;
+            MAP map;
+            ARRAY array;
+            set_init(&set, width);
+            map_init(&map, width, 1);
+            array_init(&array, width);
+            if (status_code_is_success(set_expand(&set, 9).status) &&
+                status_code_is_success(map_expand(&map, 9).status) &&
+                status_code_is_success(array_expand(&array, 9).status)) {
+                BYTE input[17];
+                BYTE* key = input + 1;
+                for (NUINT i = 0; i < width; ++i) key[i] = 0xA5;
+                for (BYTE n = 0; n < 10; ++n) {
+                    for (BYTE k = 0; k <= n; ++k) {
+                        key[width - (NUINT) 1] = k;
+                        BOOL expected = k < n ? TRUE : FALSE;
+                        POINTER value = map_get(&map, key);
+                        if (set_contains(&set, key) != expected || map_contains(&map, key) != expected ||
+                            array_contains(&array, key) != expected || (value != 0 ? TRUE : FALSE) != expected ||
+                            (value != 0 && *(const BYTE*) value != k)) passed = FALSE;
+                    }
+                    if (n < 9) {
+                        key[width - (NUINT) 1] = n;
+                        if (!set_add(&set, key) || !map_add(&map, key, &n)) passed = FALSE;
+                        array_add(&array, key);
+                    }
+                }
+            } else passed = FALSE;
+            if (!status_code_is_success(set_free(&set).status)) passed = FALSE;
+            if (!status_code_is_success(map_free(&map).status)) passed = FALSE;
+            if (!status_code_is_success(array_free(&array).status)) passed = FALSE;
+        }
+        check(&failed, passed, "linear searches preserve equality across block boundaries and late mismatches");
+    }
+
+    // Small element stores must copy exact extents, including unaligned sources.
+    {
+        const BYTE widths[] = {1, 8};
+        BOOL passed = TRUE;
+        for (BYTE w = 0; w < (BYTE) (sizeof(widths) / sizeof(widths[0])); ++w) {
+            NUINT width = widths[w];
+            ARRAY array;
+            array_init(&array, width);
+            if (status_code_is_success(array_expand(&array, 4).status)) {
+                BYTE input[10];
+                BYTE original[8];
+                for (NUINT i = 0; i < width; ++i) {
+                    input[i + (NUINT) 1] = (BYTE) (0x10 + i);
+                    original[i] = (BYTE) (0x80 + i);
+                }
+                array_add(&array, original);
+                array_add(&array, original);
+                array_insert(&array, 1, input + 1);
+                if (!value_matches(array_get(&array, 0), original, width) ||
+                    !value_matches(array_get(&array, 1), input + 1, width) ||
+                    !value_matches(array_get(&array, 2), original, width)) passed = FALSE;
+                array_set(&array, 1, original);
+                if (!value_matches(array_get(&array, 1), original, width)) passed = FALSE;
+                array_remove(&array, 1);
+                if (array.length != 2 || !value_matches(array_get(&array, 1), original, width)) passed = FALSE;
+            } else passed = FALSE;
+            if (!status_code_is_success(array_free(&array).status)) passed = FALSE;
+        }
+        check(&failed, passed, "small element stores preserve neighbors and unaligned inputs");
+    }
+
+    // Byte searches across wide blocks and tails, including every key value.
+    {
+        MAP map;
+        map_init(&map, 1, 1);
+#if TARGET_SIZEOF_ADDRESS >= 2
+        const BYTE capacity = 65;
+#else
+        const BYTE capacity = 17;
+#endif
+        BOOL passed = status_code_is_success(map_expand(&map, capacity).status);
+        if (passed) {
+            const BYTE starts[] = {0, 0x7F, 0x80, 0xF0, 0xFF};
+            for (BYTE s = 0; s < (BYTE) (sizeof(starts) / sizeof(starts[0])); ++s) {
+                map_clear(&map);
+                for (BYTE n = 0; n <= capacity; ++n) {
+                    BYTE key = 0;
+                    do {
+                        BYTE index = (BYTE) (key - starts[s]);
+                        const BYTE* value = (const BYTE*) map_get(&map, &key);
+                        if (index < n) {
+                            if (value == 0 || *value != index) passed = FALSE;
+                        } else if (value != 0) passed = FALSE;
+                        ++key;
+                    } while (key != 0);
+                    if (n < capacity) {
+                        key = (BYTE) (starts[s] + n);
+                        if (!map_add(&map, &key, &n)) passed = FALSE;
+                    }
+                }
+            }
+        }
+        if (!status_code_is_success(map_free(&map).status)) passed = FALSE;
+        check(&failed, passed, "single-byte searches preserve exact indices across block boundaries and byte values");
+    }
+
+
+    // ------------------------------------------------------------
+    // Queue: FIFO order, circular wrap, resize, copied output, reuse
+    // ------------------------------------------------------------
+    {
+        QUEUE queue;
+        BYTE input[2] = {0, 0xA5};
+        BYTE output[2] = {0xEE, 0xEF};
+        catrl_queue_init(&queue, 2);
+        check(&failed, queue.data == 0 && queue.size == 2 && queue.length == 0 &&
+            queue.capacity == 0 && queue.head == 0, "queue_init empty");
+        check(&failed, !queue_dequeue(&queue, output) && output[0] == 0xEE &&
+            output[1] == 0xEF && queue_peek(&queue) == 0, "queue empty retrieval preserves output");
+        check(&failed, matches(queue_expand(&queue, 0), STATUS_CODE_SUCCESS_NOOP, 0x29, 1) &&
+            matches(queue_shrink(&queue), STATUS_CODE_SUCCESS_NOOP, 0x2A, 1) &&
+            matches(queue_free(&queue), STATUS_CODE_SUCCESS_NOOP, 0x2B, 1), "queue unallocated lifecycle no-ops");
+        check(&failed, matches(queue_expand(&queue, CATALYST_NUINT_MAX), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x29, 2) &&
+            queue.data == 0 && queue.capacity == 0, "queue extent overflow");
+        if (check(&failed, matches(queue_expand(&queue, 4), STATUS_CODE_SUCCESS, 0x29, 4), "queue expand")) {
+            for (BYTE i = 0; i < 4; ++i) {
+                input[0] = i;
+                catrl_queue_enqueue(&queue, input);
+            }
+            BOOL passed = TRUE;
+            for (BYTE i = 0; i < 3; ++i) {
+                if (!queue_dequeue(&queue, output) || output[0] != i || output[1] != 0xA5) passed = FALSE;
+            }
+            for (BYTE i = 4; i < 7; ++i) {
+                input[0] = i;
+                queue_enqueue(&queue, input);
+            }
+            check(&failed, passed && queue.head == 3 && queue.length == 4 &&
+                queue_peek(&queue) != 0 && ((const BYTE*) queue_peek(&queue))[0] == 3,
+                "queue wraps and preserves FIFO");
+            check(&failed, matches(queue_shrink(&queue), STATUS_CODE_SUCCESS_NOOP, 0x2A, 1) &&
+                matches(queue_expand(&queue, 3), STATUS_CODE_SUCCESS_NOOP, 0x29, 1) &&
+                matches(queue_expand(&queue, CATALYST_NUINT_MAX), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x29, 2) &&
+                queue.head == 3 && queue.capacity == 4 && queue.length == 4, "queue wrapped no-ops and overflow");
+            if (check(&failed, matches(catrl_queue_expand(&queue, 8), STATUS_CODE_SUCCESS, 0x29, 4) &&
+                    queue.capacity == 8 && queue.head == 0, "queue expand wrapped ring")) {
+                passed = TRUE;
+                for (BYTE i = 3; i < 7; ++i) {
+                    if (!catrl_queue_dequeue(&queue, output) || output[0] != i || output[1] != 0xA5) passed = FALSE;
+                }
+                check(&failed, passed && queue.length == 0 && queue.head == 0, "queue expanded order");
+                for (BYTE i = 0; i < 8; ++i) {
+                    input[0] = i;
+                    queue_enqueue(&queue, input);
+                }
+                for (BYTE i = 0; i < 7; ++i) queue_dequeue(&queue, output);
+                input[0] = 8; queue_enqueue(&queue, input);
+                input[0] = 9; queue_enqueue(&queue, input);
+                if (check(&failed, matches(queue_shrink(&queue), STATUS_CODE_SUCCESS, 0x2A, 3) &&
+                        queue.capacity == 4 && queue.head == 0 && queue.length == 3, "queue shrink wrapped ring")) {
+                    passed = TRUE;
+                    for (BYTE i = 7; i < 10; ++i)
+                        if (!queue_dequeue(&queue, output) || output[0] != i || output[1] != 0xA5) passed = FALSE;
+                    check(&failed, passed, "queue shrunken order");
+                }
+            }
+            queue_clear(&queue);
+            check(&failed, queue.head == 0 && queue.length == 0 && queue.capacity != 0, "queue clear retains storage");
+            input[0] = 0x5A;
+            queue_enqueue(&queue, input);
+            queue_enqueue(&queue, input);
+            check(&failed, queue.length == 2 && queue_dequeue(&queue, output) && output[0] == 0x5A &&
+                queue_dequeue(&queue, output) && output[0] == 0x5A, "queue permits duplicate values");
+        }
+        result = catrl_queue_free(&queue);
+        check(&failed, status_code_is_success(result.status) && queue.data == 0 && queue.capacity == 0 &&
+            queue.length == 0 && queue.head == 0 && queue.size == 2, "queue free retains size");
+        if (check(&failed, matches(queue_expand(&queue, 1), STATUS_CODE_SUCCESS, 0x29, 4), "queue reuse after free"))
+            check(&failed, matches(queue_shrink(&queue), STATUS_CODE_SUCCESS, 0x2A, 3) &&
+                queue.data == 0 && queue.capacity == 0, "queue shrink final slot");
+        check(&failed, status_code_is_success(queue_free(&queue).status), "queue cleanup");
+    }
+
+    // ------------------------------------------------------------
+    // Stack: LIFO, duplicated values, resize, borrowed top and reuse
+    // ------------------------------------------------------------
+    {
+        STACK stack;
+        BYTE a[2] = {0x12, 0x34}, b[2] = {0x56, 0x78};
+        BYTE output[2] = {0xEE, 0xEF};
+        stack_init(&stack, 2);
+        check(&failed, stack.data == 0 && stack.length == 0 && stack.capacity == 0 && stack.size == 2 &&
+            stack_peek(&stack) == 0 && !stack_pop(&stack, output) && output[0] == 0xEE && output[1] == 0xEF,
+            "stack init and empty retrieval");
+        check(&failed, matches(stack_expand(&stack, 0), STATUS_CODE_SUCCESS_NOOP, 0x31, 1) &&
+            matches(stack_shrink(&stack), STATUS_CODE_SUCCESS_NOOP, 0x32, 1) &&
+            matches(stack_free(&stack), STATUS_CODE_SUCCESS_NOOP, 0x33, 1), "stack unallocated lifecycle no-ops");
+        check(&failed, matches(stack_expand(&stack, CATALYST_NUINT_MAX), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x31, 2),
+            "stack overflow");
+        if (check(&failed, matches(catrl_stack_expand(&stack, 3), STATUS_CODE_SUCCESS, 0x31, 4), "stack expand")) {
+            catrl_stack_push(&stack, a); stack_push(&stack, b); stack_push(&stack, a);
+            check(&failed, stack.length == 3 && value_matches(stack_peek(&stack), a, 2) &&
+                matches(stack_shrink(&stack), STATUS_CODE_SUCCESS_NOOP, 0x32, 1), "stack full with duplicates");
+            if (check(&failed, matches(stack_expand(&stack, 8), STATUS_CODE_SUCCESS, 0x31, 4) &&
+                    matches(stack_shrink(&stack), STATUS_CODE_SUCCESS, 0x32, 3) && stack.capacity == 4, "stack resize")) {
+                check(&failed, value_matches(catrl_stack_peek(&stack), a, 2) &&
+                    catrl_stack_pop(&stack, output) && value_matches(output, a, 2) &&
+                    stack_pop(&stack, output) && value_matches(output, b, 2) &&
+                    stack_pop(&stack, output) && value_matches(output, a, 2) && stack.length == 0, "stack LIFO");
+            }
+            stack_clear(&stack);
+            check(&failed, stack.capacity != 0 && stack.length == 0, "stack clear retains capacity");
+            stack_push(&stack, a);
+            check(&failed, value_matches(stack_peek(&stack), a, 2), "stack clear reuse");
+        }
+        check(&failed, status_code_is_success(catrl_stack_free(&stack).status) && stack.data == 0 &&
+            stack.length == 0 && stack.capacity == 0 && stack.size == 2, "stack free retains size");
+        if (check(&failed, matches(stack_expand(&stack, 1), STATUS_CODE_SUCCESS, 0x31, 4), "stack reuse after free"))
+            check(&failed, matches(stack_shrink(&stack), STATUS_CODE_SUCCESS, 0x32, 3) &&
+                stack.data == 0 && stack.capacity == 0, "stack shrink final slot");
+        check(&failed, status_code_is_success(stack_free(&stack).status), "stack cleanup");
+    }
+
+    // ------------------------------------------------------------
+    // Pool: occupancy bits, padding, sparse indices, resize and reuse
+    // ------------------------------------------------------------
+    {
+        POOL pool;
+        NUINT index = CATALYST_NUINT_MAX;
+        pool_init(&pool, 2);
+        check(&failed, pool.data == 0 && pool.occupied == 0 && pool.size == 2 && pool.cardinality == 0 &&
+            pool.capacity == 0 && !pool_acquire(&pool, &index) && index == CATALYST_NUINT_MAX &&
+            !pool_contains(&pool, 0) && !pool_release(&pool, 0) && pool_get(&pool, 0) == 0, "pool empty");
+        check(&failed, matches(pool_expand(&pool, 0), STATUS_CODE_SUCCESS_NOOP, 0x3A, 1) &&
+            matches(pool_shrink(&pool), STATUS_CODE_SUCCESS_NOOP, 0x3B, 1) &&
+            matches(pool_free(&pool), STATUS_CODE_SUCCESS_NOOP, 0x3C, 1), "pool unallocated lifecycle no-ops");
+        check(&failed, matches(pool_expand(&pool, CATALYST_NUINT_MAX), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x3A, 2) &&
+            pool.data == 0 && pool.occupied == 0, "pool extent overflow");
+        if (check(&failed, matches(catrl_pool_expand(&pool, 9), STATUS_CODE_SUCCESS, 0x3A, 5), "pool expand across bitmap boundary")) {
+            BOOL passed = TRUE;
+            for (NUINT i = 0; i < 9; ++i) {
+                if (!catrl_pool_acquire(&pool, &index) || index != i) { passed = FALSE; break; }
+                BYTE* slot = (BYTE*) pool_get(&pool, index);
+                if (slot == 0) { passed = FALSE; break; }
+                slot[0] = (BYTE) i; slot[1] = 0xA5;
+            }
+            check(&failed, passed && pool.cardinality == 9 &&
+                ((const BYTE*) pool.occupied)[0] == 0xFF && ((const BYTE*) pool.occupied)[1] == 1,
+                "pool lowest free indices and zero padding");
+            if (passed) {
+                index = CATALYST_NUINT_MAX;
+                check(&failed, !pool_acquire(&pool, &index) && index == CATALYST_NUINT_MAX &&
+                    !pool_contains(&pool, 9) && pool_get(&pool, 9) == 0 && !pool_release(&pool, 9), "pool full and out of range");
+                for (NUINT i = 0; i < 8; ++i) if (!catrl_pool_release(&pool, i)) passed = FALSE;
+                check(&failed, passed && !pool_release(&pool, 0) && !pool_contains(&pool, 0) &&
+                    pool_get(&pool, 0) == 0 && pool.cardinality == 1 &&
+                    matches(pool_shrink(&pool), STATUS_CODE_SUCCESS_NOOP, 0x3B, 1), "pool sparse highest index prevents truncation");
+                if (check(&failed, matches(pool_expand(&pool, 17), STATUS_CODE_SUCCESS, 0x3A, 5) &&
+                        pool.capacity == 17 && pool_contains(&pool, 8) && !pool_contains(&pool, 9),
+                        "pool expand preserves sparse index")) {
+                    check(&failed, matches(pool_shrink(&pool), STATUS_CODE_SUCCESS, 0x3B, 4) &&
+                        pool.capacity == 9 && pool.cardinality == 1 && pool_contains(&pool, 8),
+                        "pool shrink retains highest occupied index");
+                    const BYTE expected[2] = {8, 0xA5};
+                    check(&failed, value_matches(catrl_pool_get(&pool, 8), expected, 2), "pool retained slot contents");
+                    check(&failed, pool_acquire(&pool, &index) && index == 0 && catrl_pool_contains(&pool, 0),
+                        "pool reacquires released index");
+                }
+            }
+            pool_clear(&pool);
+            check(&failed, pool.cardinality == 0 && pool.capacity != 0 && !pool_contains(&pool, 8) &&
+                pool_acquire(&pool, &index) && index == 0, "pool clear retains capacity and clears bits");
+        }
+        check(&failed, status_code_is_success(catrl_pool_free(&pool).status) && pool.data == 0 &&
+            pool.occupied == 0 && pool.capacity == 0 && pool.cardinality == 0 && pool.size == 2, "pool free retains size");
+        if (check(&failed, matches(pool_expand(&pool, 1), STATUS_CODE_SUCCESS, 0x3A, 5), "pool reuse after free"))
+            check(&failed, matches(pool_shrink(&pool), STATUS_CODE_SUCCESS, 0x3B, 4) &&
+                pool.data == 0 && pool.occupied == 0 && pool.capacity == 0, "pool shrink final slot");
+        check(&failed, status_code_is_success(pool_free(&pool).status), "pool cleanup");
+    }
+
     // ------------------------------------------------------------
     // Done
     // ------------------------------------------------------------

@@ -14,14 +14,56 @@ typedef char CATMMLIB_native_extent_fits[(sizeof(vm_size_t) >= sizeof(CATALYST_N
 
 typedef char CATMMLIB_native_address_fits[(sizeof(vm_address_t) >= sizeof(void*)) ? 1 : -1];
 
-void catmm_platform_yield() {
-    sched_yield();
+#if CATMMLIB_MANAGED_HEAP
+void catmm_platform_lock(CATALYST_BYTE* lock) {
+    while (__atomic_exchange_n(lock, (BYTE) 1, __ATOMIC_ACQUIRE) != 0) {
+        while (__atomic_load_n(lock, __ATOMIC_RELAXED) != 0) {
+            sched_yield();
+        }
+    }
 }
+
+void catmm_platform_unlock(CATALYST_BYTE* lock) {
+    __atomic_store_n(lock, (BYTE) 0, __ATOMIC_RELEASE);
+}
+#endif
 
 CATALYST_BOOL catmm_platform_extent_matches(CATALYST_NUINT old_size, CATALYST_NUINT new_size) {
     NUINT pageSize = (NUINT) vm_page_size;
     return (NUINT) ((NUINT) (old_size - (NUINT) 1) / pageSize)
         == (NUINT) ((NUINT) (new_size - (NUINT) 1) / pageSize) ? TRUE : FALSE;
+}
+
+/* Allocation already established representable page rounding. Both extents
+ * are nonzero, and the new one occupies fewer pages than the old one. */
+CATALYST_RESULT catmm_platform_shrink(CATMMLIB_POINTERW memory, CATALYST_NUINT old_size, CATALYST_NUINT new_size) {
+    NUINT pageSize = (NUINT) vm_page_size;
+    NUINT oldRounded = (NUINT) (old_size + (NUINT) ((pageSize - old_size % pageSize) % pageSize));
+    NUINT newRounded = (NUINT) (new_size + (NUINT) ((pageSize - new_size % pageSize) % pageSize));
+    kern_return_t release = vm_deallocate(mach_task_self(),
+        (vm_address_t) ((BYTE*) memory + newRounded), (vm_size_t) (oldRounded - newRounded));
+    if (release != KERN_SUCCESS) {
+        return RESULT(release == KERN_PROTECTION_FAILURE ? STATUS_CODE_ERROR_ACCESS_DENIED : STATUS_CODE_ERROR_INVALID_STATE, 0x02, 0x01, 0);
+    }
+    return RESULT(STATUS_CODE_SUCCESS, 0x02, 0x02, 0);
+}
+
+/* Fixed allocation without overwrite extends only into unoccupied pages.
+ * New pages are already zero-filled; only the old page tail may be dirty. */
+CATALYST_BOOL catmm_platform_try_grow(CATMMLIB_POINTERW memory, CATALYST_NUINT old_size, CATALYST_NUINT new_size) {
+    NUINT pageSize = (NUINT) vm_page_size;
+    NUINT oldRounded = (NUINT) (old_size + (NUINT) ((pageSize - old_size % pageSize) % pageSize));
+    NUINT padding = (NUINT) ((pageSize - new_size % pageSize) % pageSize);
+    if (new_size > (NUINT) (CATALYST_NUINT_MAX - padding)) return FALSE;
+    NUINT newRounded = (NUINT) (new_size + padding);
+    CATMMLIB_ADDRESS base = (CATMMLIB_ADDRESS) memory;
+    if (base > (CATMMLIB_ADDRESS) (CATALYST_NUINT_MAX - newRounded)) return FALSE;
+    vm_address_t address = (vm_address_t) (base + oldRounded);
+    if (vm_allocate(mach_task_self(), &address, (vm_size_t) (newRounded - oldRounded), VM_FLAGS_FIXED) != KERN_SUCCESS) {
+        return FALSE;
+    }
+    catmm_fill((BYTE*) memory + old_size, (BYTE) 0, (NUINT) (oldRounded - old_size));
+    return TRUE;
 }
 
 CATALYST_RESULT catmm_platform_alloc(CATMMLIB_POINTERW* memory, CATALYST_NUINT size) {

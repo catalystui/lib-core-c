@@ -3,43 +3,6 @@
 #include <climits>
 #include <stdlib.h>
 #include <string.h>
-// Hosted C++ libraries are preferred; retain the C reference for
-// reduced standard-library toolchains (including small-address targets).
-#if defined(__has_include)
-    #if __has_include(<algorithm>) && __has_include(<vector>) && __has_include(<set>) && __has_include(<map>) && __has_include(<utility>)
-        #define PERF_STANDARD_CONTAINERS 1
-    #endif
-#else
-    #define PERF_STANDARD_CONTAINERS 1
-#endif
-#ifndef PERF_STANDARD_CONTAINERS
-    #define PERF_STANDARD_CONTAINERS 0
-#endif
-#if PERF_STANDARD_CONTAINERS
-    #include <algorithm>
-    #include <vector>
-    #include <set>
-    #include <map>
-    #include <utility>
-    #if (defined(_MSVC_LANG) && _MSVC_LANG >= 201103L) || __cplusplus >= 201103L
-        #if defined(__has_include)
-            #if __has_include(<unordered_set>) && __has_include(<unordered_map>) && __has_include(<functional>)
-                #define PERF_UNORDERED 1
-            #endif
-        #else
-            #define PERF_UNORDERED 1
-        #endif
-    #endif
-#endif
-#ifndef PERF_UNORDERED
-    #define PERF_UNORDERED 0
-#endif
-#if PERF_UNORDERED
-    #include <unordered_set>
-    #include <unordered_map>
-    #include <functional>
-#endif
-
 #include "catalyst.hpp"
 #include "catrllib.hpp"
 
@@ -102,8 +65,14 @@ static BOOL native_free(NativeCollection& c) {
 }
 
 static size_t native_find(const NativeCollection& c, const unsigned char* key) {
-    for (size_t i = 0; i < c.count; ++i)
-        if (::memcmp(c.keys + i * c.size, key, c.size) == 0) return i;
+    if (c.count == 0) return 0;
+    if (c.size == 1) {
+        const unsigned char* match = (const unsigned char*) ::memchr(c.keys, key[0], c.count);
+        return match == 0 ? c.count : (size_t) (match - c.keys);
+    }
+    const unsigned char* current = c.keys;
+    for (size_t i = 0; i < c.count; ++i, current += c.size)
+        if (current[0] == key[0] && ::memcmp(current + 1, key + 1, c.size - 1) == 0) return i;
     return c.count;
 }
 
@@ -134,7 +103,6 @@ static void native_insert(NativeCollection& c, size_t index, const unsigned char
     ++c.count;
 }
 
-#if !PERF_STANDARD_CONTAINERS
 static void native_erase(NativeCollection& c, size_t index) {
     --c.count;
     if (index < c.count) {
@@ -142,8 +110,6 @@ static void native_erase(NativeCollection& c, size_t index) {
         ::memmove(p, p + c.size, (c.count - index) * c.size);
     }
 }
-
-#endif
 
 static BOOL succeeded(CATALYST_RESULT r) { return status_code_is_success(r.status); }
 
@@ -236,7 +202,6 @@ struct CatalystMap {
     static BOOL released(const Data& c) { return keys(c) == 0 && values(c) == 0 ? TRUE : FALSE; }
 };
 
-#if !PERF_STANDARD_CONTAINERS
 struct NativeArray {
     typedef NativeCollection Data;
     static void init(Data& c, NUINT size) { native_init(c, size, 0); }
@@ -260,8 +225,6 @@ struct NativeArray {
     }
     static BOOL released(const Data& c) { return keys(c) == 0 && values(c) == 0 ? TRUE : FALSE; }
 };
-
-#endif
 
 struct CatalystArray {
     typedef ARRAY Data;
@@ -288,205 +251,38 @@ struct CatalystArray {
 };
 
 // ------------------------------------------------------------
-// Standard library baselines. Fixed-width values avoid the extra allocations
-// and length fields of strings. Byte equality is the collection contract.
-// ------------------------------------------------------------
-#if PERF_STANDARD_CONTAINERS
-template<size_t Width>
-struct StandardWord {
-    unsigned char bytes[Width];
-    static StandardWord from(const unsigned char* p) {
-        StandardWord word;
-        ::memcpy(word.bytes, p, Width);
-        return word;
-    }
-    bool operator==(const StandardWord& other) const {
-        return ::memcmp(bytes, other.bytes, Width) == 0;
-    }
-    bool operator<(const StandardWord& other) const {
-        return ::memcmp(bytes, other.bytes, Width) < 0;
-    }
-};
-
-#if PERF_UNORDERED
-template<size_t Width>
-struct StandardHash {
-    size_t operator()(const StandardWord<Width>& word) const {
-        // The benchmark only uses 1- and 8-byte keys. A native integer hash
-        // incorporates all bytes without requiring an allocating string key.
-        unsigned long long value = 0;
-        ::memcpy(&value, word.bytes, Width);
-        return std::hash<unsigned long long>()(value);
-    }
-};
-#endif
-
-template<size_t Width>
-struct StandardSet {
-    typedef StandardWord<Width> Word;
-#if PERF_UNORDERED
-    typedef std::unordered_set<Word, StandardHash<Width> > Container;
-#else
-    typedef std::set<Word> Container;
-#endif
-    struct Data { Container items; NUINT fixtureCapacity; };
-    static void init(Data& c, NUINT) { c.fixtureCapacity = 0; }
-    static BOOL expand(Data& c, NUINT n) {
-#if PERF_UNORDERED
-        c.items.reserve(n);
-#endif
-        c.fixtureCapacity = n;
-        return TRUE;
-    }
-    static BOOL release(Data& c) {
-        Container().swap(c.items);
-        c.fixtureCapacity = 0;
-        return TRUE;
-    }
-    static NUINT count(const Data& c) { return (NUINT) c.items.size(); }
-    static NUINT capacity(const Data& c) { return c.fixtureCapacity; }
-    static BOOL released(const Data& c) { return c.items.empty() ? TRUE : FALSE; }
-    static void clear(Data& c) { c.items.clear(); }
-    static BOOL contains(Data& c, const BYTE* k) {
-        return c.items.find(Word::from(k)) != c.items.end() ? TRUE : FALSE;
-    }
-    static BOOL add(Data& c, const BYTE* k, const BYTE*) {
-        return c.items.insert(Word::from(k)).second ? TRUE : FALSE;
-    }
-    static BOOL remove(Data& c, const BYTE* k) {
-        return c.items.erase(Word::from(k)) != 0 ? TRUE : FALSE;
-    }
-    static BOOL matches_item(Data& c, NUINT, const BYTE* key, const BYTE*, NUINT) {
-        return contains(c, key);
-    }
-};
-
-template<size_t Width>
-struct StandardMap {
-    typedef StandardWord<Width> Word;
-#if PERF_UNORDERED
-    typedef std::unordered_map<Word, Word, StandardHash<Width> > Container;
-#else
-    typedef std::map<Word, Word> Container;
-#endif
-    struct Data { Container items; NUINT fixtureCapacity; };
-    static void init(Data& c, NUINT) { c.fixtureCapacity = 0; }
-    static BOOL expand(Data& c, NUINT n) {
-#if PERF_UNORDERED
-        c.items.reserve(n);
-#endif
-        c.fixtureCapacity = n;
-        return TRUE;
-    }
-    static BOOL release(Data& c) {
-        Container().swap(c.items);
-        c.fixtureCapacity = 0;
-        return TRUE;
-    }
-    static NUINT count(const Data& c) { return (NUINT) c.items.size(); }
-    static NUINT capacity(const Data& c) { return c.fixtureCapacity; }
-    static BOOL released(const Data& c) { return c.items.empty() ? TRUE : FALSE; }
-    static void clear(Data& c) { c.items.clear(); }
-    static BOOL contains(Data& c, const BYTE* k) {
-        return c.items.find(Word::from(k)) != c.items.end() ? TRUE : FALSE;
-    }
-    static BOOL add(Data& c, const BYTE* k, const BYTE* v) {
-        return c.items.insert(std::make_pair(Word::from(k), Word::from(v))).second ? TRUE : FALSE;
-    }
-    static BOOL remove(Data& c, const BYTE* k) {
-        return c.items.erase(Word::from(k)) != 0 ? TRUE : FALSE;
-    }
-    static BYTE* get(Data& c, const BYTE* k) {
-        typename Container::iterator found = c.items.find(Word::from(k));
-        return found == c.items.end() ? 0 : found->second.bytes;
-    }
-    static BOOL set(Data& c, const BYTE* k, const BYTE* v) {
-        typename Container::iterator found = c.items.find(Word::from(k));
-        if (found == c.items.end()) return FALSE;
-        found->second = Word::from(v);
-        return TRUE;
-    }
-    static BOOL matches_item(Data& c, NUINT, const BYTE* key, const BYTE* value, NUINT) {
-        BYTE* p = get(c, key);
-        return p != 0 && ::memcmp(p, value, Width) == 0 ? TRUE : FALSE;
-    }
-};
-
-template<size_t Width>
-struct StandardArray {
-    typedef StandardWord<Width> Word;
-    typedef std::vector<Word> Container;
-    struct Data { Container items; NUINT requestedCapacity; };
-    static void init(Data& c, NUINT) { c.requestedCapacity = 0; }
-    static BOOL expand(Data& c, NUINT n) {
-        if (n <= c.requestedCapacity) return TRUE;
-        c.items.reserve(n);
-        c.requestedCapacity = n;
-        return TRUE;
-    }
-    static BOOL shrink(Data& c) {
-        NUINT n = (NUINT) (c.requestedCapacity / 2);
-        if (n < c.items.size()) n = (NUINT) c.items.size();
-        if (n == c.requestedCapacity) return TRUE;
-        // std::vector has no exact shrink-to-capacity operation. Rebuild
-        // using reserve + insert + swap; the actual capacity may be larger.
-        Container replacement;
-        replacement.reserve(n);
-        replacement.insert(replacement.end(), c.items.begin(), c.items.end());
-        replacement.swap(c.items);
-        c.requestedCapacity = n;
-        return TRUE;
-    }
-    static BOOL release(Data& c) {
-        Container().swap(c.items);
-        c.requestedCapacity = 0;
-        return TRUE;
-    }
-    static NUINT count(const Data& c) { return (NUINT) c.items.size(); }
-    static NUINT capacity(const Data& c) {
-        return c.items.capacity() >= c.requestedCapacity ? c.requestedCapacity : 0;
-    }
-    static BOOL released(const Data& c) { return c.items.empty() && c.items.capacity() == 0 ? TRUE : FALSE; }
-    static void clear(Data& c) { c.items.clear(); }
-    static BOOL contains(Data& c, const BYTE* k) {
-        return std::find(c.items.begin(), c.items.end(), Word::from(k)) != c.items.end() ? TRUE : FALSE;
-    }
-    static BOOL add(Data& c, const BYTE* k, const BYTE*) {
-        c.items.push_back(Word::from(k)); return TRUE;
-    }
-    static BOOL remove(Data& c, NUINT i) {
-        c.items.erase(c.items.begin() + i); return TRUE;
-    }
-    static BOOL insert(Data& c, NUINT i, const BYTE* k) {
-        c.items.insert(c.items.begin() + i, Word::from(k)); return TRUE;
-    }
-    static BYTE* get(Data& c, NUINT i) { return c.items[i].bytes; }
-    static BOOL set(Data& c, NUINT i, const BYTE* k) {
-        c.items[i] = Word::from(k); return TRUE;
-    }
-    static BOOL matches_item(Data& c, NUINT i, const BYTE* key, const BYTE*, NUINT) {
-        return c.items[i] == Word::from(key) ? TRUE : FALSE;
-    }
-};
-
-#endif
-
-// ------------------------------------------------------------
 // Fixtures and timed operations. A cycle restores the collection
 // to its initial logical contents; setup and verification are untimed.
 // ------------------------------------------------------------
 static volatile BYTE observed = 0;
+static const BYTE* volatile observedStorage = 0;
+
+// Escape the allocation and access both endpoints before release. The
+// pointer store and volatile reads cannot be optimized away with the cycle.
+static BOOL observe_storage(const BYTE* data, NUINT capacity, NUINT width) {
+    if (data == 0) return FALSE;
+    observedStorage = data;
+    const volatile BYTE* bytes = data;
+    observed = bytes[0];
+    observed = bytes[(NUINT) (capacity * width) - (NUINT) 1];
+    observedStorage = 0;
+    return TRUE;
+}
 enum Measurement { MEASURE_OK, MEASURE_CLOCK, MEASURE_FAIL };
 
 static void element(BYTE* bytes, NUINT size, BYTE key) {
-    for (NUINT i = 0; i < size; ++i) bytes[i] = (BYTE) (key ^ (BYTE) i);
+    // Sixteen-byte fixtures differ only in the last byte; the shorter
+    // fixtures retain early mismatches.
+    for (NUINT i = 0; i < size; ++i)
+        bytes[i] = size == 16 && i != (NUINT) (size - (NUINT) 1)
+            ? (BYTE) i : (BYTE) (key ^ (BYTE) i);
 }
 
 template<typename API>
 struct CollectionTrial {
     typename API::Data data;
     NUINT n, width, index;
-    BYTE key[8], value[8], alternate[8], lastKey[8], lastValue[8];
+    BYTE key[16], value[16], alternate[16], lastKey[16], lastValue[16];
     BOOL flipped;
     BOOL (*operation)(CollectionTrial*);
     BOOL populate;
@@ -495,7 +291,7 @@ struct CollectionTrial {
 
 template<typename API>
 static BOOL populate(CollectionTrial<API>* t) {
-    BYTE key[8], value[8];
+    BYTE key[16], value[16];
     for (NUINT i = 0; i < t->n; ++i) {
         element(key, t->width, (BYTE) i);
         element(value, t->width, (BYTE) ((BYTE) i ^ (BYTE) 0xA5));
@@ -508,7 +304,7 @@ template<typename API>
 static BOOL verify_collection(CollectionTrial<API>& t) {
     NUINT n = t.populate ? t.n : 0;
     if (API::count(t.data) != n || API::capacity(t.data) != (NUINT) (t.n + 1)) return FALSE;
-    BYTE key[8], value[8];
+    BYTE key[16], value[16];
     for (NUINT i = 0; i < n; ++i) {
         NUINT expected = t.flipped && i == 0 ? (NUINT) (n - 1) :
             t.flipped && i == n - 1 ? (NUINT) 0 : i;
@@ -524,6 +320,11 @@ static BOOL op_lifecycle(CollectionTrial<API>* t) {
     typename API::Data c;
     API::init(c, t->width);
     BOOL ok = API::expand(c, (NUINT) (t->n + 1));
+    if (ok) {
+        ok = observe_storage(API::keys(c), (NUINT) (t->n + 1), t->width);
+        if (ok && t->mapped)
+            ok = observe_storage(API::values(c), (NUINT) (t->n + 1), t->width);
+    }
     BOOL released = API::release(c);
     return ok && released && API::capacity(c) == 0 && API::count(c) == 0 &&
         API::released(c) ? TRUE : FALSE;
@@ -583,7 +384,9 @@ template<typename API>
 static BOOL op_map_get_miss(CollectionTrial<API>* t) { return API::get(t->data, t->key) == 0 ? TRUE : FALSE; }
 template<typename API>
 static BOOL op_map_set(CollectionTrial<API>* t) {
-    return API::set(t->data, t->key, t->alternate) && API::set(t->data, t->key, t->value) ? TRUE : FALSE;
+    if (!API::set(t->data, t->key, t->alternate)) return FALSE;
+    if (!observe_storage(API::values(t->data) + (NUINT) (t->index * t->width), 1, t->width)) return FALSE;
+    return API::set(t->data, t->key, t->value);
 }
 template<typename API>
 static BOOL op_map_set_miss(CollectionTrial<API>* t) { return !API::set(t->data, t->key, t->value) ? TRUE : FALSE; }
@@ -604,7 +407,9 @@ static BOOL op_array_get(CollectionTrial<API>* t) {
 }
 template<typename API>
 static BOOL op_array_set(CollectionTrial<API>* t) {
-    return API::set(t->data, t->index, t->alternate) && API::set(t->data, t->index, t->key) ? TRUE : FALSE;
+    if (!API::set(t->data, t->index, t->alternate)) return FALSE;
+    if (!observe_storage(API::keys(t->data) + (NUINT) (t->index * t->width), 1, t->width)) return FALSE;
+    return API::set(t->data, t->index, t->key);
 }
 
 static BOOL elapsed(std::clock_t start, unsigned long* ticks) {
@@ -1107,7 +912,7 @@ static const NUINT counts[] = {
 static const NUINT widths[] = {
     1,
 #if TARGET_SIZEOF_ADDRESS >= 2
-    8,
+    8, 16,
 #endif
 };
 
@@ -1149,99 +954,6 @@ static void collection_cases(const char* heading, Position position, BOOL mapped
     }
 }
 
-#if PERF_STANDARD_CONTAINERS
-template<size_t Width>
-static void benchmark_set_standard(Summary& summary) {
-    typedef StandardSet<Width> Native;
-    collection_cases<Native, CatalystSet>("catrl_set_init + free (empty)", FIRST, FALSE, FALSE, op_empty_lifecycle<Native>, op_empty_lifecycle<CatalystSet>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystSet>("catrl_set_clear + refill", FIRST, FALSE, TRUE, op_clear<Native>, op_clear<CatalystSet>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystSet>("catrl_set_contains (first)", FIRST, FALSE, TRUE, op_contains_hit<Native>, op_contains_hit<CatalystSet>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystSet>("catrl_set_contains (last)", LAST, FALSE, TRUE, op_contains_hit<Native>, op_contains_hit<CatalystSet>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystSet>("catrl_set_contains (absent)", ABSENT, FALSE, TRUE, op_contains_miss<Native>, op_contains_miss<CatalystSet>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystSet>("catrl_set_add + remove (new key)", ABSENT, FALSE, TRUE, op_add_remove<Native>, op_add_remove<CatalystSet>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystSet>("catrl_set_remove + add (alternating keys)", FIRST, FALSE, TRUE, op_remove_front<Native>, op_remove_front<CatalystSet>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystSet>("catrl_set_add (duplicate)", LAST, FALSE, TRUE, op_add_duplicate<Native>, op_add_duplicate<CatalystSet>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystSet>("catrl_set_remove (absent)", ABSENT, FALSE, TRUE, op_remove_missing<Native>, op_remove_missing<CatalystSet>, summary, (NUINT) Width);
-}
-
-static void benchmark_set(Summary& summary) {
-    std::printf("\nSet capacity (C contiguous reference; no exact STL capacity contract)\n");
-    collection_cases<NativeSet, CatalystSet>("catrl_set_init + expand + free", FIRST, FALSE, FALSE, op_lifecycle<NativeSet>, op_lifecycle<CatalystSet>, summary);
-    collection_cases<NativeSet, CatalystSet>("catrl_set_expand + shrink (preserve contents)", FIRST, FALSE, TRUE, op_capacity<NativeSet>, op_capacity<CatalystSet>, summary);
-    collection_cases<NativeSet, CatalystSet>("catrl_set_expand (no-op)", FIRST, FALSE, TRUE, op_expand_noop<NativeSet>, op_expand_noop<CatalystSet>, summary);
-#if PERF_UNORDERED
-    std::printf("\nSet (std::unordered_set)\n");
-#else
-    std::printf("\nSet (std::set)\n");
-#endif
-    benchmark_set_standard<1>(summary);
-#if TARGET_SIZEOF_ADDRESS >= 2
-    benchmark_set_standard<8>(summary);
-#endif
-}
-
-template<size_t Width>
-static void benchmark_map_standard(Summary& summary) {
-    typedef StandardMap<Width> Native;
-    collection_cases<Native, CatalystMap>("catrl_map_init + free (empty)", FIRST, TRUE, FALSE, op_empty_lifecycle<Native>, op_empty_lifecycle<CatalystMap>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystMap>("catrl_map_clear + refill", FIRST, TRUE, TRUE, op_clear<Native>, op_clear<CatalystMap>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystMap>("catrl_map_contains (first)", FIRST, TRUE, TRUE, op_contains_hit<Native>, op_contains_hit<CatalystMap>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystMap>("catrl_map_contains (last)", LAST, TRUE, TRUE, op_contains_hit<Native>, op_contains_hit<CatalystMap>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystMap>("catrl_map_contains (absent)", ABSENT, TRUE, TRUE, op_contains_miss<Native>, op_contains_miss<CatalystMap>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystMap>("catrl_map_add + remove (new key)", ABSENT, TRUE, TRUE, op_add_remove<Native>, op_add_remove<CatalystMap>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystMap>("catrl_map_remove + add (alternating keys)", FIRST, TRUE, TRUE, op_remove_front<Native>, op_remove_front<CatalystMap>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystMap>("catrl_map_add (duplicate)", LAST, TRUE, TRUE, op_add_duplicate<Native>, op_add_duplicate<CatalystMap>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystMap>("catrl_map_remove (absent)", ABSENT, TRUE, TRUE, op_remove_missing<Native>, op_remove_missing<CatalystMap>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystMap>("catrl_map_get (first)", FIRST, TRUE, TRUE, op_map_get<Native>, op_map_get<CatalystMap>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystMap>("catrl_map_get (last)", LAST, TRUE, TRUE, op_map_get<Native>, op_map_get<CatalystMap>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystMap>("catrl_map_get (absent)", ABSENT, TRUE, TRUE, op_map_get_miss<Native>, op_map_get_miss<CatalystMap>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystMap>("catrl_map_set + restore (last)", LAST, TRUE, TRUE, op_map_set<Native>, op_map_set<CatalystMap>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystMap>("catrl_map_set (absent)", ABSENT, TRUE, TRUE, op_map_set_miss<Native>, op_map_set_miss<CatalystMap>, summary, (NUINT) Width);
-}
-
-static void benchmark_map(Summary& summary) {
-    std::printf("\nMap capacity (C contiguous reference; no exact STL capacity contract)\n");
-    collection_cases<NativeMap, CatalystMap>("catrl_map_init + expand + free", FIRST, TRUE, FALSE, op_lifecycle<NativeMap>, op_lifecycle<CatalystMap>, summary);
-    collection_cases<NativeMap, CatalystMap>("catrl_map_expand + shrink (preserve contents)", FIRST, TRUE, TRUE, op_capacity<NativeMap>, op_capacity<CatalystMap>, summary);
-    collection_cases<NativeMap, CatalystMap>("catrl_map_expand (no-op)", FIRST, TRUE, TRUE, op_expand_noop<NativeMap>, op_expand_noop<CatalystMap>, summary);
-#if PERF_UNORDERED
-    std::printf("\nMap (std::unordered_map)\n");
-#else
-    std::printf("\nMap (std::map)\n");
-#endif
-    benchmark_map_standard<1>(summary);
-#if TARGET_SIZEOF_ADDRESS >= 2
-    benchmark_map_standard<8>(summary);
-#endif
-}
-
-template<size_t Width>
-static void benchmark_array_standard(Summary& summary) {
-    typedef StandardArray<Width> Native;
-    collection_cases<Native, CatalystArray>("catrl_array_init + free (empty)", FIRST, FALSE, FALSE, op_empty_lifecycle<Native>, op_empty_lifecycle<CatalystArray>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystArray>("catrl_array_init + expand + free", FIRST, FALSE, FALSE, op_lifecycle<Native>, op_lifecycle<CatalystArray>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystArray>("catrl_array_expand + shrink (preserve contents)", FIRST, FALSE, TRUE, op_capacity<Native>, op_capacity<CatalystArray>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystArray>("catrl_array_expand (no-op)", FIRST, FALSE, TRUE, op_expand_noop<Native>, op_expand_noop<CatalystArray>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystArray>("catrl_array_clear + refill", FIRST, FALSE, TRUE, op_clear<Native>, op_clear<CatalystArray>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystArray>("catrl_array_contains (first)", FIRST, FALSE, TRUE, op_contains_hit<Native>, op_contains_hit<CatalystArray>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystArray>("catrl_array_contains (last)", LAST, FALSE, TRUE, op_contains_hit<Native>, op_contains_hit<CatalystArray>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystArray>("catrl_array_contains (absent)", ABSENT, FALSE, TRUE, op_contains_miss<Native>, op_contains_miss<CatalystArray>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystArray>("catrl_array_add + remove (append)", ABSENT, FALSE, TRUE, op_array_add<Native>, op_array_add<CatalystArray>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystArray>("catrl_array_insert + remove (front)", FIRST, FALSE, TRUE, op_array_insert<Native>, op_array_insert<CatalystArray>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystArray>("catrl_array_insert + remove (middle)", MIDDLE, FALSE, TRUE, op_array_insert<Native>, op_array_insert<CatalystArray>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystArray>("catrl_array_get (middle)", MIDDLE, FALSE, TRUE, op_array_get<Native>, op_array_get<CatalystArray>, summary, (NUINT) Width);
-    collection_cases<Native, CatalystArray>("catrl_array_set + restore (middle)", MIDDLE, FALSE, TRUE, op_array_set<Native>, op_array_set<CatalystArray>, summary, (NUINT) Width);
-}
-
-static void benchmark_array(Summary& summary) {
-    std::printf("\nArray (std::vector)\n");
-    benchmark_array_standard<1>(summary);
-#if TARGET_SIZEOF_ADDRESS >= 2
-    benchmark_array_standard<8>(summary);
-#endif
-}
-
-#else
 static void benchmark_set(Summary& summary) {
     std::printf("\nSet (contiguous C reference)\n");
     collection_cases<NativeSet, CatalystSet>("catrl_set_init + free (empty)", FIRST, FALSE, FALSE, op_empty_lifecycle<NativeSet>, op_empty_lifecycle<CatalystSet>, summary);
@@ -1296,8 +1008,6 @@ static void benchmark_array(Summary& summary) {
     collection_cases<NativeArray, CatalystArray>("catrl_array_set + restore (middle)", MIDDLE, FALSE, TRUE, op_array_set<NativeArray>, op_array_set<CatalystArray>, summary);
 }
 
-#endif
-
 static void benchmark_files(Summary& summary) {
     std::printf("\nFile (C reference with borrowed-view resolver)\n");
     const char* labels[] = {
@@ -1351,6 +1061,464 @@ static void benchmark_streams(Summary& summary) {
         }
     }
 }
+
+/* Independent C reference for a contiguous stack or circular queue. */
+struct NativeSequence {
+    NativeCollection storage;
+    size_t head;
+};
+
+static void native_reverse_bytes(unsigned char* data, size_t size) {
+    for (size_t i = 0; i < size / 2; ++i) {
+        unsigned char v = data[i];
+        data[i] = data[size - 1 - i];
+        data[size - 1 - i] = v;
+    }
+}
+
+template<BOOL Queue>
+struct NativeSequenceAPI {
+    typedef NativeSequence Data;
+    static void init(Data& c, NUINT width) {
+        native_init(c.storage, width, 0); c.head = 0;
+    }
+    static void normalize(Data& c) {
+        NativeCollection& a = c.storage;
+        if (c.head == 0) return;
+        size_t offset = c.head * a.size;
+        if (a.count <= a.capacity - c.head)
+            ::memmove(a.keys, a.keys + offset, a.count * a.size);
+        else {
+            size_t extent = a.capacity * a.size;
+            native_reverse_bytes(a.keys, offset);
+            native_reverse_bytes(a.keys + offset, extent - offset);
+            native_reverse_bytes(a.keys, extent);
+        }
+        c.head = 0;
+    }
+    static BOOL expand(Data& c, NUINT n) {
+        NativeCollection& a = c.storage;
+        if (n <= a.capacity) return TRUE;
+        if (Queue) normalize(c);
+        return native_expand(a, n);
+    }
+    static BOOL shrink(Data& c) {
+        NativeCollection& a = c.storage;
+        size_t target = a.capacity / 2;
+        if (target < a.count) target = a.count;
+        if (target == a.capacity) return TRUE;
+        if (Queue) normalize(c);
+        return native_capacity(a, target);
+    }
+    static BOOL release(Data& c) { c.head = 0; return native_free(c.storage); }
+    static NUINT count(const Data& c) { return (NUINT) c.storage.count; }
+    static NUINT capacity(const Data& c) { return (NUINT) c.storage.capacity; }
+    static const BYTE* data(const Data& c) { return c.storage.keys; }
+    static void clear(Data& c) { c.storage.count = 0; c.head = 0; }
+    static void put(Data& c, const BYTE* value) {
+        NativeCollection& a = c.storage;
+        size_t tail = a.count;
+        if (Queue) {
+            size_t remaining = a.capacity - c.head;
+            tail = a.count < remaining ? c.head + a.count : a.count - remaining;
+        }
+        ::memcpy(a.keys + tail * a.size, value, a.size);
+        ++a.count;
+    }
+    static const BYTE* peek(Data& c) {
+        NativeCollection& a = c.storage;
+        if (a.count == 0) return 0;
+        return a.keys + (Queue ? c.head : a.count - 1) * a.size;
+    }
+    static BOOL take(Data& c, BYTE* output) {
+        NativeCollection& a = c.storage;
+        const BYTE* p = peek(c);
+        if (p == 0) return FALSE;
+        ::memcpy(output, p, a.size);
+        --a.count;
+        if (Queue && (++c.head == a.capacity || a.count == 0)) c.head = 0;
+        return TRUE;
+    }
+};
+
+struct CatalystQueueAPI {
+    typedef QUEUE Data;
+    static void init(Data& c, NUINT width) { queue_init(&c, width); }
+    static BOOL expand(Data& c, NUINT n) { return succeeded(queue_expand(&c, n)); }
+    static BOOL shrink(Data& c) { return succeeded(queue_shrink(&c)); }
+    static BOOL release(Data& c) { return succeeded(queue_free(&c)); }
+    static NUINT count(const Data& c) { return c.length; }
+    static NUINT capacity(const Data& c) { return c.capacity; }
+    static const BYTE* data(const Data& c) { return (const BYTE*) c.data; }
+    static void clear(Data& c) { queue_clear(&c); }
+    static void put(Data& c, const BYTE* v) { queue_enqueue(&c, v); }
+    static BOOL take(Data& c, BYTE* v) { return queue_dequeue(&c, v); }
+    static const BYTE* peek(Data& c) { return (const BYTE*) queue_peek(&c); }
+};
+
+struct CatalystStackAPI {
+    typedef STACK Data;
+    static void init(Data& c, NUINT width) { stack_init(&c, width); }
+    static BOOL expand(Data& c, NUINT n) { return succeeded(stack_expand(&c, n)); }
+    static BOOL shrink(Data& c) { return succeeded(stack_shrink(&c)); }
+    static BOOL release(Data& c) { return succeeded(stack_free(&c)); }
+    static NUINT count(const Data& c) { return c.length; }
+    static NUINT capacity(const Data& c) { return c.capacity; }
+    static const BYTE* data(const Data& c) { return (const BYTE*) c.data; }
+    static void clear(Data& c) { stack_clear(&c); }
+    static void put(Data& c, const BYTE* v) { stack_push(&c, v); }
+    static BOOL take(Data& c, BYTE* v) { return stack_pop(&c, v); }
+    static const BYTE* peek(Data& c) { return (const BYTE*) stack_peek(&c); }
+};
+
+enum SequenceKind { SEQ_LIFECYCLE, SEQ_PEEK, SEQ_EMPTY, SEQ_CYCLE, SEQ_RESIZE, SEQ_NOOP, SEQ_CLEAR };
+template<typename API>
+struct SequenceTrial { SequenceKind kind; NUINT n, width; BOOL fifo; };
+
+template<typename API>
+static void sequence_fill(typename API::Data& c, NUINT n, NUINT width) {
+    BYTE value[16];
+    for (NUINT i = 0; i < n; ++i) {
+        element(value, width, (BYTE) i);
+        API::put(c, value);
+    }
+}
+
+template<typename API>
+static BOOL sequence_lifecycle(SequenceTrial<API>* t) {
+    typename API::Data c;
+    API::init(c, t->width);
+    BOOL ok = API::expand(c, t->n);
+    if (ok) ok = observe_storage(API::data(c), t->n, t->width);
+    BOOL released = API::release(c);
+    return ok && released && API::data(c) == 0 && API::count(c) == 0 &&
+        API::capacity(c) == 0 ? TRUE : FALSE;
+}
+
+template<typename API>
+static Measurement measure_sequence(SequenceTrial<API>& t, unsigned long calls, unsigned long* ticks, BOOL verify) {
+    typename API::Data c;
+    API::init(c, t.width);
+    BOOL populated = t.kind != SEQ_EMPTY && t.kind != SEQ_LIFECYCLE ? TRUE : FALSE;
+    BOOL ok = TRUE;
+    if (populated) {
+        ok = API::expand(c, t.n);
+        if (ok) sequence_fill<API>(c, t.n, t.width);
+    }
+    NUINT head = 0;
+    BYTE output[16] = {0};
+    BYTE expected[16];
+    BOOL (*volatile lifecycle)(SequenceTrial<API>*) = sequence_lifecycle<API>;
+    const std::clock_t start = std::clock();
+    for (unsigned long i = 0; ok && i < calls; ++i) {
+        switch (t.kind) {
+        case SEQ_LIFECYCLE:
+            ok = lifecycle(&t);
+            break;
+        case SEQ_PEEK: {
+            const BYTE* p = API::peek(c);
+            ok = p != 0 ? TRUE : FALSE;
+            if (ok) observed = p[t.width - 1];
+            break;
+        }
+        case SEQ_EMPTY:
+            output[0] = 0xA5;
+            ok = !API::take(c, output) && output[0] == 0xA5 && API::peek(c) == 0 ? TRUE : FALSE;
+            break;
+        case SEQ_CYCLE:
+        case SEQ_RESIZE:
+            ok = API::take(c, output);
+            if (ok) {
+                observed = output[t.width - 1];
+                API::put(c, output);
+                if (t.fifo && ++head == t.n) head = 0;
+                if (t.kind == SEQ_RESIZE)
+                    ok = API::expand(c, (NUINT) (t.n * (NUINT) 2)) && API::shrink(c) ? TRUE : FALSE;
+            }
+            break;
+        case SEQ_NOOP:
+            ok = API::expand(c, t.n) && API::shrink(c) ? TRUE : FALSE;
+            break;
+        case SEQ_CLEAR:
+            API::clear(c);
+            sequence_fill<API>(c, t.n, t.width);
+            head = 0;
+            break;
+        }
+        observed = (BYTE) ok;
+    }
+    BOOL clockOk = elapsed(start, ticks);
+    if (ok && verify) {
+        ok = API::count(c) == (populated ? t.n : 0) &&
+            API::capacity(c) == (populated ? t.n : 0) ? TRUE : FALSE;
+        if (populated) {
+            for (NUINT i = 0; ok && i < t.n; ++i) {
+                NUINT key = t.fifo ? head : (NUINT) (t.n - 1 - i);
+                element(expected, t.width, (BYTE) key);
+                ok = API::take(c, output) && ::memcmp(output, expected, t.width) == 0 ? TRUE : FALSE;
+                if (t.fifo && ++head == t.n) head = 0;
+            }
+            if (ok) ok = API::peek(c) == 0 ? TRUE : FALSE;
+        }
+    }
+    if (!API::release(c)) ok = FALSE;
+    if (!ok) return MEASURE_FAIL;
+    return clockOk ? MEASURE_OK : MEASURE_CLOCK;
+}
+
+/* Independent C pool with the same bit order, slot reuse and capacity policy. */
+struct NativePool {
+    unsigned char* data;
+    unsigned char* bits;
+    size_t size, count, capacity;
+};
+
+struct NativePoolAPI {
+    typedef NativePool Data;
+    static size_t bytes(size_t n) { return n / 8 + (n % 8 != 0); }
+    static unsigned char mask(size_t i) { return (unsigned char) (1U << (i % 8)); }
+    static void init(Data& p, NUINT width) {
+        p.data = 0; p.bits = 0; p.size = width; p.count = 0; p.capacity = 0;
+    }
+    static BOOL expand(Data& p, NUINT n) {
+        if (n <= p.capacity) return TRUE;
+        if (bytes(n) != bytes(p.capacity) && !native_buffer(&p.bits, bytes(p.capacity), bytes(n))) return FALSE;
+        if (!native_buffer(&p.data, p.capacity * p.size, (size_t) n * p.size)) return FALSE;
+        p.capacity = n;
+        return TRUE;
+    }
+    static BOOL contains(const Data& p, NUINT i) {
+        return i < p.capacity && (p.bits[i / 8] & mask(i)) != 0 ? TRUE : FALSE;
+    }
+    static BOOL shrink(Data& p) {
+        size_t target = p.capacity / 2;
+        if (target < p.count) target = p.count;
+        if (p.count != 0) {
+            size_t end = p.capacity;
+            while (end > target) {
+                size_t last = end - 1, byte = last / 8;
+                if (p.bits[byte] == 0) {
+                    size_t first = byte * 8;
+                    end = first < target ? target : first;
+                } else if ((p.bits[byte] & mask(last)) != 0) { target = end; break; }
+                else --end;
+            }
+        }
+        if (target == p.capacity) return TRUE;
+        size_t old = p.capacity;
+        if (!native_buffer(&p.data, old * p.size, target * p.size)) return FALSE;
+        p.capacity = target;
+        if (bytes(old) != bytes(target) && !native_buffer(&p.bits, bytes(old), bytes(target))) return FALSE;
+        return TRUE;
+    }
+    static BOOL release(Data& p) {
+        ::free(p.data); ::free(p.bits); p.data = 0; p.bits = 0;
+        p.count = 0; p.capacity = 0; return TRUE;
+    }
+    static BOOL acquire(Data& p, NUINT* index) {
+        if (p.count == p.capacity) return FALSE;
+        for (size_t i = 0; i < bytes(p.capacity); ++i) {
+            if (p.bits[i] == 0xFF) continue;
+            for (unsigned char bit = 0; bit < 8; ++bit) {
+                unsigned char m = (unsigned char) (1U << bit);
+                if ((p.bits[i] & m) != 0) continue;
+                p.bits[i] |= m; ++p.count; *index = (NUINT) (i * 8 + bit); return TRUE;
+            }
+        }
+        return FALSE;
+    }
+    static BOOL relinquish(Data& p, NUINT i) {
+        if (!contains(p, i)) return FALSE;
+        p.bits[i / 8] &= (unsigned char) ~mask(i); --p.count; return TRUE;
+    }
+    static BYTE* get(Data& p, NUINT i) { return contains(p, i) ? p.data + (size_t) i * p.size : 0; }
+    static void clear(Data& p) {
+        if (p.capacity != 0) ::memset(p.bits, 0, bytes(p.capacity));
+        p.count = 0;
+    }
+    static NUINT count(const Data& p) { return (NUINT) p.count; }
+    static NUINT capacity(const Data& p) { return (NUINT) p.capacity; }
+    static const BYTE* data(const Data& p) { return p.data; }
+    static const BYTE* bits(const Data& p) { return p.bits; }
+};
+
+struct CatalystPoolAPI {
+    typedef POOL Data;
+    static void init(Data& p, NUINT width) { pool_init(&p, width); }
+    static BOOL expand(Data& p, NUINT n) { return succeeded(pool_expand(&p, n)); }
+    static BOOL shrink(Data& p) { return succeeded(pool_shrink(&p)); }
+    static BOOL release(Data& p) { return succeeded(pool_free(&p)); }
+    static BOOL acquire(Data& p, NUINT* index) { return pool_acquire(&p, index); }
+    static BOOL relinquish(Data& p, NUINT index) { return pool_release(&p, index); }
+    static BOOL contains(const Data& p, NUINT index) { return pool_contains(&p, index); }
+    static BYTE* get(Data& p, NUINT index) { return (BYTE*) pool_get(&p, index); }
+    static void clear(Data& p) { pool_clear(&p); }
+    static NUINT count(const Data& p) { return p.cardinality; }
+    static NUINT capacity(const Data& p) { return p.capacity; }
+    static const BYTE* data(const Data& p) { return (const BYTE*) p.data; }
+    static const BYTE* bits(const Data& p) { return (const BYTE*) p.occupied; }
+};
+
+enum PoolKind { POOL_LIFECYCLE, POOL_CYCLE, POOL_HIT, POOL_MISS, POOL_FULL, POOL_RESIZE, POOL_NOOP, POOL_CLEAR };
+template<typename API>
+struct PoolTrial { PoolKind kind; NUINT n, width; };
+
+template<typename API>
+static BOOL pool_fill(typename API::Data& p, NUINT n, NUINT width) {
+    for (NUINT i = 0; i < n; ++i) {
+        NUINT index;
+        if (!API::acquire(p, &index) || index != i) return FALSE;
+        BYTE* slot = API::get(p, index);
+        if (slot == 0) return FALSE;
+        element(slot, width, (BYTE) i);
+    }
+    return TRUE;
+}
+
+template<typename API>
+static BOOL pool_lifecycle(PoolTrial<API>* t) {
+    typename API::Data p;
+    API::init(p, t->width);
+    BOOL ok = API::expand(p, t->n);
+    if (ok) {
+        NUINT bytes = (NUINT) (t->n / (NUINT) 8 + (t->n % (NUINT) 8 != 0 ? 1 : 0));
+        ok = observe_storage(API::data(p), t->n, t->width) && observe_storage(API::bits(p), bytes, 1) ? TRUE : FALSE;
+    }
+    BOOL released = API::release(p);
+    return ok && released && API::data(p) == 0 && API::bits(p) == 0 &&
+        API::capacity(p) == 0 && API::count(p) == 0 ? TRUE : FALSE;
+}
+
+template<typename API>
+static Measurement measure_pool(PoolTrial<API>& t, unsigned long calls, unsigned long* ticks, BOOL verify) {
+    typename API::Data p;
+    API::init(p, t.width);
+    BOOL active = t.kind != POOL_LIFECYCLE ? TRUE : FALSE;
+    NUINT last = (NUINT) (t.n - 1);
+    BOOL sparse = t.kind == POOL_RESIZE ? TRUE : FALSE;
+    BOOL missing = t.kind == POOL_CYCLE || t.kind == POOL_MISS ? TRUE : FALSE;
+    BOOL ok = TRUE;
+    if (active) {
+        ok = API::expand(p, t.n) && pool_fill<API>(p, t.n, t.width) ? TRUE : FALSE;
+        if (ok && sparse) {
+            for (NUINT i = 0; ok && i < last; ++i) ok = API::relinquish(p, i);
+        } else if (ok && missing) ok = API::relinquish(p, last);
+    }
+    BOOL (*volatile lifecycle)(PoolTrial<API>*) = pool_lifecycle<API>;
+    const std::clock_t start = std::clock();
+    for (unsigned long i = 0; ok && i < calls; ++i) {
+        NUINT index = CATALYST_NUINT_MAX;
+        switch (t.kind) {
+        case POOL_LIFECYCLE:
+            ok = lifecycle(&t);
+            break;
+        case POOL_CYCLE:
+            ok = API::acquire(p, &index) && index == last;
+            if (ok) {
+                observed = (BYTE) index;
+                ok = API::relinquish(p, index);
+            }
+            break;
+        case POOL_HIT: {
+            const BYTE* slot = API::get(p, last);
+            ok = API::contains(p, last) && slot != 0 ? TRUE : FALSE;
+            if (ok) observed = slot[t.width - 1];
+            break;
+        }
+        case POOL_MISS:
+            ok = !API::contains(p, last) && API::get(p, last) == 0 && !API::relinquish(p, last) ? TRUE : FALSE;
+            break;
+        case POOL_FULL:
+            ok = !API::acquire(p, &index) && index == CATALYST_NUINT_MAX ? TRUE : FALSE;
+            break;
+        case POOL_RESIZE:
+            ok = API::expand(p, (NUINT) (t.n * (NUINT) 2)) && API::shrink(p) ? TRUE : FALSE;
+            break;
+        case POOL_NOOP:
+            ok = API::expand(p, t.n) && API::shrink(p) ? TRUE : FALSE;
+            break;
+        case POOL_CLEAR:
+            API::clear(p);
+            ok = pool_fill<API>(p, t.n, t.width);
+            break;
+        }
+        observed = (BYTE) ok;
+    }
+    BOOL clockOk = elapsed(start, ticks);
+    if (ok && verify) {
+        NUINT count = !active ? 0 : sparse ? 1 : missing ? last : t.n;
+        ok = API::count(p) == count && API::capacity(p) == (active ? t.n : 0) ? TRUE : FALSE;
+        BYTE expected[16];
+        for (NUINT i = 0; ok && active && i < t.n; ++i) {
+            BOOL live = sparse ? (i == last ? TRUE : FALSE) : (missing && i == last ? FALSE : TRUE);
+            const BYTE* slot = API::get(p, i);
+            ok = API::contains(p, i) == live && (slot != 0) == (live != FALSE) ? TRUE : FALSE;
+            if (ok && live) {
+                element(expected, t.width, (BYTE) i);
+                ok = ::memcmp(slot, expected, t.width) == 0 ? TRUE : FALSE;
+            }
+        }
+    }
+    if (!API::release(p)) ok = FALSE;
+    if (!ok) return MEASURE_FAIL;
+    return clockOk ? MEASURE_OK : MEASURE_CLOCK;
+}
+
+template<typename Native, typename Catalyst>
+static void benchmark_sequence(const char* heading, BOOL fifo, Summary& summary) {
+    const char* labels[] = {"init + expand + free", "peek", "empty removal + peek",
+        "remove + insert", "remove + insert + expand + shrink", "expand + shrink (no-op)", "clear + refill"};
+    const NUINT sizes[] = {4,
+#if TARGET_SIZEOF_ADDRESS >= 2
+        32, 128
+#else
+        8
+#endif
+    };
+    std::printf("\n%s\n", heading);
+    for (BYTE k = 0; k < (BYTE) 7; ++k) {
+        std::printf("\n%s\n", labels[k]);
+        for (BYTE w = 0; w < sizeof(widths) / sizeof(widths[0]); ++w) {
+            for (BYTE i = 0; i < sizeof(sizes) / sizeof(sizes[0]); ++i) {
+                if (k == SEQ_EMPTY && (i != 0 || w != 0)) continue;
+                NUINT n = sizes[i], width = widths[w];
+                char label[48];
+                std::sprintf(label, "%lu slots; %lu B", (unsigned long) n, (unsigned long) width);
+                SequenceTrial<Native> native = { (SequenceKind) k, n, width, fifo };
+                SequenceTrial<Catalyst> comparison = { (SequenceKind) k, n, width, fifo };
+                benchmark_case(label, native, comparison, measure_sequence<Native>, measure_sequence<Catalyst>, 1048576UL, summary);
+            }
+        }
+    }
+}
+
+static void benchmark_pools(Summary& summary) {
+    const char* labels[] = {"init + expand + free", "acquire + release (last free)",
+        "contains + get (hit)", "contains + get + release (miss)", "acquire (full)",
+        "expand + shrink (sparse high index)", "expand + shrink (no-op)", "clear + refill"};
+    const NUINT sizes[] = {5,
+#if TARGET_SIZEOF_ADDRESS >= 2
+        33, 129
+#else
+        9
+#endif
+    };
+    std::printf("\nPool (C reference with occupancy bitmap)\n");
+    for (BYTE k = 0; k < (BYTE) 8; ++k) {
+        std::printf("\n%s\n", labels[k]);
+        for (BYTE w = 0; w < sizeof(widths) / sizeof(widths[0]); ++w) {
+            for (BYTE i = 0; i < sizeof(sizes) / sizeof(sizes[0]); ++i) {
+                NUINT n = sizes[i], width = widths[w];
+                char label[48];
+                std::sprintf(label, "%lu slots; %lu B", (unsigned long) n, (unsigned long) width);
+                PoolTrial<NativePoolAPI> native = { (PoolKind) k, n, width };
+                PoolTrial<CatalystPoolAPI> comparison = { (PoolKind) k, n, width };
+                benchmark_case(label, native, comparison, measure_pool<NativePoolAPI>, measure_pool<CatalystPoolAPI>, 1048576UL, summary);
+            }
+        }
+    }
+}
+
 #endif
 
 int main() {
@@ -1360,19 +1528,14 @@ int main() {
         return 2;
     }
     std::printf("CATRLLIB Performance (Release recommended)\n");
-    std::printf("Standard library / reference is the baseline. Lower time is better.\n");
+    std::printf("Independent contiguous C reference is the baseline. Lower time is better.\n");
     std::printf("Difference: +10%% means Catalyst takes 10%% longer; -10%% means 10%% less time.\n");
     std::printf("Time per operation or named cycle: median of 3 paired samples; %lu clock ticks/second.\n", (unsigned long) CLOCKS_PER_SEC);
-#if PERF_STANDARD_CONTAINERS
-    std::printf("Standard containers are used for equivalent operations; C references cover exact Set/Map capacity, File and Stream.\n");
-#else
-    std::printf("C contiguous collection references (standard containers unavailable on this toolchain).\n");
-#endif
+    std::printf("All collection references use linear search, exact requested capacity and zeroed growth.\n");
     std::printf("Collection counts/widths vary; map keys and values have the same width.\n");
-#if PERF_STANDARD_CONTAINERS
-    std::printf("STL Set/Map may allocate per insertion; vector reserve is not required to zero spare capacity.\n");
-    std::printf("Vector shrink rebuilds to the requested capacity; the STL may reserve more.\n");
-#endif
+    std::printf("16-byte search fixtures share a prefix and differ at the last byte.\n");
+    std::printf("Set/restore cycles observe the intermediate stored value before restoring it.\n");
+    std::printf("Allocation lifecycle cycles escape storage and read its endpoints before release.\n");
     std::printf("Named cycles include every listed operation; fixtures and final verification are untimed.\n");
     std::printf("Stream measurements include production and identical endpoint checks; file get returns a borrowed view.\n");
     std::printf("Both paths consume outcomes; baseline has no diagnostic metadata.\n");
@@ -1385,6 +1548,9 @@ int main() {
     benchmark_array(summary);
     benchmark_files(summary);
     benchmark_streams(summary);
+    benchmark_sequence<NativeSequenceAPI<TRUE>, CatalystQueueAPI>("Queue (C circular-buffer reference)", TRUE, summary);
+    benchmark_sequence<NativeSequenceAPI<FALSE>, CatalystStackAPI>("Stack (C contiguous reference)", FALSE, summary);
+    benchmark_pools(summary);
     std::printf("\nPerformance summary\n");
     std::printf("  Faster (>5%%):                  %3lu\n", summary.faster);
     std::printf("  Comparable (within 5%%):        %3lu\n", summary.similar);
