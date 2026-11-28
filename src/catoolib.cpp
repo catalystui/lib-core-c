@@ -327,18 +327,26 @@ CATALYST_RESULT catoo_interface_validate(const INTERFACE* interface_, const OBJE
     const BYTE* key = (const BYTE*) requirements->keys;
     const MEMBER* requirement = (const MEMBER*) requirements->values;
     const MAP* candidate = &object->members;
+    const NUINT width = requirements->ksize;
+    const NUINT count = candidate->cardinality;
+    const BYTE* candidate_keys = (const BYTE*) candidate->keys;
     for (NUINT i = 0; i < requirements->cardinality; ++i) {
         /* Matching layouts resolve in order. A different layout falls back
          * to the ordinary search without changing callback order. */
-        NUINT index = candidate->cardinality;
-        if (i < candidate->cardinality) {
-            const BYTE* at = (const BYTE*) candidate->keys + (NUINT) (i * candidate->ksize);
-            if (at[0] == key[0] && (candidate->ksize == (NUINT) 1 ||
-                catmm_compare(at + 1, key + 1, (NUINT) (candidate->ksize - (NUINT) 1)) == 0)) index = i;
+        NUINT index = count;
+        if (width == (NUINT) 1) {
+            /* Common byte layouts avoid multiplication and generic search
+             * dispatch, including reordered and missing requirements. */
+            if (i < count && candidate_keys[i] == *key) index = i;
+            else index = catrl_find_byte(candidate_keys, count, *key);
+        } else {
+            if (i < count) {
+                const BYTE* at = candidate_keys + (NUINT) (i * width);
+                if (at[0] == key[0] && catmm_compare(at + 1, key + 1, (NUINT) (width - (NUINT) 1)) == 0) index = i;
+            }
+            if (index == count) index = catrl_find(candidate_keys, count, width, key);
         }
-        if (index == candidate->cardinality)
-            index = catrl_find(candidate->keys, candidate->cardinality, candidate->ksize, key);
-        if (index == candidate->cardinality) {
+        if (index == count) {
             *valid = FALSE;
             return RESULT(STATUS_CODE_SUCCESS, 0x1C, 0x02, 0);
         }
@@ -357,7 +365,7 @@ CATALYST_RESULT catoo_interface_validate(const INTERFACE* interface_, const OBJE
             *valid = FALSE;
             return RESULT(STATUS_CODE_SUCCESS, 0x1C, 0x07, 0);
         }
-        key += requirements->ksize;
+        key += width;
         ++requirement;
     }
     *valid = TRUE;
