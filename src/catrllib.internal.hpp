@@ -108,6 +108,15 @@ static inline void catrl_store(POINTERW destination, POINTER source, NUINT size)
     const BYTE* input = (const BYTE*) source;
     if (size == (NUINT) 1) {
         output[0] = input[0];
+    } else if (size == (NUINT) 2) {
+        output[0] = input[0];
+        output[1] = input[1];
+    } else if (size == (NUINT) 4) {
+#if defined(__GNUC__) || defined(__clang__)
+        __builtin_memcpy(output, input, 4);
+#else
+        for (BYTE i = 0; i < (BYTE) 4; ++i) output[i] = input[i];
+#endif
 #if defined(__GNUC__) || defined(__clang__)
     } else if (size == (NUINT) 8) {
         __builtin_memcpy(output, input, 8);
