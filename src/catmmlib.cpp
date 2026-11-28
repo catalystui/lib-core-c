@@ -197,7 +197,14 @@ static RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, NUINT size, NUI
             NUINT slotCapacity = (NUINT) (((capacity + prefix + prefix - (NUINT) 1) / prefix) * prefix);
             NUINT stride = (NUINT) (slotCapacity + (NUINT) sizeof(CATMMLIB_HEAP_SLOT));
             NUINT slots = (NUINT) ((catmm_slab_max - catmm_slab_prefix) / stride);
-            if (slots > (NUINT) 64) slots = (NUINT) 64;
+            NUINT limit = (NUINT) 64;
+#if TARGET_SIZEOF_ADDRESS >= 4
+            /* Small payloads dominate composite creation. Retain one larger
+             * slab rather than repeatedly map/unmap many small slabs.
+             * Keep both the existing extent bound and the narrow-target policy. */
+            if (capacity <= (NUINT) 32) limit = (NUINT) 1024;
+#endif
+            if (slots > limit) slots = limit;
             NUINT extent = (NUINT) (catmm_slab_prefix + stride * slots);
             if (extent < (NUINT) 4096) extent = (NUINT) 4096;
             allocation = catmm_platform_alloc(&base, extent);

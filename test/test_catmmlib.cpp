@@ -552,6 +552,50 @@ static int test_memory(BOOL managed) {
             std::printf("PASS: independent live allocations and zero-filled reuse\n");
         }
     }
+    // Burst allocation across small-payload slabs, with alternating live
+    // survivors and zero-filled reuse. Large test only on wide targets.
+    if (managed) {
+        const NUINT count = 1200;
+        POINTERW blocks[count] = { 0 };
+        BOOL passed = TRUE;
+        const NUINT sizes[] = { 1, 8, 32 };
+        for (BYTE s = 0; s < (BYTE) 3 && passed; ++s) {
+            const NUINT extent = sizes[s];
+            for (BYTE round = 0; round < (BYTE) 2 && passed; ++round) {
+                for (NUINT i = 0; i < count; ++i) {
+                    if (blocks[i] != 0) continue;
+                    result = allocate(&blocks[i], extent);
+                    if (result.status != STATUS_CODE_SUCCESS || result.context != allocContext ||
+                        result.operation != 0x05 || result.detail != 0 || blocks[i] == 0) {
+                        passed = FALSE;
+                        break;
+                    }
+                    for (NUINT j = 0; j < extent; ++j)
+                        if (((const BYTE*) blocks[i])[j] != 0) passed = FALSE;
+                    catmm_fill(blocks[i], (BYTE) (i % (NUINT) 251 + (NUINT) 1), extent);
+                }
+                for (NUINT i = 0; i < count && passed; ++i) {
+                    for (NUINT j = 0; j < extent; ++j)
+                        if (((const BYTE*) blocks[i])[j] != (BYTE) (i % (NUINT) 251 + (NUINT) 1)) passed = FALSE;
+                }
+                for (NUINT i = 0; i < count && passed; i += (NUINT) 2) {
+                    result = release(blocks[i]);
+                    if (status_code_is_success(result.status)) blocks[i] = 0;
+                    if (result.status != STATUS_CODE_SUCCESS || result.context != freeContext ||
+                        result.operation != 0x04 || result.detail != 0) passed = FALSE;
+                }
+            }
+            for (NUINT i = 0; i < count; ++i) {
+                if (blocks[i] == 0) continue;
+                result = release(blocks[i]);
+                if (status_code_is_success(result.status)) blocks[i] = 0;
+                if (result.status != STATUS_CODE_SUCCESS || result.context != freeContext ||
+                    result.operation != 0x04 || result.detail != 0) passed = FALSE;
+            }
+        }
+        std::printf("%s: small-payload burst allocation and reuse\n", passed ? "PASS" : "FAIL");
+        if (!passed) ++failed;
+    }
     // Exercise reusable slabs and transitions between capacity classes.
     {
         NUINT sizes[] = { 12000, 13000, 11000, 13000, 24000, 25000, 40000, 60000, 70000, 24000 };
