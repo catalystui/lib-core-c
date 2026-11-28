@@ -75,7 +75,7 @@ static void append_value(POINTERW arguments) {
 }
 
 /* Select highest priority using only the public rule inspection contract. */
-static POINTER select_last(const HASHSET* work) {
+static POINTER select_last(const SET* work) {
     POINTERW selected = 0;
     BYTE priority = 0;
     for (NUINT i = 0; i < work->cardinality; ++i) {
@@ -106,7 +106,7 @@ static void drain_three(POINTERW arguments) {
 
 /* Fill before starting the worker, so saturation and rule selection cannot
  * depend on scheduling. Use both C ABI and C++ wrapper entry points. */
-static BOOL test_order(int* failed, PROCESS* process, POINTER (*rule)(const HASHSET*)) {
+static BOOL test_order(int* failed, PROCESS* process, POINTER (*rule)(const SET*)) {
     std::printf("\n%s selection\n", rule == 0 ? "FIFO" : "Custom");
     THREAD thread;
     DISPATCHER dispatcher;
@@ -347,7 +347,7 @@ static BOOL test_contention(int* failed, PROCESS* process, NUINT capacity) {
     return TRUE;
 }
 
-static POINTER reject_selection(const HASHSET* work) {
+static POINTER reject_selection(const SET* work) {
     (void) work;
     return 0;
 }

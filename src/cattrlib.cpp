@@ -152,7 +152,7 @@ static CATTRLIB_INVOCATION* cattr_invocation_at(POINTER member) {
  * Identity points to the submitting caller's original stored reference. */
 static void cattr_remove_pending(DISPATCHER* dispatcher, POINTERW* identity) {
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
-    catrl_hashset_remove(&dispatcher->work, identity);
+    catrl_set_remove(&dispatcher->work, identity);
     if (dispatcher->rule != 0) return;
     /* Cancellation is uncommon and may target any pending member. Rotate
      * exactly the original queue length, retaining relative FIFO order. */
@@ -165,29 +165,29 @@ static void cattr_remove_pending(DISPATCHER* dispatcher, POINTERW* identity) {
 }
 
 /* Monitor held, pending set nonempty. The rule is read-only/non-reentrant
- * and returns an opaque record reference, not the address of its HashSet slot.
+ * and returns an opaque record reference, not the address of its Set slot.
  * Both paths remove the selected member from pending storage. */
 static CATTRLIB_INVOCATION* cattr_select(DISPATCHER* dispatcher) {
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
     if (dispatcher->rule == 0) {
         POINTERW identity;
         catrl_queue_dequeue(&state->order, &identity);
-        catrl_hashset_remove(&dispatcher->work, &identity);
+        catrl_set_remove(&dispatcher->work, &identity);
         return (CATTRLIB_INVOCATION*) identity;
     }
     POINTER selected = dispatcher->rule(&dispatcher->work);
     POINTERW identity = (POINTERW) selected;
-    /* HashSet removal validates membership before dereferencing the result.
+    /* Set removal validates membership before dereferencing the result.
      * Custom selection has no separate FIFO bookkeeping. */
-    if (!catrl_hashset_remove(&dispatcher->work, &identity)) return 0;
+    if (!catrl_set_remove(&dispatcher->work, &identity)) return 0;
     return (CATTRLIB_INVOCATION*) identity;
 }
 
-CATALYST_RESULT cattr_dispatcher_create(DISPATCHER* dispatcher, THREAD* thread, POINTER (*rule)(const HASHSET*), NUINT capacity) {
+CATALYST_RESULT cattr_dispatcher_create(DISPATCHER* dispatcher, THREAD* thread, POINTER (*rule)(const SET*), NUINT capacity) {
     dispatcher->thread = thread;
     dispatcher->rule = rule;
     dispatcher->state = 0;
-    catrl_hashset_init(&dispatcher->work, (NUINT) sizeof(POINTERW));
+    catrl_set_init(&dispatcher->work, (NUINT) sizeof(POINTERW));
     if (capacity == 0) return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0A, 0x01, 3);
     RESULT monitor = cattr_platform_monitor_create(&dispatcher->state);
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
@@ -200,7 +200,7 @@ CATALYST_RESULT cattr_dispatcher_create(DISPATCHER* dispatcher, THREAD* thread, 
     if (!status_code_is_success(monitor.status)) return RESULT(monitor.status, 0x0A, 0x06, monitor.detail);
     RESULT pool = catrl_pool_expand(&state->pool, capacity);
     if (!status_code_is_success(pool.status)) return RESULT(pool.status, 0x0A, 0x03, pool.detail);
-    RESULT set = catrl_hashset_expand(&dispatcher->work, capacity);
+    RESULT set = catrl_set_expand(&dispatcher->work, capacity);
     if (!status_code_is_success(set.status)) return RESULT(set.status, 0x0A, 0x04, set.detail);
     if (rule == 0) {
         RESULT order = catrl_queue_expand(&state->order, capacity);
@@ -216,7 +216,7 @@ struct CATTRLIB_SUBMISSION {
     POINTERW arguments;
     BOOL awaited;
     /* Store the reference in the same type and representation used by the
-     * HashSet and Queue; an awaited caller retains it through cancellation. */
+     * Set and Queue; an awaited caller retains it through cancellation. */
     POINTERW invocation;
 };
 
@@ -240,7 +240,7 @@ static BOOL cattr_submission_ready(POINTERW arguments) {
         invocation->stage = INVOCATION_PENDING;
         submission->invocation = invocation;
         BOOL was_empty = dispatcher->work.cardinality == 0 ? TRUE : FALSE;
-        catrl_hashset_add(&dispatcher->work, &submission->invocation);
+        catrl_set_add(&dispatcher->work, &submission->invocation);
         if (dispatcher->rule == 0) catrl_queue_enqueue(&state->order, &submission->invocation);
         if (was_empty) cattr_platform_monitor_notify(dispatcher->state);
     }
@@ -266,7 +266,7 @@ CATALYST_RESULT cattr_dispatcher_submit(DISPATCHER* dispatcher, POINTERX operati
         return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x0B, 0x0A, 0);
     }
     /* The associated thread cannot block awaiting its own dispatch.
-     * Asynchronous submissions still enter the HashSet and obey the rule. */
+     * Asynchronous submissions still enter the Set and obey the rule. */
     if ((wait || timeout != 0) && cattr_thread_is_current(dispatcher->thread)) {
         if (wait) {
             cattr_platform_monitor_unlock(dispatcher->state);
@@ -416,7 +416,7 @@ CATALYST_RESULT cattr_dispatcher_close(DISPATCHER* dispatcher) {
         if (invocation->awaited) invocation->stage = INVOCATION_CANCELLED;
         else catrl_pool_release(&state->pool, invocation->index);
     }
-    catrl_hashset_clear(&dispatcher->work);
+    catrl_set_clear(&dispatcher->work);
     catrl_queue_clear(&state->order);
     cattr_platform_monitor_notify(dispatcher->state);
     cattr_platform_monitor_unlock(dispatcher->state);
@@ -429,7 +429,7 @@ CATALYST_RESULT cattr_dispatcher_free(DISPATCHER* dispatcher) {
     /* Close and external quiescence precede free; partial creation/release
      * remains retryable, and no further dispatcher access is permitted. */
     if (!state->closed) return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x10, 0x02, 0);
-    RESULT set = catrl_hashset_free(&dispatcher->work);
+    RESULT set = catrl_set_free(&dispatcher->work);
     if (!status_code_is_success(set.status)) return RESULT(set.status, 0x10, 0x04, set.detail);
     RESULT order = catrl_queue_free(&state->order);
     if (!status_code_is_success(order.status)) return RESULT(order.status, 0x10, 0x05, order.detail);

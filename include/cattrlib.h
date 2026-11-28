@@ -47,8 +47,8 @@ typedef struct CATTRLIB_THREAD {
 /** A mechanism which selects work for execution on an associated thread. Owns its internal storage; borrows the thread until free. Do not copy or mutate an initialized dispatcher. Before its thread stops servicing work, close admission if other callers may still submit or wait. The caller coordinates thread startup and shutdown. */
 typedef struct CATTRLIB_DISPATCHER {
     CATTRLIB_THREAD* thread;
-    CATRLLIB_HASHSET work;
-    CATMMLIB_POINTER (*rule)(const CATRLLIB_HASHSET*);
+    CATRLLIB_SET work;
+    CATMMLIB_POINTER (*rule)(const CATRLLIB_SET*);
     CATMMLIB_POINTERW state;
 } CATTRLIB_DISPATCHER;
 
@@ -91,8 +91,8 @@ CATTRLIB_API CATALYST_RESULT cattr_thread_free(CATTRLIB_THREAD* thread);
  * C API :: DISPATCHER OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Establish a dispatcher with nonzero capacity and a dispatch rule. A null rule selects FIFO order. The rule receives a nonempty HashSet of opaque submission references and returns one member (not its storage address). Capacity must fit the collection's storage and hash index. It runs under the monitor and must not reenter the dispatcher or block on it. */
-CATTRLIB_API CATALYST_RESULT cattr_dispatcher_create(CATTRLIB_DISPATCHER* dispatcher, CATTRLIB_THREAD* thread, CATMMLIB_POINTER (*rule)(const CATRLLIB_HASHSET*), CATALYST_NUINT capacity);
+/** Establish a dispatcher with nonzero capacity and a dispatch rule. A null rule selects FIFO order. The rule receives a nonempty Set of opaque submission references and returns one member (not its storage address). It runs under the monitor and must not reenter the dispatcher or block on it. */
+CATTRLIB_API CATALYST_RESULT cattr_dispatcher_create(CATTRLIB_DISPATCHER* dispatcher, CATTRLIB_THREAD* thread, CATMMLIB_POINTER (*rule)(const CATRLLIB_SET*), CATALYST_NUINT capacity);
 
 /** Submit an independent invocation for execution. Operation must reference a void (CATMMLIB_POINTERW) function. On the associated thread, awaited submission is invalid and asynchronous admission is nonblocking. Callers must avoid cyclic awaited dependencies between execution threads. Timeout is milliseconds (zero polls, NUINT_MAX is indefinite), covering admission and the pending interval; once an awaited callback starts, it completes before return. Readiness observed on reacquiring the monitor wins a race with expiry; the timeout excludes acquiring the monitor. Arguments remain valid through execution or cancellation. Callbacks must return normally. */
 CATTRLIB_API CATALYST_RESULT cattr_dispatcher_submit(CATTRLIB_DISPATCHER* dispatcher, CATTRLIB_POINTERX operation, CATMMLIB_POINTERW arguments, CATALYST_BOOL wait, CATALYST_NUINT timeout);

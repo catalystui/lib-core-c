@@ -430,7 +430,7 @@ struct Native {
     }
 };
 
-static POINTER select_priority(const HASHSET* work) {
+static POINTER select_priority(const SET* work) {
     POINTERW selected = 0;
     NUINT priority = 0;
     for (NUINT i = 0; i < work->cardinality; ++i) {
