@@ -42,35 +42,56 @@ static NUINT catrl_find(POINTER data, NUINT count, NUINT size, POINTER element) 
             const CATRL_SEARCH_WORD high = (CATRL_SEARCH_WORD) (ones << 7);
             const CATRL_SEARCH_WORD pattern = (CATRL_SEARCH_WORD) (ones * (CATRL_SEARCH_WORD) first);
             const NUINT width = (NUINT) sizeof(CATRL_SEARCH_WORD);
-            /* Detect zero bytes after XOR. Locate the match in the same
-             * word, not a second traversal of the remaining collection. */
-            while ((NUINT) (count - index) >= width) {
-                CATRL_SEARCH_WORD word;
+            const NUINT group = (NUINT) (width * (NUINT) 4);
+            /* Four independent word tests share one branch in the miss path.
+             * All loads are within the checked extent and need no alignment. */
+            while ((NUINT) (count - index) >= group) {
+                CATRL_SEARCH_WORD a, b, c, d;
 #if defined(__GNUC__) || defined(__clang__)
-                __builtin_memcpy(&word, current, sizeof(word));
+                __builtin_memcpy(&a, current, sizeof(a));
+                __builtin_memcpy(&b, current + width, sizeof(b));
+                __builtin_memcpy(&c, current + (NUINT) (width * (NUINT) 2), sizeof(c));
+                __builtin_memcpy(&d, current + (NUINT) (width * (NUINT) 3), sizeof(d));
 #else
-                for (BYTE i = 0; i < (BYTE) sizeof(word); ++i) ((BYTE*) &word)[i] = current[i];
+                for (BYTE i = 0; i < (BYTE) sizeof(a); ++i) {
+                    ((BYTE*) &a)[i] = current[i];
+                    ((BYTE*) &b)[i] = current[width + i];
+                    ((BYTE*) &c)[i] = current[(NUINT) (width * (NUINT) 2) + i];
+                    ((BYTE*) &d)[i] = current[(NUINT) (width * (NUINT) 3) + i];
+                }
 #endif
-                word ^= pattern;
-                CATRL_SEARCH_WORD matches = (CATRL_SEARCH_WORD) ((word - ones) & ~word & high);
-                if (matches != 0) {
-                    /* Borrow propagation may mark higher bytes, but never
-                     * changes the lowest match on little-endian targets. */
+                a ^= pattern; b ^= pattern; c ^= pattern; d ^= pattern;
+                a = (CATRL_SEARCH_WORD) ((a - ones) & ~a & high);
+                b = (CATRL_SEARCH_WORD) ((b - ones) & ~b & high);
+                c = (CATRL_SEARCH_WORD) ((c - ones) & ~c & high);
+                d = (CATRL_SEARCH_WORD) ((d - ones) & ~d & high);
+                if ((a | b | c | d) != 0) {
+                    NUINT offset = 0;
+                    CATRL_SEARCH_WORD matches = a;
+                    if (matches == 0) {
+                        offset = width; matches = b;
+                        if (matches == 0) {
+                            offset = (NUINT) (width * (NUINT) 2); matches = c;
+                            if (matches == 0) {
+                                offset = (NUINT) (width * (NUINT) 3); matches = d;
+                            }
+                        }
+                    }
+                    /* Borrow propagation cannot mark a byte before the first
+                     * true match in little-endian memory order. */
 #if (defined(__GNUC__) || defined(__clang__)) && defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #if CATALYST_SUPPORTS_64BIT && defined(__SIZEOF_LONG_LONG__) && __SIZEOF_LONG_LONG__ == 8
-                    return (NUINT) (index + (NUINT) ((NUINT) __builtin_ctzll(matches) / (NUINT) 8));
+                    return (NUINT) (index + offset + (NUINT) ((NUINT) __builtin_ctzll(matches) / (NUINT) 8));
 #elif !CATALYST_SUPPORTS_64BIT && CATALYST_SUPPORTS_32BIT && defined(__SIZEOF_INT__) && __SIZEOF_INT__ == 4
-                    return (NUINT) (index + (NUINT) ((NUINT) __builtin_ctz(matches) / (NUINT) 8));
+                    return (NUINT) (index + offset + (NUINT) ((NUINT) __builtin_ctz(matches) / (NUINT) 8));
 #endif
 #endif
-                    /* On any other representation, compare the candidate
-                     * bytes in memory order. */
-                    for (BYTE i = 0; i < (BYTE) sizeof(word); ++i) {
-                        if (current[i] == first) return (NUINT) (index + (NUINT) i);
+                    for (NUINT i = 0; i < width; ++i) {
+                        if (current[offset + i] == first) return (NUINT) (index + offset + i);
                     }
                 }
-                current += width;
-                index = (NUINT) (index + width);
+                current += group;
+                index = (NUINT) (index + group);
             }
         }
 #endif
