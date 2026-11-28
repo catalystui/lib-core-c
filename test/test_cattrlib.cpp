@@ -75,7 +75,7 @@ static void append_value(POINTERW arguments) {
 }
 
 /* Select highest priority using only the public rule inspection contract. */
-static POINTER select_last(const SET* work) {
+static POINTER select_last(const HASHSET* work) {
     POINTERW selected = 0;
     BYTE priority = 0;
     for (NUINT i = 0; i < work->cardinality; ++i) {
@@ -106,7 +106,7 @@ static void drain_three(POINTERW arguments) {
 
 /* Fill before starting the worker, so saturation and rule selection cannot
  * depend on scheduling. Use both C ABI and C++ wrapper entry points. */
-static BOOL test_order(int* failed, PROCESS* process, POINTER (*rule)(const SET*)) {
+static BOOL test_order(int* failed, PROCESS* process, POINTER (*rule)(const HASHSET*)) {
     std::printf("\n%s selection\n", rule == 0 ? "FIFO" : "Custom");
     THREAD thread;
     DISPATCHER dispatcher;
@@ -347,6 +347,32 @@ static BOOL test_contention(int* failed, PROCESS* process, NUINT capacity) {
     return TRUE;
 }
 
+static POINTER reject_selection(const HASHSET* work) {
+    (void) work;
+    return 0;
+}
+
+static BOOL test_invalid_rule(int* failed, PROCESS* process) {
+    std::printf("\nInvalid custom selection\n");
+    THREAD current;
+    if (!check(failed, status_code_is_success(thread_current(&current, process).status), "capture rule thread")) {
+        thread_free(&current);
+        return TRUE;
+    }
+    DISPATCHER dispatcher;
+    if (check(failed, status_code_is_success(dispatcher_create(&dispatcher, &current, reject_selection, 2).status), "create invalid rule dispatcher")) {
+        TEST_STATE state;
+        state.executed = 0;
+        check(failed, status_code_is_success(dispatcher_submit(&dispatcher, (POINTERX) increment, &state, FALSE, 0).status), "submit work to custom rule");
+        check(failed, matches(dispatcher_poll(&dispatcher), STATUS_CODE_ERROR_INVALID_STATE, 0x0E, 0x05), "reject nonmember rule result");
+        check(failed, dispatcher_count(&dispatcher) == 1 && state.executed == 0, "rejected rule preserves pending work");
+        check(failed, status_code_is_success(dispatcher_close(&dispatcher).status) && state.executed == 0, "close cancels unselected work");
+    }
+    check(failed, status_code_is_success(dispatcher_free(&dispatcher).status), "free invalid rule dispatcher");
+    check(failed, status_code_is_success(thread_free(&current).status), "free rule thread");
+    return TRUE;
+}
+
 int main() {
     int failed = 0;
     std::printf("Process and thread identity\n");
@@ -468,6 +494,7 @@ int main() {
     if (!test_order(&failed, &process, 0)) return 1;
     if (!test_order(&failed, &process, select_last)) return 1;
     if (!test_cancel(&failed, &process)) return 1;
+    if (!test_invalid_rule(&failed, &process)) return 1;
     if (!test_wrapped_cancel(&failed, &process)) return 1;
     if (!test_contention(&failed, &process, 2)) return 1;
     if (!test_contention(&failed, &process, 32)) return 1;
