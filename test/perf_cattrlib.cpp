@@ -480,10 +480,24 @@ template<class API> static void worker_entry(POINTERW args) {
     }
 }
 
+template<class API> struct Producer {
+    typename API::Dispatcher* dispatcher;
+    unsigned long calls;
+    CallbackCount count;
+};
+
+template<class API> static void producer_entry(POINTERW arguments) {
+    Producer<API>* producer = (Producer<API>*) arguments;
+    for (unsigned long i = 0; i < producer->calls; ++i) {
+        expect(API::dispatcher_submit(producer->dispatcher, increment, &producer->count,
+            i + 1 == producer->calls || (i & 1UL) != 0 ? TRUE : FALSE, CATALYST_NUINT_MAX), STATUS_CODE_SUCCESS);
+    }
+}
+
 enum Kind {
     PROCESS_CAPTURE, PROCESS_EQUAL, THREAD_CAPTURE, THREAD_EQUAL, THREAD_LIFECYCLE,
     DISPATCHER_LIFECYCLE, COUNT_EMPTY, WAIT_EMPTY, POLL_EMPTY, INLINE_SUBMIT,
-    PENDING_TIMEOUT, FULL_ADMISSION, SYNC_ROUNDTRIP, BATCH_FIFO, CLOSE_JOIN
+    PENDING_TIMEOUT, FULL_ADMISSION, SYNC_ROUNDTRIP, BATCH_FIFO, CONTENTION, CLOSE_JOIN
 };
 
 struct Benchmark {
@@ -513,6 +527,8 @@ static const Benchmark benchmarks[] = {
     { "dispatcher FIFO batch (8)", BATCH_FIFO, 8, 8, 4096UL },
     { "dispatcher FIFO batch (32)", BATCH_FIFO, 32, 32, 4096UL },
     { "dispatcher FIFO batch (128)", BATCH_FIFO, 128, 128, 1024UL },
+    { "4 producers / capacity 2", CONTENTION, 2, 4, 4096UL },
+    { "4 producers / capacity 128", CONTENTION, 128, 4, 4096UL },
     { "dispatcher close / worker join", CLOSE_JOIN, 1, 1, 1024UL }
 };
 
@@ -565,6 +581,35 @@ template<class API> static double measure(const Benchmark* b, unsigned long call
             expect(API::thread_free(&current), STATUS_CODE_SUCCESS);
         }
         if (b->kind == THREAD_LIFECYCLE) require(count_matches(&value, calls), "thread callback output");
+    } else if (b->kind == CONTENTION) {
+        Worker<API> worker;
+        worker.dispatcher = &dispatcher;
+        worker.outcome = STATUS_CODE_ERROR;
+        expect(API::thread_create(&thread, &process, worker_entry<API>, &worker), STATUS_CODE_SUCCESS);
+        expect(API::dispatcher_create(&dispatcher, &thread, b->capacity), STATUS_CODE_SUCCESS);
+        expect(API::thread_start(&thread), STATUS_CODE_SUCCESS);
+        Thread producers[4];
+        Producer<API> contexts[4];
+        for (Octet i = 0; i < (Octet) 4; ++i) {
+            contexts[i].dispatcher = &dispatcher;
+            contexts[i].calls = calls;
+            for (Octet j = 0; j < (Octet) 3; ++j) contexts[i].count.bytes[j] = 0;
+            expect(API::thread_create(&producers[i], &process, producer_entry<API>, &contexts[i]), STATUS_CODE_SUCCESS);
+        }
+        start = now_seconds();
+        for (Octet i = 0; i < (Octet) 4; ++i) expect(API::thread_start(&producers[i]), STATUS_CODE_SUCCESS);
+        for (Octet i = 0; i < (Octet) 4; ++i) expect(API::thread_wait(&producers[i]), STATUS_CODE_SUCCESS);
+        end = now_seconds();
+        require(API::dispatcher_count(&dispatcher) == 0, "contended pending count");
+        expect(API::dispatcher_close(&dispatcher), STATUS_CODE_SUCCESS);
+        expect(API::thread_wait(&thread), STATUS_CODE_SUCCESS);
+        require(worker.outcome == STATUS_CODE_ERROR_INTERRUPTED, "contended worker shutdown");
+        for (Octet i = 0; i < (Octet) 4; ++i) {
+            require(count_matches(&contexts[i].count, calls), "contended callback count");
+            expect(API::thread_free(&producers[i]), STATUS_CODE_SUCCESS);
+        }
+        expect(API::dispatcher_free(&dispatcher), STATUS_CODE_SUCCESS);
+        expect(API::thread_free(&thread), STATUS_CODE_SUCCESS);
     } else if (b->kind == CLOSE_JOIN) {
         // Measure close/join alone; setup and resource release are outside
         // each interval. The worker may already be waiting or about to wait.
@@ -694,6 +739,7 @@ int main() {
     std::printf("Monotonic wall-clock, median of three paired samples; adaptive equal work counts.\n");
     std::printf("Native caller-owned handles and fixed FIFO storage; Catalyst owns its bookkeeping.\n");
     std::printf("Cross-thread rows include scheduling and completion; batch rows divide by completed invocations.\n");
+    std::printf("Four-producer rows include producer startup/join and mixed async/awaited work.\n");
     std::printf("Lifecycle rows report the named group, not individual calls. Close/join includes clock overhead.\n");
     std::printf("Zero-timeout rows measure nonblocking outcomes, not timer accuracy.\n");
     std::printf("Relative difference includes algorithm and ownership costs, not Result reporting alone.\n\n");
