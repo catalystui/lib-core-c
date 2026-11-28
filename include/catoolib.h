@@ -96,6 +96,9 @@ CATOOLIB_API void catoo_member_get(const CATOOLIB_MEMBER* member, CATMMLIB_POINT
 /** Copy size readable bytes into a live member's payload; overlap is supported. Does not change its size or ownership. */
 CATOOLIB_API void catoo_member_set(CATOOLIB_MEMBER* member, CATMMLIB_POINTER data);
 
+/** Resize a live member to a nonzero byte size, preserving the common prefix and zero-filling growth. Same size is a no-op; failure preserves the payload and size. Successful resize may invalidate payload pointers but not the member descriptor, its key, or its resolved Field. */
+CATOOLIB_API CATALYST_RESULT catoo_member_resize(CATOOLIB_MEMBER* member, CATALYST_NUINT size);
+
 /** Release owned bytes, not referenced objects. Success empties the member; failure retains ownership. Empty members are a no-op. */
 CATOOLIB_API CATALYST_RESULT catoo_member_free(CATOOLIB_MEMBER* member);
 

@@ -37,6 +37,11 @@ inline void member_set(MEMBER* member, POINTER data) {
     ::catoo_member_set(member, data);
 }
 
+/** Resize a live member to a nonzero byte size, preserving the common prefix and zero-filling growth. Same size is a no-op; failure preserves the payload and size. Successful resize may invalidate payload pointers but not the member descriptor, its key, or its resolved Field. */
+inline RESULT member_resize(MEMBER* member, NUINT size) {
+    return ::catoo_member_resize(member, size);
+}
+
 /** Release owned bytes, not referenced objects. Success empties the member; failure retains ownership. Empty members are a no-op. */
 inline RESULT member_free(MEMBER* member) {
     return ::catoo_member_free(member);

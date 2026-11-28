@@ -13,7 +13,7 @@ The Object-Oriented Library represents the composite relationships defined by FR
 
 Objects own their CATRLLIB map records and each nonzero-size member's separately allocated payload (CATMMLIB managed heap). A member copies bytes, not objects or resources referenced by those bytes. Initialize unused, disjoint storage, do not shallow-copy owning objects or members, and release resources through their corresponding free operations. An object can be reused after successful free. After failed free, retry free only. Synchronize accesses and lifecycle operations externally.
 
-Keys have a single nonzero byte width per object and are compared as bytes. Expand capacity before adding; a duplicate is a no-op. The map's exposed fields are not an alternative mutation API. Borrowed members and fields are invalidated by removal, clear, resize or free attempts. Fields borrow the object's stored keys, not the caller's lookup buffers. Do not independently free borrowed members or change their ownership or size.
+Keys have a single nonzero byte width per object and are compared as bytes. Expand capacity before adding; a duplicate is a no-op. The map's exposed fields are not an alternative mutation API. Borrowed members and fields are invalidated by removal, clear, resize or free attempts. Fields borrow the object's stored keys, not the caller's lookup buffers. Do not independently free borrowed members or directly change their ownership or size fields. Use `catoo_member_resize` on a live standalone or borrowed member to change its byte extent without changing its key. Payload addresses may change, so references into the old payload must be reacquired after successful resize. The member descriptor and resolved Field remain live.
 
 A method is stored by copying the bytes of a native `CATOOLIB_METHOD` function pointer; a property is stored by copying a `CATOOLIB_PROPERTY`. Callers establish the exact callable types and callback contracts before invoking; no runtime type metadata is introduced. Callback results preserve status/detail under CATOOLIB context/operation codes, except interface validation remaps invalid-argument details and dispatch rejects out-of-range callback argument indices as invalid state. Receiver index zero corresponds to the public Field argument. A callback may invalidate a resolved field by mutating its object.
 
@@ -45,6 +45,7 @@ For Core-wide requirements, see [Assumptions](../../assumptions/index.md).
 | [`catoo_member_init`](#catoo_member_init) | Initialize unused member storage. Nonzero size allocates zero-filled owned bytes; zero size or allocation failure leaves a freeable empty member. |
 | [`catoo_member_get`](#catoo_member_get) | Copy a live member's size bytes into sufficient writable output storage outside its descriptor; overlap with payload is supported. |
 | [`catoo_member_set`](#catoo_member_set) | Copy size readable bytes into a live member's payload; overlap is supported. Does not change its size or ownership. |
+| [`catoo_member_resize`](#catoo_member_resize) | Resize a live member to a nonzero byte size, preserving the common prefix and zero-filling growth. Same size is a no-op; failure preserves the payload and size. Successful resize may invalidate payload pointers but not the member descriptor, its key, or its resolved Field. |
 | [`catoo_member_free`](#catoo_member_free) | Release owned bytes, not referenced objects. Success empties the member; failure retains ownership. Empty members are a no-op. |
 | [`catoo_object_init`](#catoo_object_init) | Initialize unused object storage without allocation; ksize is the nonzero byte width of every key. |
 | [`catoo_object_add`](#catoo_object_add) | Copy a distinct key and nonzero size readable payload bytes into an initialized object. Duplicate keys are no-ops; exhausted capacity is an error. Key must be outside the map and its allocations. Failure retains existing members. |
@@ -271,6 +272,29 @@ Copy size readable bytes into a live member's payload; overlap is supported. Doe
 **C++:** `member_set`
 
 **Returns:** No return value; the member payload is updated without changing size.
+
+### catoo_member_resize
+
+```c
+CATALYST_RESULT catoo_member_resize(CATOOLIB_MEMBER* member, CATALYST_NUINT size);
+```
+
+Resize a live member to a nonzero byte size, preserving the common prefix and zero-filling growth. Same size is a no-op; failure preserves the payload and size. Successful resize may invalidate payload pointers but not the member descriptor, its key, or its resolved Field.
+
+**Parameters:**  
+`member` — live nonempty member descriptor, standalone or borrowed; the member owns its current payload.  
+`size` — requested nonzero byte count.
+
+**C++:** `member_resize`  
+**Context:** `0x1E`  
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x811E0101` | ERROR_INVALID_ARGUMENT | Zero requested size; member unchanged. | Size parameter. |
+| `0x011E0200` | SUCCESS_NOOP | Requested size equals current size. | — |
+| `0xSS1E03DD` | Variable non-success status | Heap resize failed; original payload and size remain live. | Dependency detail. |
+| `0x001E0400` | SUCCESS | Member resized. | — |
 
 ### catoo_member_free
 

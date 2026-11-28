@@ -4,7 +4,8 @@
 
 using namespace catalyst;
 
-/* Contexts follow the public declaration order, including non-reporting operations.
+/* Original contexts follow the public declaration order, including non-reporting operations.
+ * Member resize uses the next available context (0x1E).
  * Each reporting site has a distinct operation code within its context.
  * Dependency failures preserve their status and detail; callback argument
  * indices are translated at the interface boundary.
@@ -26,6 +27,15 @@ void catoo_member_get(const MEMBER* member, POINTERW output) {
 
 void catoo_member_set(MEMBER* member, POINTER data) {
     catmm_move(member->data, data, member->size);
+}
+
+CATALYST_RESULT catoo_member_resize(MEMBER* member, NUINT size) {
+    if (size == 0) return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x1E, 0x01, 1);
+    if (size == member->size) return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x1E, 0x02, 0);
+    RESULT resized = catmm_heap_realloc(&member->data, size);
+    if (!status_code_is_success(resized.status)) return RESULT(resized.status, 0x1E, 0x03, resized.detail);
+    member->size = size;
+    return RESULT(STATUS_CODE_SUCCESS, 0x1E, 0x04, 0);
 }
 
 CATALYST_RESULT catoo_member_free(MEMBER* member) {

@@ -500,6 +500,54 @@ static int test_reserved_class_extension() {
     return 0;
 }
 
+/* A fixed-key structure can still contain variable-length values. */
+static int test_member_resize() {
+    MEMBER member;
+    CHECK(status_code_is_success(member_init(&member, 3).status));
+    const BYTE initial[] = { 0x12, 0x34, 0x56 };
+    BYTE actual[6];
+    member_set(&member, initial);
+    POINTER original = member.data;
+    CHECK(matches(member_resize(&member, 0), STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x1E, 1, 1));
+    CHECK(matches(member_resize(&member, 3), STATUS_CODE_SUCCESS_NOOP, 0x1E, 2));
+    CHECK(matches(member_resize(&member, CATALYST_NUINT_MAX), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x1E, 3));
+    CHECK(member.data == original && member.size == 3);
+    CHECK(catmm_compare(member.data, initial, 3) == 0);
+    CHECK(matches(catoo_member_resize(&member, 6), STATUS_CODE_SUCCESS, 0x1E, 4));
+    member_get(&member, actual);
+    CHECK(catmm_compare(actual, initial, 3) == 0);
+    CHECK(actual[3] == 0 && actual[4] == 0 && actual[5] == 0);
+    const BYTE replacement[] = { 1, 2, 3, 4, 5, 6 };
+    member_set(&member, replacement);
+    CHECK(matches(member_resize(&member, 2), STATUS_CODE_SUCCESS, 0x1E, 4));
+    CHECK(matches(member_resize(&member, 6), STATUS_CODE_SUCCESS, 0x1E, 4));
+    member_get(&member, actual);
+    CHECK(actual[0] == 1 && actual[1] == 2);
+    for (BYTE i = 2; i < 6; ++i) CHECK(actual[i] == 0);
+    CHECK(status_code_is_success(member_free(&member).status));
+
+    OBJECT definition;
+    object_init(&definition, 1);
+    CHECK(status_code_is_success(object_expand(&definition, 1).status));
+    CHECK(status_code_is_success(object_add(&definition, &value_key, initial, 3).status));
+    STRUCTURE structure;
+    CHECK(status_code_is_success(structure_init(&structure, &definition).status));
+    FIELD field;
+    CHECK(field_init(&field, &structure.object, &value_key));
+    MEMBER* resolved = field.member;
+    POINTER key = field.key;
+    CHECK(matches(member_resize(resolved, 6), STATUS_CODE_SUCCESS, 0x1E, 4));
+    field_set(&field, replacement);
+    field_get(&field, actual);
+    CHECK(catmm_compare(actual, replacement, 6) == 0);
+    CHECK(structure.object.members.cardinality == 1 && field.key == key);
+    CHECK(field.member == resolved && structure_get(&structure, &value_key) == resolved);
+    CHECK(object_get(&definition, &value_key)->size == 3);
+    CHECK(status_code_is_success(structure_free(&structure).status));
+    CHECK(status_code_is_success(object_free(&definition).status));
+    return 0;
+}
+
 int main() {
     BYTE value = 17, changed = 42, output = 0;
     MEMBER member;
@@ -622,6 +670,7 @@ int main() {
     std::printf("PASS: removal with payload-backed lookup key\n");
     CHECK(test_byte_class_extension() == 0);
     CHECK(test_reserved_class_extension() == 0);
+    CHECK(test_member_resize() == 0);
     std::printf("PASS: CATOOLIB composites\n");
     return 0;
 }

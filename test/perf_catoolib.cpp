@@ -34,6 +34,15 @@ static BOOL native_member_init(NativeMember* m, size_t size) {
     m->size = m->data ? size : 0;
     return m->data ? TRUE : FALSE;
 }
+static BOOL native_member_resize(NativeMember* m, size_t size) {
+    if (size == 0) return FALSE;
+    if (size == m->size) return TRUE;
+    unsigned char* data = (unsigned char*) ::realloc(m->data, size);
+    if (!data) return FALSE;
+    if (size > m->size) ::memset(data + m->size, 0, size - m->size);
+    m->data = data; m->size = size;
+    return TRUE;
+}
 static void native_member_free(NativeMember* m) {
     ::free(m->data); m->data = 0; m->size = 0;
 }
@@ -215,6 +224,7 @@ struct NativeAPI {
     typedef NativeObject Class;
     typedef NativeInterface Interface;
     static BOOL member_init(Member* m, NUINT size) { return native_member_init(m, size); }
+    static BOOL member_resize(Member* m, NUINT size) { return native_member_resize(m, size); }
     static BOOL member_free(Member* m) { native_member_free(m); return TRUE; }
     static void member_get(Member* m, BYTE* out) { ::memmove(out, m->data, m->size); }
     static void member_set(Member* m, const BYTE* in) { ::memmove(m->data, in, m->size); }
@@ -277,6 +287,7 @@ struct CatalystAPI {
     typedef CLASS Class;
     typedef INTERFACE Interface;
     static BOOL member_init(Member* m, NUINT size) { return succeeded(catalyst::member_init(m, size)); }
+    static BOOL member_resize(Member* m, NUINT size) { return succeeded(catalyst::member_resize(m, size)); }
     static BOOL member_free(Member* m) { return succeeded(catalyst::member_free(m)); }
     static void member_get(Member* m, BYTE* out) { catalyst::member_get(m, out); }
     static void member_set(Member* m, const BYTE* in) { catalyst::member_set(m, in); }
@@ -421,7 +432,7 @@ enum Kind {
     OBJECT_CLEAR_REFILL, FIELD_RESOLVE, FIELD_COPY, METHOD_CALL, PROPERTY_ACCESS,
     STRUCTURE_LIFECYCLE, CLASS_LIFECYCLE, CLASS_INSTANCE, CLASS_EXTENSION,
     INTERFACE_LIFECYCLE, INTERFACE_HIT, INTERFACE_MISS,
-    INTERFACE_REORDERED, INTERFACE_PARTIAL_MISS, METHOD_DISPATCH, CLASS_MIXED
+    INTERFACE_REORDERED, INTERFACE_PARTIAL_MISS, METHOD_DISPATCH, CLASS_MIXED, MEMBER_RESIZE
 };
 
 enum {
@@ -493,7 +504,7 @@ static BOOL setup(Trial<API>* t) {
     payload(t->data, t->width, t->key);
     payload(t->alternate, t->width, (BYTE) (t->key ^ 0xFF));
     if (t->kind == MEMBER_LIFECYCLE || t->kind == OBJECT_EMPTY) return TRUE;
-    if (t->kind == MEMBER_COPY) {
+    if (t->kind == MEMBER_COPY || t->kind == MEMBER_RESIZE) {
         t->memberLive = TRUE;
         if (!API::member_init(&t->member, t->width)) return FALSE;
         API::member_set(&t->member, t->data);
@@ -584,6 +595,15 @@ static BOOL cycle(Trial<API>* t) {
             t->copyAlternate = t->copyAlternate ? FALSE : TRUE;
             observed = (BYTE) (t->output[0] ^ t->output[end]);
             return t->output[0] == input[0] && t->output[end] == input[end] ? TRUE : FALSE;
+        }
+        case MEMBER_RESIZE: {
+            const NUINT grown = (NUINT) (t->width * (NUINT) 2);
+            if (!API::member_resize(&t->member, grown)) return FALSE;
+            const volatile BYTE* bytes = (const volatile BYTE*) t->member.data;
+            observed = bytes[grown - (NUINT) 1];
+            ok = observed == 0 && bytes[0] == a && bytes[end] == b ? TRUE : FALSE;
+            if (!API::member_resize(&t->member, t->width)) ok = FALSE;
+            return ok;
         }
         case OBJECT_EMPTY: {
             typename API::Object o;
@@ -714,6 +734,13 @@ static BOOL verify_fixture(Trial<API>* t) {
         API::member_get(&t->member, t->output);
         for (NUINT i = 0; i < t->width; ++i)
             if (t->output[i] != (t->copyAlternate ? t->data[i] : t->alternate[i])) return FALSE;
+        return TRUE;
+    }
+    if (t->kind == MEMBER_RESIZE) {
+        if (t->member.size != t->width) return FALSE;
+        API::member_get(&t->member, t->output);
+        for (NUINT i = 0; i < t->width; ++i)
+            if (t->output[i] != t->data[i]) return FALSE;
         return TRUE;
     }
     const NUINT count = (NUINT) (t->n + ((t->kind == METHOD_CALL || t->kind == METHOD_DISPATCH || t->kind == PROPERTY_ACCESS) ? (NUINT) 1 : (NUINT) 0));
@@ -1134,7 +1161,7 @@ static void benchmark_all(Summary& summary) {
         "Class: create + inspect + free", "Class: init + extend + inspect + free",
         "Interface: init + validate + free", "Interface: validate (matching order)", "Interface: validate (miss)",
         "Interface: validate (reordered)", "Interface: validate (late miss)",
-        "Method: dispatch without lookup", "Class: create + free (mixed payload sizes)"
+        "Method: dispatch without lookup", "Class: create + free (mixed payload sizes)", "Member: grow + shrink"
     };
     const NUINT counts[] = {
         2,
@@ -1152,13 +1179,13 @@ static void benchmark_all(Summary& summary) {
         std::printf("\n%s\n", names[k]);
         for (BYTE i = 0; i < (BYTE) (sizeof(counts) / sizeof(counts[0])); ++i) {
             for (BYTE w = 0; w < (BYTE) (sizeof(widths) / sizeof(widths[0])); ++w) {
-                if ((k == MEMBER_LIFECYCLE || k == MEMBER_COPY) && i != 0) continue;
+                if ((k == MEMBER_LIFECYCLE || k == MEMBER_COPY || k == MEMBER_RESIZE) && i != 0) continue;
                 if (k == OBJECT_EMPTY && (i != 0 || w != 0)) continue;
                 if ((k == METHOD_CALL || k == METHOD_DISPATCH || k == PROPERTY_ACCESS || k == INTERFACE_HIT ||
                      k == INTERFACE_MISS || k == INTERFACE_REORDERED || k == INTERFACE_PARTIAL_MISS) && w != 0) continue;
                 if (k == CLASS_MIXED && w == 0) continue;
                 if (widths[w] > (NUINT) 32 && k != MEMBER_LIFECYCLE && k != MEMBER_COPY &&
-                    k != OBJECT_ADD_REMOVE && k != CLASS_INSTANCE && k != CLASS_MIXED) continue;
+                    k != OBJECT_ADD_REMOVE && k != CLASS_INSTANCE && k != CLASS_MIXED && k != MEMBER_RESIZE) continue;
                 NUINT n = counts[i], width = widths[w];
                 // Capacity, member descriptors, and payload sizes fit the
                 // configured pointer-width representation even on narrow targets.
@@ -1170,7 +1197,7 @@ static void benchmark_all(Summary& summary) {
                 native.n = comparison.n = n;
                 native.width = comparison.width = width;
                 char label[48];
-                if (k == MEMBER_LIFECYCLE || k == MEMBER_COPY)
+                if (k == MEMBER_LIFECYCLE || k == MEMBER_COPY || k == MEMBER_RESIZE)
                     std::sprintf(label, "%lu B payload", (unsigned long) width);
                 else if (k == OBJECT_EMPTY)
                     std::sprintf(label, "empty object");
