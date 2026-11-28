@@ -485,6 +485,28 @@ static inline void catrl_stream_copy(POINTERW output, POINTER input) {
 #endif
 }
 
+/* Initialized bookkeeping and its aligned local representation. Lifetime
+ * is immutable. On compilers with layout offsets, write only the changed
+ * suffix or spare descriptor without assuming struct packing. */
+static inline void catrl_stream_write_cursor(BYTE* bookkeeping, const CATRLLIB_STREAM_MEMORY* memory) {
+#if defined(__GNUC__) || defined(__clang__)
+    const NUINT offset = (NUINT) __builtin_offsetof(CATRLLIB_STREAM_MEMORY, cursor);
+    catrl_stream_copy<(NUINT) (sizeof(CATRLLIB_STREAM_MEMORY) - __builtin_offsetof(CATRLLIB_STREAM_MEMORY, cursor))>(
+        bookkeeping + offset, (const BYTE*) memory + offset);
+#else
+    catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>(bookkeeping, memory);
+#endif
+}
+
+static inline void catrl_stream_write_spare(BYTE* bookkeeping, const CATRLLIB_STREAM_MEMORY* memory) {
+#if defined(__GNUC__) || defined(__clang__)
+    const NUINT offset = (NUINT) __builtin_offsetof(CATRLLIB_STREAM_MEMORY, spare);
+    catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_CHUNK)>(bookkeeping + offset, &memory->spare);
+#else
+    catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>(bookkeeping, memory);
+#endif
+}
+
 /* Initialized, non-freed Stream; index < its stored lifetime. The complete descriptor extent was checked at initialization. */
 static BYTE* catrl_stream_slot(CATRLLIB_STREAM* stream, NUINT index) {
     return (BYTE*) stream->state + stream->ssize + (NUINT) sizeof(CATRLLIB_STREAM_MEMORY) + (NUINT) (index * (NUINT) sizeof(CATRLLIB_STREAM_CHUNK));
@@ -550,12 +572,13 @@ CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize,
         }
         memory.spare.capacity = capacity;
         /* Keep replacement ownership reachable before invoking producer code. */
-        catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>(bookkeeping, &memory);
+        catrl_stream_write_spare(bookkeeping, &memory);
     }
     RESULT production = stream->next(stream, memory.spare.data, csize);
     if (production.status == STATUS_CODE_SUCCESS) {
         CATRLLIB_STREAM_CHUNK expired;
-        BYTE* slot = catrl_stream_slot(stream, memory.cursor);
+        BYTE* slot = bookkeeping + (NUINT) sizeof(CATRLLIB_STREAM_MEMORY) +
+            (NUINT) (memory.cursor * (NUINT) sizeof(CATRLLIB_STREAM_CHUNK));
         catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_CHUNK)>(&expired, slot);
         catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_CHUNK)>(slot, &memory.spare);
         *output = memory.spare.data;
@@ -568,7 +591,7 @@ CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize,
             RESULT shrink = catmm_heap_realloc(&memory.spare.data, smaller);
             if (!status_code_is_success(shrink.status)) {
                 // Production is already published; commit the rotated state even on failure.
-                catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>(bookkeeping, &memory);
+                catrl_stream_write_cursor(bookkeeping, &memory);
                 if (status_code_is_fatal(shrink.status)) {
                     return RESULT(shrink.status, 0x22, 0x05, shrink.detail);
                 }
@@ -576,7 +599,7 @@ CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize,
             }
             memory.spare.capacity = smaller;
         }
-        catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>(bookkeeping, &memory);
+        catrl_stream_write_cursor(bookkeeping, &memory);
     }
     /* Map producer csize to public argument 1; rejecting the managed chunk indicates invalid internal state. */
     if (production.status == STATUS_CODE_ERROR_INVALID_ARGUMENT) {
@@ -907,21 +930,30 @@ CATALYST_BOOL catrl_pool_acquire(CATRLLIB_POOL* pool, CATALYST_NUINT* index) {
     return TRUE;
 }
 
-CATALYST_BOOL catrl_pool_contains(const CATRLLIB_POOL* pool, CATALYST_NUINT index) {
+/* An initialized Pool; arbitrary index. Check the logical extent before
+ * reading the bitmap. A free or out-of-range slot is ordinarily absent. */
+static inline BOOL catrl_pool_is_occupied(const CATRLLIB_POOL* pool, NUINT index) {
     if (index >= pool->capacity) return FALSE;
     return (((const BYTE*) pool->occupied)[index / (NUINT) 8] & catrl_pool_mask(index)) != 0 ? TRUE : FALSE;
 }
 
+CATALYST_BOOL catrl_pool_contains(const CATRLLIB_POOL* pool, CATALYST_NUINT index) {
+    return catrl_pool_is_occupied(pool, index);
+}
+
 CATALYST_BOOL catrl_pool_release(CATRLLIB_POOL* pool, CATALYST_NUINT index) {
-    if (!catrl_pool_contains(pool, index)) return FALSE;
+    if (index >= pool->capacity) return FALSE;
     BYTE* occupied = (BYTE*) pool->occupied + index / (NUINT) 8;
-    *occupied = (BYTE) (*occupied & (BYTE) ~catrl_pool_mask(index));
+    BYTE mask = catrl_pool_mask(index);
+    BYTE bits = *occupied;
+    if ((bits & mask) == 0) return FALSE;
+    *occupied = (BYTE) (bits & (BYTE) ~mask);
     --pool->cardinality;
     return TRUE;
 }
 
 CATMMLIB_POINTERW catrl_pool_get(CATRLLIB_POOL* pool, CATALYST_NUINT index) {
-    if (!catrl_pool_contains(pool, index)) return 0;
+    if (!catrl_pool_is_occupied(pool, index)) return 0;
     return (BYTE*) pool->data + (NUINT) (index * pool->size);
 }
 
