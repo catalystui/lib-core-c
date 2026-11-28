@@ -88,11 +88,14 @@ CATALYST_RESULT catoo_object_shrink(OBJECT* object) {
 
 CATALYST_RESULT catoo_object_clear(OBJECT* object) {
     if (object->members.cardinality == 0) return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x0C, 0x01, 0);
-    /* Removing the first key avoids scanning the remaining map on each
-     * release. Map removal moves the final live record into its place. */
-    while (object->members.cardinality != 0) {
-        RESULT released = catoo_object_remove(object, object->members.keys);
+    /* Release the final live member first. No search or relocation is
+     * needed; the remaining prefix stays valid if release fails. */
+    MAP* map = &object->members;
+    while (map->cardinality != 0) {
+        NUINT last = (NUINT) (map->cardinality - (NUINT) 1);
+        RESULT released = catoo_member_free((MEMBER*) map->values + last);
         if (!status_code_is_success(released.status)) return RESULT(released.status, 0x0C, 0x02, released.detail);
+        catrl_map_remove_at(map, last);
     }
     return RESULT(STATUS_CODE_SUCCESS, 0x0C, 0x03, 0);
 }
