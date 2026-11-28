@@ -93,6 +93,37 @@ static inline NUINT catrl_find(POINTER data, NUINT count, NUINT size, POINTER el
         }
         return count;
     }
+#if TARGET_SIZEOF_VOID_P > 1 && (defined(__GNUC__) || defined(__clang__))
+    /* Pointer-width elements can be compared as one exact-width Catalyst
+     * word. Fixed-size byte copies preserve unaligned access and byte equality
+     * on either endian; no pointer casts or wider representation are needed. */
+    if (size == (NUINT) sizeof(NUINT)) {
+        NUINT key;
+        __builtin_memcpy(&key, target, sizeof(key));
+        const NUINT width = (NUINT) sizeof(NUINT);
+        while ((NUINT) (count - index) >= (NUINT) 4) {
+            NUINT a, b, c, d;
+            __builtin_memcpy(&a, current, sizeof(a));
+            __builtin_memcpy(&b, current + width, sizeof(b));
+            __builtin_memcpy(&c, current + (NUINT) (width * (NUINT) 2), sizeof(c));
+            __builtin_memcpy(&d, current + (NUINT) (width * (NUINT) 3), sizeof(d));
+            if (a == key) return index;
+            if (b == key) return (NUINT) (index + (NUINT) 1);
+            if (c == key) return (NUINT) (index + (NUINT) 2);
+            if (d == key) return (NUINT) (index + (NUINT) 3);
+            current += (NUINT) (width * (NUINT) 4);
+            index = (NUINT) (index + (NUINT) 4);
+        }
+        while (index < count) {
+            NUINT candidate;
+            __builtin_memcpy(&candidate, current, sizeof(candidate));
+            if (candidate == key) return index;
+            current += width;
+            ++index;
+        }
+        return count;
+    }
+#endif
     while (index < count) {
         if (current[0] == first && catmm_compare(current + 1, target + 1, (NUINT) (size - (NUINT) 1)) == 0) return index;
         current += size;

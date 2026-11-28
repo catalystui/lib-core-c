@@ -80,7 +80,7 @@ inline RESULT thread_free(THREAD* thread) {
  * C++ API :: DISPATCHER OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Establish a dispatcher with nonzero capacity and a dispatch rule. A null rule selects FIFO order. The rule receives a nonempty Set of opaque submission references and returns one member (not its storage address). It runs under the monitor and must not reenter the dispatcher or block on it. */
+/** Establish a dispatcher with nonzero capacity and a dispatch rule. A null rule selects FIFO order using only the internal Queue. The work field is an empty, unallocated Set in FIFO mode; use dispatcher_count to obtain pending work in either mode. A custom rule receives a nonempty Set of opaque submission references and returns one member (not its storage address). It runs under the monitor and must not reenter the dispatcher or block on it. */
 inline RESULT dispatcher_create(DISPATCHER* dispatcher, THREAD* thread, POINTER (*rule)(const SET*), NUINT capacity) {
     return ::cattr_dispatcher_create(dispatcher, thread, rule, capacity);
 }

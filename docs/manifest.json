@@ -38,6 +38,11 @@
                     "alignment": "block"
                 },
                 {
+                    "title": "CATTRLIB",
+                    "path": "/api-reference/cattrlib",
+                    "alignment": "block"
+                },
+                {
                     "title": "CATOOLIB",
                     "path": "/api-reference/catoolib",
                     "alignment": "block"

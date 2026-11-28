@@ -545,7 +545,7 @@ template<class API> static void producer_entry(POINTERW arguments) {
 enum Kind {
     PROCESS_CAPTURE, PROCESS_EQUAL, THREAD_CAPTURE, THREAD_EQUAL, THREAD_LIFECYCLE,
     DISPATCHER_LIFECYCLE, COUNT_EMPTY, WAIT_EMPTY, POLL_EMPTY, INLINE_SUBMIT,
-    PENDING_TIMEOUT, FULL_ADMISSION, SYNC_ROUNDTRIP, BATCH_FIFO, PRIORITY_BATCH, CONTENTION, CLOSE_JOIN
+    PENDING_TIMEOUT, FULL_ADMISSION, SYNC_ROUNDTRIP, BATCH_FIFO, LOCAL_BATCH, PRIORITY_BATCH, CONTENTION, CLOSE_JOIN
 };
 
 struct Benchmark {
@@ -557,24 +557,27 @@ struct Benchmark {
 };
 
 static const Benchmark benchmarks[] = {
-    { "process current / free", PROCESS_CAPTURE, 1, 1, 262144UL },
-    { "process equals", PROCESS_EQUAL, 1, 1, 262144UL },
-    { "thread current / free", THREAD_CAPTURE, 1, 1, 262144UL },
-    { "thread equals", THREAD_EQUAL, 1, 1, 262144UL },
+    { "process current / free", PROCESS_CAPTURE, 1, 1, 8388608UL },
+    { "process equals", PROCESS_EQUAL, 1, 1, 8388608UL },
+    { "thread current / free", THREAD_CAPTURE, 1, 1, 8388608UL },
+    { "thread equals", THREAD_EQUAL, 1, 1, 8388608UL },
     { "thread create/start/wait/free", THREAD_LIFECYCLE, 1, 1, 1024UL },
-    { "dispatcher create/close/free (1)", DISPATCHER_LIFECYCLE, 1, 1, 32768UL },
-    { "dispatcher create/close/free (32)", DISPATCHER_LIFECYCLE, 32, 1, 32768UL },
-    { "dispatcher create/close/free (128)", DISPATCHER_LIFECYCLE, 128, 1, 8192UL },
-    { "dispatcher count (empty)", COUNT_EMPTY, 1, 1, 262144UL },
-    { "dispatcher wait (zero timeout)", WAIT_EMPTY, 1, 1, 262144UL },
-    { "dispatcher poll (empty)", POLL_EMPTY, 1, 1, 262144UL },
-    { "dispatcher submit/poll (same thread)", INLINE_SUBMIT, 1, 1, 262144UL },
-    { "dispatcher submit (pending timeout)", PENDING_TIMEOUT, 1, 1, 32768UL },
-    { "dispatcher submit (full, zero wait)", FULL_ADMISSION, 1, 1, 32768UL },
+    { "dispatcher create/close/free (1)", DISPATCHER_LIFECYCLE, 1, 1, 1048576UL },
+    { "dispatcher create/close/free (32)", DISPATCHER_LIFECYCLE, 32, 1, 1048576UL },
+    { "dispatcher create/close/free (128)", DISPATCHER_LIFECYCLE, 128, 1, 262144UL },
+    { "dispatcher count (empty)", COUNT_EMPTY, 1, 1, 8388608UL },
+    { "dispatcher wait (zero timeout)", WAIT_EMPTY, 1, 1, 8388608UL },
+    { "dispatcher poll (empty)", POLL_EMPTY, 1, 1, 8388608UL },
+    { "dispatcher submit/poll (same thread)", INLINE_SUBMIT, 1, 1, 8388608UL },
+    { "dispatcher submit (pending timeout)", PENDING_TIMEOUT, 1, 1, 1048576UL },
+    { "dispatcher submit (full, zero wait)", FULL_ADMISSION, 1, 1, 1048576UL },
     { "dispatcher synchronous round trip", SYNC_ROUNDTRIP, 1, 1, 4096UL },
     { "dispatcher FIFO batch (8)", BATCH_FIFO, 8, 8, 4096UL },
     { "dispatcher FIFO batch (32)", BATCH_FIFO, 32, 32, 4096UL },
     { "dispatcher FIFO batch (128)", BATCH_FIFO, 128, 128, 1024UL },
+    { "local FIFO batch (8)", LOCAL_BATCH, 8, 8, 32768UL },
+    { "local FIFO batch (32)", LOCAL_BATCH, 32, 32, 8192UL },
+    { "local FIFO batch (128)", LOCAL_BATCH, 128, 128, 2048UL },
     { "priority batch (32)", PRIORITY_BATCH, 32, 32, 4096UL },
     { "priority batch (128)", PRIORITY_BATCH, 128, 128, 1024UL },
     { "4 producers / capacity 2", CONTENTION, 2, 4, 4096UL },
@@ -595,13 +598,16 @@ template<class API> static double measure(const Benchmark* b, unsigned long call
 
     if (b->kind == PROCESS_CAPTURE || b->kind == PROCESS_EQUAL) {
         if (b->kind == PROCESS_EQUAL) expect(API::process_current(&other), STATUS_CODE_SUCCESS);
+        // Volatile function-pointer dispatch prevents IPO from hoisting or
+        // deleting the invariant equality operation in either implementation.
+        Flag (*volatile equal)(const Process*, const Process*) = &API::process_equals;
         start = now_seconds();
         for (unsigned long i = 0; i < calls; ++i) {
             if (b->kind == PROCESS_CAPTURE) {
                 expect(API::process_current(&other), STATUS_CODE_SUCCESS);
                 expect(API::process_free(&other), STATUS_CODE_SUCCESS);
             } else {
-                require(API::process_equals(&process, &other), "process equality");
+                require(equal(&process, &other), "process equality");
             }
         }
         end = now_seconds();
@@ -611,13 +617,14 @@ template<class API> static double measure(const Benchmark* b, unsigned long call
             expect(API::thread_current(&current, &process), STATUS_CODE_SUCCESS);
             expect(API::thread_current(&thread, &process), STATUS_CODE_SUCCESS);
         }
+        Flag (*volatile equal)(const Thread*, const Thread*) = &API::thread_equals;
         start = now_seconds();
         for (unsigned long i = 0; i < calls; ++i) {
             if (b->kind == THREAD_CAPTURE) {
                 expect(API::thread_current(&thread, &process), STATUS_CODE_SUCCESS);
                 expect(API::thread_free(&thread), STATUS_CODE_SUCCESS);
             } else if (b->kind == THREAD_EQUAL) {
-                require(API::thread_equals(&current, &thread), "thread equality");
+                require(equal(&current, &thread), "thread equality");
             } else {
                 expect(API::thread_create(&thread, &process, increment, &value), STATUS_CODE_SUCCESS);
                 expect(API::thread_start(&thread), STATUS_CODE_SUCCESS);
@@ -746,6 +753,12 @@ template<class API> static double measure(const Benchmark* b, unsigned long call
                     expect(API::dispatcher_submit(&dispatcher, increment, &value, FALSE, 0), STATUS_CODE_SUCCESS);
                     expect(API::dispatcher_poll(&dispatcher), STATUS_CODE_SUCCESS);
                     break;
+                case LOCAL_BATCH:
+                    for (NUINT j = 0; j < b->operations; ++j)
+                        expect(API::dispatcher_submit(&dispatcher, increment, &value, FALSE, 0), STATUS_CODE_SUCCESS);
+                    for (NUINT j = 0; j < b->operations; ++j)
+                        expect(API::dispatcher_poll(&dispatcher), STATUS_CODE_SUCCESS);
+                    break;
                 case PENDING_TIMEOUT:
                     expect(API::dispatcher_submit(&dispatcher, increment, &value, TRUE, 0), STATUS_CODE_ERROR_TIMEOUT);
                     break;
@@ -778,7 +791,7 @@ template<class API> static double measure(const Benchmark* b, unsigned long call
             expect(API::dispatcher_free(&dispatcher), STATUS_CODE_SUCCESS);
         }
         expect(API::thread_free(&thread), STATUS_CODE_SUCCESS);
-        if (remote || b->kind == INLINE_SUBMIT) {
+        if (remote || b->kind == INLINE_SUBMIT || b->kind == LOCAL_BATCH) {
             require(count_matches(&value, calls * (unsigned long) b->operations), "dispatcher callback output");
         } else {
             require(count_matches(&value, 0), "cancelled or absent callback");
@@ -813,7 +826,9 @@ int main() {
     std::printf("Native caller-owned handles and fixed FIFO storage; Catalyst owns its bookkeeping.\n");
     std::printf("Cross-thread rows include scheduling and completion; batch rows divide by completed invocations.\n");
     std::printf("Four-producer rows include producer startup/join and mixed async/awaited work.\n");
+    std::printf("Local FIFO rows isolate enqueue/drain bookkeeping without cross-thread scheduling.\n");
     std::printf("Priority rows measure enqueue and selection/drain on one thread, checking descending priority.\n");
+    std::printf("Equality rows include an identical indirect call to prevent invariant-call elimination.\n");
     std::printf("Lifecycle rows report the named group, not individual calls. Close/join includes clock overhead.\n");
     std::printf("Zero-timeout rows measure nonblocking outcomes, not timer accuracy.\n");
     std::printf("Relative difference includes algorithm and ownership costs, not Result reporting alone.\n\n");

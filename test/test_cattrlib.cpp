@@ -132,6 +132,8 @@ static BOOL test_order(int* failed, PROCESS* process, POINTER (*rule)(const SET*
         return TRUE;
     }
 
+    check(failed, rule == 0 ? (dispatcher.work.data == 0 && dispatcher.work.capacity == 0) :
+        (dispatcher.work.data != 0 && dispatcher.work.capacity == 3), "allocate only the selected pending representation");
     check(failed, matches(cattr_dispatcher_submit(&dispatcher, (POINTERX) append_value, &items[0], FALSE, 0),
         STATUS_CODE_SUCCESS, 0x0B, 0x05), "enqueue first value");
     check(failed, matches(dispatcher_submit(&dispatcher, (POINTERX) append_value, &items[1], TRUE, 0),
@@ -142,6 +144,8 @@ static BOOL test_order(int* failed, PROCESS* process, POINTER (*rule)(const SET*
     check(failed, matches(dispatcher_submit(&dispatcher, (POINTERX) append_value, &items[2], FALSE, 0),
         STATUS_CODE_SUCCESS, 0x0B, 0x05), "enqueue third value");
     check(failed, cattr_dispatcher_count(&dispatcher) == 3, "dispatcher at capacity");
+    check(failed, rule == 0 ? dispatcher.work.cardinality == 0 : dispatcher.work.cardinality == 3,
+        "pending Set populated only for custom rules");
     check(failed, matches(dispatcher_submit(&dispatcher, (POINTERX) append_value, &items[0], FALSE, 0),
         STATUS_CODE_ERROR_TIMEOUT, 0x0B, 0x03), "full dispatcher rejects nonblocking admission");
     check(failed, matches(dispatcher_submit(&dispatcher, (POINTERX) append_value, &items[0], TRUE, 10),
@@ -179,7 +183,7 @@ static void cancel_worker(POINTERW arguments) {
     }
 }
 
-static BOOL test_cancel(int* failed, PROCESS* process) {
+static BOOL test_cancel(int* failed, PROCESS* process, POINTER (*rule)(const SET*)) {
     std::printf("\nAwaited cancellation\n");
     THREAD thread;
     DISPATCHER dispatcher;
@@ -193,7 +197,7 @@ static BOOL test_cancel(int* failed, PROCESS* process) {
         thread_free(&thread);
         return TRUE;
     }
-    result = dispatcher_create(&dispatcher, &thread, 0, 1);
+    result = dispatcher_create(&dispatcher, &thread, rule, 1);
     if (!check(failed, matches(result, STATUS_CODE_SUCCESS, 0x0A, 0x07), "create cancellation dispatcher")) {
         dispatcher_free(&dispatcher);
         thread_free(&thread);
@@ -267,7 +271,11 @@ static BOOL test_wrapped_cancel(int* failed, PROCESS* process) {
     check(failed, status_code_is_success(dispatcher_poll(&dispatcher).status), "poll retained second member");
     check(failed, status_code_is_success(dispatcher_poll(&dispatcher).status), "poll retained third member");
     check(failed, state.length == 3 && state.values[0] == 1 && state.values[1] == 2 && state.values[2] == 3, "wrapped cancellation preserves FIFO order");
+    for (BYTE i = 0; i < (BYTE) 3; ++i) {
+        check(failed, status_code_is_success(dispatcher_submit(&dispatcher, (POINTERX) append_value, &items[i], FALSE, 0).status), "refill FIFO before close");
+    }
     check(failed, status_code_is_success(dispatcher_close(&dispatcher).status), "close wrapped FIFO");
+    check(failed, dispatcher_count(&dispatcher) == 0 && state.length == 3, "close cancels all pending FIFO callbacks without executing them");
     check(failed, status_code_is_success(dispatcher_free(&dispatcher).status), "free wrapped FIFO");
     check(failed, status_code_is_success(thread_free(&current).status), "free wrapped FIFO thread");
     return TRUE;
@@ -344,6 +352,32 @@ static BOOL test_contention(int* failed, PROCESS* process, NUINT capacity) {
     }
     check(failed, status_code_is_success(dispatcher_free(&dispatcher).status), "free contended dispatcher");
     check(failed, status_code_is_success(thread_free(&execution).status), "free contended worker");
+    return TRUE;
+}
+
+static POINTER reject_selection(const SET* work) {
+    (void) work;
+    return 0;
+}
+
+static BOOL test_invalid_rule(int* failed, PROCESS* process) {
+    std::printf("\nInvalid custom selection\n");
+    THREAD current;
+    if (!check(failed, status_code_is_success(thread_current(&current, process).status), "capture rule thread")) {
+        thread_free(&current);
+        return TRUE;
+    }
+    DISPATCHER dispatcher;
+    if (check(failed, status_code_is_success(dispatcher_create(&dispatcher, &current, reject_selection, 2).status), "create invalid rule dispatcher")) {
+        TEST_STATE state;
+        state.executed = 0;
+        check(failed, status_code_is_success(dispatcher_submit(&dispatcher, (POINTERX) increment, &state, FALSE, 0).status), "submit work to custom rule");
+        check(failed, matches(dispatcher_poll(&dispatcher), STATUS_CODE_ERROR_INVALID_STATE, 0x0E, 0x05), "reject nonmember rule result");
+        check(failed, dispatcher_count(&dispatcher) == 1 && state.executed == 0, "rejected rule preserves pending work");
+        check(failed, status_code_is_success(dispatcher_close(&dispatcher).status) && state.executed == 0, "close cancels unselected work");
+    }
+    check(failed, status_code_is_success(dispatcher_free(&dispatcher).status), "free invalid rule dispatcher");
+    check(failed, status_code_is_success(thread_free(&current).status), "free rule thread");
     return TRUE;
 }
 
@@ -467,7 +501,9 @@ int main() {
 
     if (!test_order(&failed, &process, 0)) return 1;
     if (!test_order(&failed, &process, select_last)) return 1;
-    if (!test_cancel(&failed, &process)) return 1;
+    if (!test_cancel(&failed, &process, 0)) return 1;
+    if (!test_cancel(&failed, &process, reject_selection)) return 1;
+    if (!test_invalid_rule(&failed, &process)) return 1;
     if (!test_wrapped_cancel(&failed, &process)) return 1;
     if (!test_contention(&failed, &process, 2)) return 1;
     if (!test_contention(&failed, &process, 32)) return 1;
