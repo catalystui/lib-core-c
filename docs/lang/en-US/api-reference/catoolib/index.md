@@ -42,7 +42,7 @@ Interfaces require a subset of the object's keys and validate each corresponding
 | [`catoo_member_free`](#catoo_member_free) | Release owned bytes, not referenced objects. Success empties the member; failure retains ownership. Empty members are a no-op. |
 | [`catoo_object_init`](#catoo_object_init) | Initialize unused object storage without allocation; ksize is the nonzero byte width of every key. |
 | [`catoo_object_add`](#catoo_object_add) | Copy a distinct key and nonzero size readable payload bytes into an initialized object. Duplicate keys are no-ops; exhausted capacity is an error. Key must be outside the map and its allocations. Failure retains existing members. |
-| [`catoo_object_remove`](#catoo_object_remove) | Remove a keyed member and release its payload. Absent keys are no-ops; release failure retains the member. The readable key must remain live through removal, including after payload release. |
+| [`catoo_object_remove`](#catoo_object_remove) | Remove a keyed member and release its payload. Absent keys are no-ops; release failure retains the member. The key must be readable during lookup; it need not outlive the removed payload. |
 | [`catoo_object_contains`](#catoo_object_contains) | Test a readable ksize-byte key against an initialized object. |
 | [`catoo_object_get`](#catoo_object_get) | Borrow the member associated with a readable key, or return null if absent. Do not free it separately; reacquire after removal, clear, resize or free attempts. |
 | [`catoo_object_expand`](#catoo_object_expand) | Expand the initialized member map to the requested capacity; smaller/equal requests are no-ops. Failure retains members and logical capacity; key aliases may be invalidated. |
@@ -162,7 +162,7 @@ Copy a distinct key and nonzero size readable payload bytes into an initialized 
 CATALYST_RESULT catoo_object_remove(CATOOLIB_OBJECT* object, CATMMLIB_POINTER key);
 ```
 
-Remove a keyed member and release its payload. Absent keys are no-ops; release failure retains the member. The readable key must remain live through removal, including after payload release.
+Remove a keyed member and release its payload. Absent keys are no-ops; release failure retains the member. The key must be readable during lookup; it need not outlive the removed payload.
 
 **C++:** `object_remove`  
 **Context:** `0x07`  

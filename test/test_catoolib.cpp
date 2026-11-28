@@ -359,6 +359,20 @@ static int test_interface_layouts() {
     return 0;
 }
 
+static int test_remove_payload_key() {
+    OBJECT object;
+    object_init(&object, 1);
+    BYTE key = 7;
+    CHECK(status_code_is_success(object_expand(&object, 1).status));
+    CHECK(status_code_is_success(object_add(&object, &key, &key, 1).status));
+    MEMBER* member = object_get(&object, &key);
+    CHECK(member != 0);
+    CHECK(matches(object_remove(&object, member->data), STATUS_CODE_SUCCESS, 7, 3));
+    CHECK(!object_contains(&object, &key));
+    CHECK(status_code_is_success(object_free(&object).status));
+    return 0;
+}
+
 int main() {
     BYTE value = 17, changed = 42, output = 0;
     MEMBER member;
@@ -476,6 +490,8 @@ int main() {
     std::printf("PASS: allocation extent failure and independent clones\n");
     CHECK(test_interface_layouts() == 0);
     std::printf("PASS: ordered, reordered and incomplete interfaces\n");
+    CHECK(test_remove_payload_key() == 0);
+    std::printf("PASS: removal with payload-backed lookup key\n");
     std::printf("PASS: CATOOLIB composites\n");
     return 0;
 }

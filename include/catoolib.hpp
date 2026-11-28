@@ -56,7 +56,7 @@ inline RESULT object_add(OBJECT* object, POINTER key, POINTER data, NUINT size) 
     return ::catoo_object_add(object, key, data, size);
 }
 
-/** Remove a keyed member and release its payload. Absent keys are no-ops; release failure retains the member. The readable key must remain live through removal, including after payload release. */
+/** Remove a keyed member and release its payload. Absent keys are no-ops; release failure retains the member. The key must be readable during lookup; it need not outlive the removed payload. */
 inline RESULT object_remove(OBJECT* object, POINTER key) {
     return ::catoo_object_remove(object, key);
 }

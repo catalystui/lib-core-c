@@ -109,7 +109,7 @@ CATOOLIB_API void catoo_object_init(CATOOLIB_OBJECT* object, CATALYST_NUINT ksiz
 /** Copy a distinct key and nonzero size readable payload bytes into an initialized object. Duplicate keys are no-ops; exhausted capacity is an error. Key must be outside the map and its allocations. Failure retains existing members. */
 CATOOLIB_API CATALYST_RESULT catoo_object_add(CATOOLIB_OBJECT* object, CATMMLIB_POINTER key, CATMMLIB_POINTER data, CATALYST_NUINT size);
 
-/** Remove a keyed member and release its payload. Absent keys are no-ops; release failure retains the member. The readable key must remain live through removal, including after payload release. */
+/** Remove a keyed member and release its payload. Absent keys are no-ops; release failure retains the member. The key must be readable during lookup; it need not outlive the removed payload. */
 CATOOLIB_API CATALYST_RESULT catoo_object_remove(CATOOLIB_OBJECT* object, CATMMLIB_POINTER key);
 
 /** Test a readable ksize-byte key against an initialized object. */
