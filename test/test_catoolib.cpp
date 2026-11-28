@@ -318,6 +318,47 @@ static int test_allocation_extent_and_clone() {
     return 0;
 }
 
+static BYTE validation_count = 0;
+static CATALYST_RESULT validate_order(const MEMBER* member, const MEMBER* requirement, BOOL* valid) {
+    BYTE actual = 0, expected = 0;
+    member_get(member, &actual);
+    member_get(requirement, &expected);
+    ++validation_count;
+    *valid = actual == expected && expected == validation_count ? TRUE : FALSE;
+    return RESULT(STATUS_CODE_SUCCESS, 0xA5, 1, 0);
+}
+
+static int test_interface_layouts() {
+    OBJECT required, candidate;
+    object_init(&required, 2);
+    object_init(&candidate, 2);
+    const BYTE keys[][2] = { { 0, 1 }, { 0, 2 }, { 0, 3 }, { 0, 4 } };
+    const BYTE values[] = { 1, 2, 3, 4 };
+    CHECK(status_code_is_success(object_expand(&required, 3).status));
+    CHECK(status_code_is_success(object_expand(&candidate, 4).status));
+    for (BYTE i = 0; i < 3; ++i) {
+        CHECK(status_code_is_success(object_add(&required, keys[i], &values[i], 1).status));
+        CHECK(status_code_is_success(object_add(&candidate, keys[i], &values[i], 1).status));
+    }
+    INTERFACE interface_;
+    CHECK(status_code_is_success(interface_init(&interface_, &required, validate_order).status));
+    BOOL valid = FALSE;
+    validation_count = 0;
+    CHECK(matches(interface_validate(&interface_, &candidate, &valid), STATUS_CODE_SUCCESS, 0x1C, 8) && valid && validation_count == 3);
+    CHECK(status_code_is_success(object_remove(&candidate, keys[0]).status));
+    CHECK(status_code_is_success(object_add(&candidate, keys[3], &values[3], 1).status));
+    CHECK(status_code_is_success(object_add(&candidate, keys[0], &values[0], 1).status));
+    validation_count = 0;
+    CHECK(matches(interface_validate(&interface_, &candidate, &valid), STATUS_CODE_SUCCESS, 0x1C, 8) && valid && validation_count == 3);
+    CHECK(status_code_is_success(object_remove(&candidate, keys[2]).status));
+    validation_count = 0;
+    CHECK(matches(interface_validate(&interface_, &candidate, &valid), STATUS_CODE_SUCCESS, 0x1C, 2) && !valid && validation_count == 2);
+    CHECK(status_code_is_success(interface_free(&interface_).status));
+    CHECK(status_code_is_success(object_free(&candidate).status));
+    CHECK(status_code_is_success(object_free(&required).status));
+    return 0;
+}
+
 int main() {
     BYTE value = 17, changed = 42, output = 0;
     MEMBER member;
@@ -433,6 +474,8 @@ int main() {
     std::printf("PASS: class extension boundaries and empty composites\n");
     CHECK(test_allocation_extent_and_clone() == 0);
     std::printf("PASS: allocation extent failure and independent clones\n");
+    CHECK(test_interface_layouts() == 0);
+    std::printf("PASS: ordered, reordered and incomplete interfaces\n");
     std::printf("PASS: CATOOLIB composites\n");
     return 0;
 }

@@ -271,9 +271,18 @@ CATALYST_RESULT catoo_interface_validate(const INTERFACE* interface_, const OBJE
     }
     const BYTE* key = (const BYTE*) requirements->keys;
     const MEMBER* requirement = (const MEMBER*) requirements->values;
+    const MAP* candidate = &object->members;
     for (NUINT i = 0; i < requirements->cardinality; ++i) {
-        const MAP* candidate = &object->members;
-        NUINT index = catrl_find(candidate->keys, candidate->cardinality, candidate->ksize, key);
+        /* Matching layouts resolve in order. A different layout falls back
+         * to the ordinary search without changing callback order. */
+        NUINT index = candidate->cardinality;
+        if (i < candidate->cardinality) {
+            const BYTE* at = (const BYTE*) candidate->keys + (NUINT) (i * candidate->ksize);
+            if (at[0] == key[0] && (candidate->ksize == (NUINT) 1 ||
+                catmm_compare(at + 1, key + 1, (NUINT) (candidate->ksize - (NUINT) 1)) == 0)) index = i;
+        }
+        if (index == candidate->cardinality)
+            index = catrl_find(candidate->keys, candidate->cardinality, candidate->ksize, key);
         if (index == candidate->cardinality) {
             *valid = FALSE;
             return RESULT(STATUS_CODE_SUCCESS, 0x1C, 0x02, 0);
