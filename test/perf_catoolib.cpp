@@ -787,6 +787,16 @@ static void wide_key(BYTE* key, NUINT width, BYTE id) {
     key[width - (NUINT) 1] = id;
 }
 
+static NativeMember* native_wide_get(const unsigned char* keys, NativeMember* members,
+                                     size_t n, size_t width, const BYTE* key) {
+    for (size_t index = 0; index < n; ++index) {
+        const unsigned char* candidate = keys + index * width;
+        if (candidate[0] == key[0] && ::memcmp(candidate + 1, key + 1, width - 1) == 0)
+            return &members[index];
+    }
+    return 0;
+}
+
 static Measurement measure_wide_native(WideLookup& t, unsigned long calls, unsigned long* ticks, BOOL verify) {
     const size_t n = t.n, width = t.width;
     unsigned char* keys = (unsigned char*) ::calloc(n, width);
@@ -801,14 +811,10 @@ static Measurement measure_wide_native(WideLookup& t, unsigned long calls, unsig
     BYTE key[16];
     const BYTE id = t.hit ? (BYTE) (t.n - (NUINT) 1) : (BYTE) t.n;
     wide_key(key, t.width, id);
+    NativeMember* (*volatile lookup)(const unsigned char*, NativeMember*, size_t, size_t, const BYTE*) = native_wide_get;
     const std::clock_t start = std::clock();
     for (unsigned long i = 0; ok && i < calls; ++i) {
-        size_t index = 0;
-        for (; index < n; ++index) {
-            const unsigned char* candidate = keys + index * width;
-            if (candidate[0] == key[0] && ::memcmp(candidate + 1, key + 1, width - 1) == 0) break;
-        }
-        NativeMember* found = index == n ? 0 : &members[index];
+        NativeMember* found = lookup(keys, members, n, width, key);
         observed = found ? ((const volatile BYTE*) found->data)[0] : 0;
         ok = t.hit ? (found && observed == (BYTE) (id ^ 0x5A) ? TRUE : FALSE)
                    : (found == 0 ? TRUE : FALSE);
@@ -836,9 +842,10 @@ static Measurement measure_wide_catalyst(WideLookup& t, unsigned long calls, uns
     }
     const BYTE id = t.hit ? (BYTE) (t.n - (NUINT) 1) : (BYTE) t.n;
     wide_key(key, t.width, id);
+    MEMBER* (*volatile lookup)(OBJECT*, POINTER) = object_get;
     const std::clock_t start = std::clock();
     for (unsigned long i = 0; ok && i < calls; ++i) {
-        MEMBER* found = object_get(&object, key);
+        MEMBER* found = lookup(&object, key);
         observed = found ? ((const volatile BYTE*) found->data)[0] : 0;
         ok = t.hit ? (found && observed == (BYTE) (id ^ 0x5A) ? TRUE : FALSE)
                    : (found == 0 ? TRUE : FALSE);
@@ -878,6 +885,95 @@ static void benchmark_wide_keys(Summary& summary) {
                              (unsigned long) widths[w], hit ? "last" : "miss");
                 benchmark_case(label, native, comparison, measure_wide_native, measure_wide_catalyst, 67108864UL, summary);
             }
+        }
+    }
+}
+
+// Isolate creation from destruction by timing bounded batches. Instances
+// remain live until the clock is sampled, then their payloads are checked
+// and released outside the measured interval.
+template<typename API>
+static Measurement measure_class_create(Trial<API>& t, unsigned long calls, unsigned long* ticks, BOOL verify) {
+    enum {
+#if TARGET_SIZEOF_VOID_P >= 2
+        BATCH = 8
+#else
+        BATCH = 2
+#endif
+    };
+    BOOL ok = setup<API>(&t);
+    BOOL clockOk = TRUE;
+    unsigned long total = 0;
+    while (ok && clockOk && calls != 0) {
+        typename API::Object instances[BATCH];
+        BYTE count = calls < (unsigned long) BATCH ? (BYTE) calls : (BYTE) BATCH;
+        BYTE live = 0;
+        const std::clock_t start = std::clock();
+        for (; live < count; ++live) {
+            if (!API::class_create(&t.class_, &instances[live])) {
+                // A failed clone still owns any unreleased partial copy.
+                ++live;
+                ok = FALSE;
+                break;
+            }
+        }
+        unsigned long interval = 0;
+        if (!elapsed(start, &interval) || interval > ULONG_MAX - total) clockOk = FALSE;
+        else total += interval;
+        for (BYTE i = 0; i < live; ++i) {
+            if (ok) {
+                if (!observe_object<API>(&instances[i], t.n, t.width)) ok = FALSE;
+                if (verify && ok) {
+                    BYTE expected[32], actual[32];
+                    for (NUINT j = 0; j < t.n; ++j) {
+                        typename API::Member* member = API::get(&instances[i], (BYTE) j);
+                        if (!member || member->size != t.width) { ok = FALSE; break; }
+                        payload(expected, t.width, (BYTE) j);
+                        API::member_get(member, actual);
+                        for (NUINT k = 0; k < t.width; ++k)
+                            if (expected[k] != actual[k]) { ok = FALSE; break; }
+                        if (!ok) break;
+                    }
+                }
+            }
+            if (!API::release(&instances[i])) ok = FALSE;
+        }
+        calls -= count;
+    }
+    *ticks = total;
+    if (!cleanup<API>(&t)) ok = FALSE;
+    if (!ok) return MEASURE_FAIL;
+    return clockOk ? MEASURE_OK : MEASURE_CLOCK;
+}
+
+static void benchmark_class_create(Summary& summary) {
+    const NUINT counts[] = {
+        2,
+#if TARGET_SIZEOF_VOID_P >= 2
+        16, 64
+#endif
+    };
+    const NUINT widths[] = {
+        1,
+#if TARGET_SIZEOF_VOID_P >= 2
+        8, 32
+#endif
+    };
+    std::printf("\nClass: create only (bounded batches; destruction untimed)\n");
+    for (BYTE i = 0; i < (BYTE) (sizeof(counts) / sizeof(counts[0])); ++i) {
+        for (BYTE w = 0; w < (BYTE) (sizeof(widths) / sizeof(widths[0])); ++w) {
+            const NUINT n = counts[i], width = widths[w];
+            if (n > (NUINT) (CATALYST_NUINT_MAX / (NUINT) sizeof(MEMBER)) ||
+                n > (NUINT) (CATALYST_NUINT_MAX / width)) continue;
+            Trial<NativeAPI> native;
+            Trial<CatalystAPI> comparison;
+            native.kind = comparison.kind = CLASS_INSTANCE;
+            native.n = comparison.n = n;
+            native.width = comparison.width = width;
+            char label[48];
+            std::sprintf(label, "%lu members x %lu B", (unsigned long) n, (unsigned long) width);
+            benchmark_case(label, native, comparison, measure_class_create<NativeAPI>,
+                           measure_class_create<CatalystAPI>, 67108864UL, summary);
         }
     }
 }
@@ -949,6 +1045,7 @@ int main() {
     std::printf("Median of 3 paired samples; %lu clock ticks/second.\n", (unsigned long) CLOCKS_PER_SEC);
     std::printf("Times are per named operation or cycle, including listed observation and restoration.\n");
     std::printf("Fixtures and full final verification are untimed; both paths consume outcomes.\n");
+    std::printf("Create-only batches include clock overhead but exclude verification and destruction.\n");
     std::printf("Both paths use established distinctness for cloning and release from the end.\n");
     std::printf("Baseline uses native C allocation and Boolean outcomes; CATOOLIB uses its managed heap and Results.\n");
     std::printf("Comparable = within 5%%; Review = at least 20%% slower. Decimal places are estimates.\n");
@@ -957,6 +1054,7 @@ int main() {
     Summary summary = { 0, 0, 0, 0, 0, 0, 0 };
     benchmark_all(summary);
     benchmark_wide_keys(summary);
+    benchmark_class_create(summary);
     std::printf("\nPerformance summary\n");
     std::printf("  Faster (>5%%):                  %3lu\n", summary.faster);
     std::printf("  Comparable (within 5%%):        %3lu\n", summary.similar);
