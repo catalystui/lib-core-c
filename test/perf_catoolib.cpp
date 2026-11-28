@@ -438,7 +438,9 @@ enum Kind {
     OBJECT_CLEAR_REFILL, FIELD_RESOLVE, FIELD_COPY, METHOD_CALL, PROPERTY_ACCESS,
     STRUCTURE_LIFECYCLE, CLASS_LIFECYCLE, CLASS_INSTANCE, CLASS_EXTENSION,
     INTERFACE_LIFECYCLE, INTERFACE_HIT, INTERFACE_MISS,
-    INTERFACE_REORDERED, INTERFACE_PARTIAL_MISS, METHOD_DISPATCH, CLASS_MIXED, MEMBER_RESIZE
+    INTERFACE_REORDERED, INTERFACE_PARTIAL_MISS, METHOD_DISPATCH, CLASS_MIXED, MEMBER_RESIZE,
+    OBJECT_CONTAINS_FIRST, OBJECT_CONTAINS_LAST, OBJECT_CONTAINS_MISS,
+    OBJECT_GET_FIRST, OBJECT_GET_LAST, OBJECT_GET_MISS
 };
 
 enum {
@@ -637,6 +639,18 @@ static BOOL cycle(Trial<API>* t) {
             return observe_member<API>(API::get(&t->object, t->key), t->width, a, b);
         case OBJECT_LOOKUP_MISS:
             return !API::contains(&t->object, t->miss) && API::get(&t->object, t->miss) == 0 ? TRUE : FALSE;
+        case OBJECT_CONTAINS_FIRST:
+            return API::contains(&t->object, 0);
+        case OBJECT_CONTAINS_LAST:
+            return API::contains(&t->object, t->key);
+        case OBJECT_CONTAINS_MISS:
+            return !API::contains(&t->object, t->miss) ? TRUE : FALSE;
+        case OBJECT_GET_FIRST:
+            return observe_member<API>(API::get(&t->object, 0), t->width, 0x5A, (BYTE) (0x5A ^ end));
+        case OBJECT_GET_LAST:
+            return observe_member<API>(API::get(&t->object, t->key), t->width, a, b);
+        case OBJECT_GET_MISS:
+            return API::get(&t->object, t->miss) == 0 ? TRUE : FALSE;
         case OBJECT_CLEAR_REFILL:
             return API::clear(&t->object) && API::count(&t->object) == 0 &&
                    fill<API>(&t->object, t->n, t->width) ? TRUE : FALSE;
@@ -999,15 +1013,8 @@ static void benchmark_wide_keys(Summary& summary) {
 // Isolate creation from destruction by timing bounded batches. Instances
 // remain live until the clock is sampled, then their payloads are checked
 // and released outside the measured interval.
-template<typename API>
+template<typename API, BYTE BATCH>
 static Measurement measure_class_create(Trial<API>& t, unsigned long calls, unsigned long* ticks, BOOL verify) {
-    enum {
-#if TARGET_SIZEOF_VOID_P >= 2
-        BATCH = 8
-#else
-        BATCH = 2
-#endif
-    };
     BOOL ok = setup<API>(&t);
     BOOL clockOk = TRUE;
     unsigned long total = 0;
@@ -1054,6 +1061,11 @@ static Measurement measure_class_create(Trial<API>& t, unsigned long calls, unsi
 }
 
 static void benchmark_class_create(Summary& summary) {
+#if TARGET_SIZEOF_VOID_P >= 2
+    const BYTE batch = 8;
+#else
+    const BYTE batch = 2;
+#endif
     const NUINT counts[] = {
         2,
 #if TARGET_SIZEOF_VOID_P >= 2
@@ -1079,11 +1091,41 @@ static void benchmark_class_create(Summary& summary) {
             native.width = comparison.width = width;
             char label[48];
             std::sprintf(label, "%lu members x %lu B", (unsigned long) n, (unsigned long) width);
-            benchmark_case(label, native, comparison, measure_class_create<NativeAPI>,
-                           measure_class_create<CatalystAPI>, 67108864UL, summary);
+            benchmark_case(label, native, comparison, measure_class_create<NativeAPI, batch>,
+                           measure_class_create<CatalystAPI, batch>, 67108864UL, summary);
         }
     }
 }
+
+#if TARGET_SIZEOF_ADDRESS >= 4
+template<BYTE BATCH>
+static void benchmark_class_batch(Summary& summary, NUINT n, NUINT width) {
+    Trial<NativeAPI> native;
+    Trial<CatalystAPI> comparison;
+    native.kind = comparison.kind = CLASS_INSTANCE;
+    native.n = comparison.n = n;
+    native.width = comparison.width = width;
+    char label[64];
+    std::sprintf(label, "%lu x %lu B, %lu live", (unsigned long) n,
+        (unsigned long) width, (unsigned long) BATCH);
+    benchmark_case(label, native, comparison, measure_class_create<NativeAPI, BATCH>,
+        measure_class_create<CatalystAPI, BATCH>, 67108864UL, summary);
+}
+
+static void benchmark_class_pressure(Summary& summary) {
+    std::printf("\nClass: create only (vary simultaneous live instances)\n");
+    // Same class layout and payload class; only batch occupancy changes.
+    const NUINT widths[] = { 1, 32 };
+    for (BYTE i = 0; i < (BYTE) (sizeof(widths) / sizeof(widths[0])); ++i) {
+        benchmark_class_batch<1>(summary, 64, widths[i]);
+        benchmark_class_batch<2>(summary, 64, widths[i]);
+        benchmark_class_batch<4>(summary, 64, widths[i]);
+        benchmark_class_batch<8>(summary, 64, widths[i]);
+        benchmark_class_batch<16>(summary, 64, widths[i]);
+        benchmark_class_batch<32>(summary, 64, widths[i]);
+    }
+}
+#endif
 
 // Compare a sequence of extensions with exact growth and with an explicit
 // reservation. Both paths include the reservation in the timed lifecycle.
@@ -1167,7 +1209,9 @@ static void benchmark_all(Summary& summary) {
         "Class: create + inspect + free", "Class: init + extend + inspect + free",
         "Interface: init + validate + free", "Interface: validate (matching order)", "Interface: validate (miss)",
         "Interface: validate (reordered)", "Interface: validate (late miss)",
-        "Method: dispatch without lookup", "Class: create + free (mixed payload sizes)", "Member: grow + shrink"
+        "Method: dispatch without lookup", "Class: create + free (mixed payload sizes)", "Member: grow + shrink",
+        "Object: contains only (first)", "Object: contains only (last)", "Object: contains only (miss)",
+        "Object: get only (first)", "Object: get only (last)", "Object: get only (miss)"
     };
     const NUINT counts[] = {
         2,
@@ -1190,6 +1234,7 @@ static void benchmark_all(Summary& summary) {
                 if ((k == METHOD_CALL || k == METHOD_DISPATCH || k == PROPERTY_ACCESS || k == INTERFACE_HIT ||
                      k == INTERFACE_MISS || k == INTERFACE_REORDERED || k == INTERFACE_PARTIAL_MISS) && w != 0) continue;
                 if (k == CLASS_MIXED && w == 0) continue;
+                if (k >= OBJECT_CONTAINS_FIRST && w != 0) continue;
                 if (widths[w] > (NUINT) 32 && k != MEMBER_LIFECYCLE && k != MEMBER_COPY &&
                     k != OBJECT_ADD_REMOVE && k != CLASS_INSTANCE && k != CLASS_MIXED && k != MEMBER_RESIZE) continue;
                 NUINT n = counts[i], width = widths[w];
@@ -1243,6 +1288,9 @@ int main() {
     benchmark_all(summary);
     benchmark_wide_keys(summary);
     benchmark_class_create(summary);
+#if TARGET_SIZEOF_ADDRESS >= 4
+    benchmark_class_pressure(summary);
+#endif
     benchmark_repeated_extension(summary);
     std::printf("\nPerformance summary\n");
     std::printf("  Faster (>5%%):                  %3lu\n", summary.faster);
