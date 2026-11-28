@@ -213,6 +213,140 @@ static BOOL test_cancel(int* failed, PROCESS* process) {
     return TRUE;
 }
 
+/* A separate submitting thread attempts synchronous zero-timeout work
+ * while the associated thread deliberately does not poll. */
+struct WRAP_CANCEL {
+    DISPATCHER* dispatcher;
+    ORDER_ARGUMENT* argument;
+    RESULT outcome;
+};
+
+static void cancel_wrapped(POINTERW arguments) {
+    WRAP_CANCEL* state = (WRAP_CANCEL*) arguments;
+    state->outcome = dispatcher_submit(state->dispatcher, (POINTERX) append_value, state->argument, TRUE, 0);
+}
+
+static BOOL test_wrapped_cancel(int* failed, PROCESS* process) {
+    std::printf("\nWrapped FIFO cancellation\n");
+    THREAD current;
+    if (!check(failed, status_code_is_success(thread_current(&current, process).status), "capture wrapped FIFO thread")) {
+        thread_free(&current);
+        return TRUE;
+    }
+    DISPATCHER dispatcher;
+    if (!check(failed, status_code_is_success(dispatcher_create(&dispatcher, &current, 0, 3).status), "create wrapped FIFO")) {
+        dispatcher_free(&dispatcher);
+        thread_free(&current);
+        return TRUE;
+    }
+    ORDER_STATE state;
+    state.dispatcher = &dispatcher;
+    state.length = 0;
+    ORDER_ARGUMENT items[3];
+    for (BYTE i = 0; i < (BYTE) 3; ++i) {
+        items[i].state = &state;
+        items[i].value = (BYTE) (i + (BYTE) 1);
+    }
+    for (BYTE i = 0; i < (BYTE) 2; ++i) {
+        check(failed, status_code_is_success(dispatcher_submit(&dispatcher, (POINTERX) append_value, &items[i], FALSE, 0).status), "fill FIFO");
+    }
+    check(failed, status_code_is_success(dispatcher_poll(&dispatcher).status), "advance FIFO head");
+    check(failed, status_code_is_success(dispatcher_submit(&dispatcher, (POINTERX) append_value, &items[2], FALSE, 0).status), "enqueue behind advanced head");
+    WRAP_CANCEL cancellation;
+    cancellation.dispatcher = &dispatcher;
+    cancellation.argument = &items[0];
+    THREAD submitter;
+    RESULT created = thread_create(&submitter, process, (POINTERX) cancel_wrapped, &cancellation);
+    if (check(failed, status_code_is_success(created.status), "create wrapped canceller") &&
+        check(failed, status_code_is_success(thread_start(&submitter).status), "start wrapped canceller")) {
+        if (!check(failed, status_code_is_success(thread_wait(&submitter).status), "join wrapped canceller")) return FALSE;
+        check(failed, matches(cancellation.outcome, STATUS_CODE_ERROR_TIMEOUT, 0x0B, 0x06), "cancel wrapped tail");
+    }
+    check(failed, status_code_is_success(thread_free(&submitter).status), "free wrapped canceller");
+    check(failed, dispatcher_count(&dispatcher) == 2, "retain two pending members");
+    check(failed, status_code_is_success(dispatcher_poll(&dispatcher).status), "poll retained second member");
+    check(failed, status_code_is_success(dispatcher_poll(&dispatcher).status), "poll retained third member");
+    check(failed, state.length == 3 && state.values[0] == 1 && state.values[1] == 2 && state.values[2] == 3, "wrapped cancellation preserves FIFO order");
+    check(failed, status_code_is_success(dispatcher_close(&dispatcher).status), "close wrapped FIFO");
+    check(failed, status_code_is_success(dispatcher_free(&dispatcher).status), "free wrapped FIFO");
+    check(failed, status_code_is_success(thread_free(&current).status), "free wrapped FIFO thread");
+    return TRUE;
+}
+
+struct PRODUCER {
+    DISPATCHER* dispatcher;
+    BYTE count;
+    RESULT outcome;
+};
+
+static void count_producer(POINTERW arguments) {
+    PRODUCER* producer = (PRODUCER*) arguments;
+    ++producer->count;
+}
+
+static void submit_many(POINTERW arguments) {
+    PRODUCER* producer = (PRODUCER*) arguments;
+    /* Alternate asynchronous and awaited work; final awaited work establishes
+     * completion of all earlier FIFO submissions from this producer. */
+    for (BYTE i = 0; i < (BYTE) 64; ++i) {
+        producer->outcome = dispatcher_submit(producer->dispatcher, (POINTERX) count_producer,
+            producer, (BOOL) (i & (BYTE) 1), 5000);
+        if (!status_code_is_success(producer->outcome.status)) return;
+    }
+}
+
+static BOOL test_contention(int* failed, PROCESS* process, NUINT capacity) {
+    std::printf("\nConcurrent producers\n");
+    THREAD execution;
+    DISPATCHER dispatcher;
+    TEST_STATE state;
+    state.dispatcher = &dispatcher;
+    state.process = process;
+    state.thread = &execution;
+    state.identity = FALSE;
+    RESULT created = thread_create(&execution, process, (POINTERX) worker, &state);
+    if (!check(failed, status_code_is_success(created.status), "create contended worker")) {
+        thread_free(&execution);
+        return TRUE;
+    }
+    if (!check(failed, status_code_is_success(dispatcher_create(&dispatcher, &execution, 0, capacity).status), "create contended dispatcher")) {
+        dispatcher_free(&dispatcher);
+        thread_free(&execution);
+        return TRUE;
+    }
+    if (check(failed, status_code_is_success(thread_start(&execution).status), "start contended worker")) {
+        THREAD threads[4];
+        PRODUCER producers[4];
+        BYTE started = 0;
+        for (BYTE i = 0; i < (BYTE) 4; ++i) {
+            producers[i].dispatcher = &dispatcher;
+            producers[i].count = 0;
+            if (!check(failed, status_code_is_success(thread_create(&threads[i], process, (POINTERX) submit_many, &producers[i]).status), "create producer") ||
+                !check(failed, status_code_is_success(thread_start(&threads[i]).status), "start producer")) {
+                thread_free(&threads[i]);
+                break;
+            }
+            ++started;
+        }
+        for (BYTE i = 0; i < started; ++i) {
+            if (!check(failed, status_code_is_success(thread_wait(&threads[i]).status), "join producer")) return FALSE;
+        }
+        check(failed, status_code_is_success(dispatcher_close(&dispatcher).status), "close contended dispatcher");
+        if (!check(failed, status_code_is_success(thread_wait(&execution).status), "join contended worker")) return FALSE;
+        for (BYTE i = 0; i < started; ++i) {
+            check(failed, status_code_is_success(producers[i].outcome.status) && producers[i].count == (BYTE) 64, "producer completed exactly 64 callbacks");
+            check(failed, status_code_is_success(thread_free(&threads[i]).status), "free producer");
+        }
+        check(failed, dispatcher_count(&dispatcher) == 0, "no pending work after shutdown");
+        check(failed, state.outcome.status == STATUS_CODE_ERROR_INTERRUPTED, "contended worker closed normally");
+    } else {
+        dispatcher_close(&dispatcher);
+    }
+    check(failed, status_code_is_success(dispatcher_free(&dispatcher).status), "free contended dispatcher");
+    check(failed, status_code_is_success(thread_free(&execution).status), "free contended worker");
+    return TRUE;
+}
+
 int main() {
     int failed = 0;
     std::printf("Process and thread identity\n");
@@ -334,6 +468,9 @@ int main() {
     if (!test_order(&failed, &process, 0)) return 1;
     if (!test_order(&failed, &process, select_last)) return 1;
     if (!test_cancel(&failed, &process)) return 1;
+    if (!test_wrapped_cancel(&failed, &process)) return 1;
+    if (!test_contention(&failed, &process, 2)) return 1;
+    if (!test_contention(&failed, &process, 32)) return 1;
 
     check(&failed, matches(process_free(&process), STATUS_CODE_SUCCESS, 0x03, 0x02), "release process");
     check(&failed, matches(process_free(&process), STATUS_CODE_SUCCESS_NOOP, 0x03, 0x01), "repeat process free");
