@@ -63,17 +63,16 @@ struct CATTRLIB_POSIX_THREAD {
     pthread_t identity;
     pthread_mutex_t gate;
     BOOL gate_initialized;
-    void (*entry)(POINTERW);
-    POINTERW arguments;
 };
 
 /* The creator holds the gate until pthread_create publishes the identity.
  * The entry borrows state through completion; free follows join. */
 static void* cattr_posix_entry(void* arguments) {
-    CATTRLIB_POSIX_THREAD* state = (CATTRLIB_POSIX_THREAD*) arguments;
+    THREAD* thread = (THREAD*) arguments;
+    CATTRLIB_POSIX_THREAD* state = (CATTRLIB_POSIX_THREAD*) thread->state;
     pthread_mutex_lock(&state->gate);
     pthread_mutex_unlock(&state->gate);
-    state->entry(state->arguments);
+    ((void (*)(POINTERW)) thread->entry)(thread->arguments);
     return 0;
 }
 
@@ -93,17 +92,15 @@ CATALYST_RESULT cattr_platform_thread_current(POINTERW* state) {
     return RESULT(STATUS_CODE_SUCCESS, 0x03, 0x02, 0);
 }
 
-CATALYST_RESULT cattr_platform_thread_start(POINTERW state, void (*entry)(POINTERW), POINTERW arguments) {
-    CATTRLIB_POSIX_THREAD* thread = (CATTRLIB_POSIX_THREAD*) state;
+CATALYST_RESULT cattr_platform_thread_start(THREAD* owner) {
+    CATTRLIB_POSIX_THREAD* thread = (CATTRLIB_POSIX_THREAD*) owner->state;
     thread->gate_initialized = FALSE;
-    thread->entry = entry;
-    thread->arguments = arguments;
     int error = pthread_mutex_init(&thread->gate, 0);
     if (error != 0) return RESULT(cattr_posix_status(error), 0x04, 0x02, 0);
     thread->gate_initialized = TRUE;
     error = pthread_mutex_lock(&thread->gate);
     if (error != 0) return RESULT(cattr_posix_status(error), 0x04, 0x05, 0);
-    error = pthread_create(&thread->identity, 0, cattr_posix_entry, thread);
+    error = pthread_create(&thread->identity, 0, cattr_posix_entry, owner);
     pthread_mutex_unlock(&thread->gate);
     if (error != 0) return RESULT(cattr_posix_status(error), 0x04, 0x03, 0);
     return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x04, 0);

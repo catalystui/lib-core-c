@@ -61,17 +61,16 @@ struct CATTRLIB_WIN32_THREAD {
     HANDLE handle;
     DWORD identity;
     SRWLOCK gate;
-    void (*entry)(POINTERW);
-    POINTERW arguments;
 };
 
 /* Publish the handle and identity before the entry can run. A captured
  * current thread borrows its identity; only created threads own handles. */
 static DWORD WINAPI cattr_win32_entry(LPVOID arguments) {
-    CATTRLIB_WIN32_THREAD* state = (CATTRLIB_WIN32_THREAD*) arguments;
+    THREAD* thread = (THREAD*) arguments;
+    CATTRLIB_WIN32_THREAD* state = (CATTRLIB_WIN32_THREAD*) thread->state;
     AcquireSRWLockExclusive(&state->gate);
     ReleaseSRWLockExclusive(&state->gate);
-    state->entry(state->arguments);
+    ((void (*)(POINTERW)) thread->entry)(thread->arguments);
     return 0;
 }
 
@@ -91,13 +90,11 @@ CATALYST_RESULT cattr_platform_thread_current(POINTERW* state) {
     return RESULT(STATUS_CODE_SUCCESS, 0x03, 0x02, 0);
 }
 
-CATALYST_RESULT cattr_platform_thread_start(POINTERW state, void (*entry)(POINTERW), POINTERW arguments) {
-    CATTRLIB_WIN32_THREAD* thread = (CATTRLIB_WIN32_THREAD*) state;
-    thread->entry = entry;
-    thread->arguments = arguments;
+CATALYST_RESULT cattr_platform_thread_start(THREAD* owner) {
+    CATTRLIB_WIN32_THREAD* thread = (CATTRLIB_WIN32_THREAD*) owner->state;
     InitializeSRWLock(&thread->gate);
     AcquireSRWLockExclusive(&thread->gate);
-    thread->handle = CreateThread(0, 0, cattr_win32_entry, thread, 0, &thread->identity);
+    thread->handle = CreateThread(0, 0, cattr_win32_entry, owner, 0, &thread->identity);
     DWORD error = thread->handle == 0 ? GetLastError() : ERROR_SUCCESS;
     ReleaseSRWLockExclusive(&thread->gate);
     if (thread->handle == 0) return RESULT(cattr_win32_status(error), 0x04, 0x02, 0);

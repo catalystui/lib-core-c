@@ -75,7 +75,7 @@ CATALYST_RESULT cattr_thread_start(THREAD* thread) {
     CATTRLIB_THREAD_STATE* state = (CATTRLIB_THREAD_STATE*) thread->state;
     if (state->stage != THREAD_CREATED) return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x06, 0x01, 0);
     state->stage = THREAD_STARTED;
-    RESULT start = cattr_platform_thread_start(thread->state, (void (*)(POINTERW)) thread->entry, thread->arguments);
+    RESULT start = cattr_platform_thread_start(thread);
     if (!status_code_is_success(start.status)) {
         state->stage = THREAD_CLEANUP;
         return RESULT(start.status, 0x06, 0x02, start.detail);

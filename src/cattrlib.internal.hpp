@@ -27,7 +27,7 @@ struct CATTRLIB_THREAD_STATE {
 CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_thread_create(CATMMLIB_POINTERW* state);
 CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_thread_current(CATMMLIB_POINTERW* state);
 /* Publish identity before entry can execute. Failure starts no entry. */
-CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_thread_start(CATMMLIB_POINTERW state, void (*entry)(CATMMLIB_POINTERW), CATMMLIB_POINTERW arguments);
+CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_thread_start(CATTRLIB_THREAD* thread);
 CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_thread_wait(CATMMLIB_POINTERW state);
 CATTRLIB_PRIVATE CATALYST_BOOL cattr_platform_thread_equals(CATMMLIB_POINTER first, CATMMLIB_POINTER second);
 CATTRLIB_PRIVATE CATALYST_BOOL cattr_platform_thread_is_current(CATMMLIB_POINTER state);
