@@ -259,9 +259,10 @@ static BOOL cattr_submission_ready(POINTERW arguments) {
         invocation->awaited = submission->awaited;
         invocation->stage = INVOCATION_PENDING;
         submission->invocation = invocation;
+        BOOL was_empty = dispatcher->work.cardinality == 0 ? TRUE : FALSE;
         catrl_set_add(&dispatcher->work, &invocation->identity);
         if (dispatcher->rule == 0) catrl_array_add(&state->order, &invocation->identity);
-        cattr_platform_monitor_notify(state->monitor);
+        if (was_empty) cattr_platform_monitor_notify(state->monitor);
     }
     return !submission->awaited || submission->invocation->stage != INVOCATION_PENDING ? TRUE : FALSE;
 }
@@ -307,8 +308,9 @@ CATALYST_RESULT cattr_dispatcher_submit(DISPATCHER* dispatcher, POINTERX operati
     }
     if (invocation->stage == INVOCATION_PENDING) {
         cattr_remove_pending(dispatcher, invocation);
+        BOOL was_full = state->pool.cardinality == state->pool.capacity ? TRUE : FALSE;
         catrl_pool_release(&state->pool, invocation->index);
-        cattr_platform_monitor_notify(state->monitor);
+        if (was_full) cattr_platform_monitor_notify(state->monitor);
         cattr_platform_monitor_unlock(state->monitor);
         return RESULT(admission.status, 0x0B, 0x06, admission.detail);
     }
@@ -326,8 +328,9 @@ CATALYST_RESULT cattr_dispatcher_submit(DISPATCHER* dispatcher, POINTERX operati
         }
     }
     BOOL cancelled = invocation->stage == INVOCATION_CANCELLED ? TRUE : FALSE;
+    BOOL was_full = state->pool.cardinality == state->pool.capacity ? TRUE : FALSE;
     catrl_pool_release(&state->pool, invocation->index);
-    cattr_platform_monitor_notify(state->monitor);
+    if (was_full) cattr_platform_monitor_notify(state->monitor);
     cattr_platform_monitor_unlock(state->monitor);
     if (!status_code_is_success(completion.status)) return RESULT(completion.status, 0x0B, 0x07, completion.detail);
     if (cancelled) return RESULT(STATUS_CODE_ERROR_INTERRUPTED, 0x0B, 0x08, 0);
@@ -391,14 +394,19 @@ CATALYST_RESULT cattr_dispatcher_poll(DISPATCHER* dispatcher) {
     cattr_remove_pending(dispatcher, invocation);
     invocation->stage = INVOCATION_RUNNING;
     state->polling = TRUE;
-    cattr_platform_monitor_notify(state->monitor);
+    /* Completion or the original deadline will wake the awaited caller.
+     * Starting work does not release a pool slot. */
     cattr_platform_monitor_unlock(state->monitor);
     ((void (*)(POINTERW)) invocation->operation)(invocation->arguments);
     cattr_platform_monitor_lock(state->monitor);
     invocation->stage = INVOCATION_FINISHED;
-    if (!invocation->awaited) catrl_pool_release(&state->pool, invocation->index);
+    BOOL notify = invocation->awaited;
+    if (!invocation->awaited) {
+        notify = state->pool.cardinality == state->pool.capacity ? TRUE : FALSE;
+        catrl_pool_release(&state->pool, invocation->index);
+    }
     state->polling = FALSE;
-    cattr_platform_monitor_notify(state->monitor);
+    if (notify) cattr_platform_monitor_notify(state->monitor);
     cattr_platform_monitor_unlock(state->monitor);
     return RESULT(STATUS_CODE_SUCCESS, 0x0E, 0x06, 0);
 }
