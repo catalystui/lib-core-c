@@ -85,7 +85,7 @@ inline RESULT dispatcher_create(DISPATCHER* dispatcher, THREAD* thread, POINTER 
     return ::cattr_dispatcher_create(dispatcher, thread, rule, capacity);
 }
 
-/** Submit an independent invocation for execution. Operation must reference a void (CATMMLIB_POINTERW) function. On the associated thread, awaited submission is invalid and asynchronous admission is nonblocking. Callers must avoid cyclic awaited dependencies between execution threads. */
+/** Submit an independent invocation for execution. Operation must reference a void (CATMMLIB_POINTERW) function. On the associated thread, awaited submission is invalid and asynchronous admission is nonblocking. Callers must avoid cyclic awaited dependencies between execution threads. Timeout is milliseconds (zero polls, NUINT_MAX is indefinite), covering admission and the pending interval; once an awaited callback starts, it completes before return. Arguments remain valid through execution or cancellation. */
 inline RESULT dispatcher_submit(DISPATCHER* dispatcher, POINTERX operation, POINTERW arguments, BOOL wait, NUINT timeout) {
     return ::cattr_dispatcher_submit(dispatcher, operation, arguments, wait, timeout);
 }
@@ -100,7 +100,7 @@ inline NUINT dispatcher_count(const DISPATCHER* dispatcher) {
     return ::cattr_dispatcher_count(dispatcher);
 }
 
-/** Wait on the associated thread until work becomes available or the dispatcher closes. Do not wait on work that requires the waiting callback to finish. */
+/** Wait on the associated thread until work becomes available or the dispatcher closes. Do not wait on work that requires the waiting callback to finish. Timeout is milliseconds; zero polls and NUINT_MAX is indefinite. */
 inline RESULT dispatcher_wait(DISPATCHER* dispatcher, NUINT timeout) {
     return ::cattr_dispatcher_wait(dispatcher, timeout);
 }

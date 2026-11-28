@@ -94,7 +94,7 @@ CATTRLIB_API CATALYST_RESULT cattr_thread_free(CATTRLIB_THREAD* thread);
 /** Establish a dispatcher with nonzero capacity and a dispatch rule. A null rule selects FIFO order. The rule receives a nonempty Set of opaque submission references and returns one member (not its storage address). It runs under the monitor and must not reenter the dispatcher or block on it. */
 CATTRLIB_API CATALYST_RESULT cattr_dispatcher_create(CATTRLIB_DISPATCHER* dispatcher, CATTRLIB_THREAD* thread, CATMMLIB_POINTER (*rule)(const CATRLLIB_SET*), CATALYST_NUINT capacity);
 
-/** Submit an independent invocation for execution. Operation must reference a void (CATMMLIB_POINTERW) function. On the associated thread, awaited submission is invalid and asynchronous admission is nonblocking. Callers must avoid cyclic awaited dependencies between execution threads. */
+/** Submit an independent invocation for execution. Operation must reference a void (CATMMLIB_POINTERW) function. On the associated thread, awaited submission is invalid and asynchronous admission is nonblocking. Callers must avoid cyclic awaited dependencies between execution threads. Timeout is milliseconds (zero polls, NUINT_MAX is indefinite), covering admission and the pending interval; once an awaited callback starts, it completes before return. Arguments remain valid through execution or cancellation. */
 CATTRLIB_API CATALYST_RESULT cattr_dispatcher_submit(CATTRLIB_DISPATCHER* dispatcher, CATTRLIB_POINTERX operation, CATMMLIB_POINTERW arguments, CATALYST_BOOL wait, CATALYST_NUINT timeout);
 
 /** Inspect a live submission reference during a dispatch rule. Outputs its executable reference and borrowed arguments. */
@@ -103,7 +103,7 @@ CATTRLIB_API void cattr_dispatcher_inspect(CATMMLIB_POINTER submission, CATTRLIB
 /** Retrieve the number of submissions awaiting execution. */
 CATTRLIB_API CATALYST_NUINT cattr_dispatcher_count(const CATTRLIB_DISPATCHER* dispatcher);
 
-/** Wait on the associated thread until work becomes available or the dispatcher closes. Do not wait on work that requires the waiting callback to finish. */
+/** Wait on the associated thread until work becomes available or the dispatcher closes. Do not wait on work that requires the waiting callback to finish. Timeout is milliseconds; zero polls and NUINT_MAX is indefinite. */
 CATTRLIB_API CATALYST_RESULT cattr_dispatcher_wait(CATTRLIB_DISPATCHER* dispatcher, CATALYST_NUINT timeout);
 
 /** Select and execute pending work according to the dispatch rule. */
