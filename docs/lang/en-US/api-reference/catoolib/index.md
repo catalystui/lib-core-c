@@ -318,7 +318,7 @@ CATALYST_RESULT catoo_object_add(CATOOLIB_OBJECT* object, CATMMLIB_POINTER key, 
 Copy a distinct key and nonzero size readable payload bytes into an initialized object. Duplicate keys are no-ops; exhausted capacity is an error. Key must be outside the map and its allocations. Failure retains existing members.
 
 **Parameters:**  
-`object` — initialized writable object with reserved capacity for a new key.  
+`object` — initialized writable object; inserting an absent key requires available capacity or returns BUFFER_OVERFLOW.  
 `key` — readable `object->members.ksize` bytes outside the object/map allocations.  
 `data` — readable payload of `size` bytes when a new nonempty member is inserted.  
 `size` — payload byte count; zero is invalid for an absent key.

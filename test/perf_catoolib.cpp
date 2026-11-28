@@ -1052,6 +1052,77 @@ static void benchmark_class_create(Summary& summary) {
     }
 }
 
+// Compare a sequence of extensions with exact growth and with an explicit
+// reservation. Both paths include the reservation in the timed lifecycle.
+struct ExtensionTrial {
+    NUINT n;
+    BOOL reserve;
+};
+
+template<typename API>
+static Measurement measure_repeated_extension(ExtensionTrial& t, unsigned long calls, unsigned long* ticks, BOOL verify) {
+    typename API::Object definition, incoming;
+    typename API::Class base[4];
+    BYTE live = 0;
+    API::init(&definition);
+    API::init(&incoming);
+    BOOL ok = API::expand(&definition, t.n) && fill<API>(&definition, t.n, 1) && API::expand(&incoming, 1);
+    while (ok && live < 4) {
+        BYTE key = (BYTE) (t.n + (NUINT) live);
+        BYTE data = (BYTE) (key ^ (BYTE) 0x5A);
+        if (!API::add(&incoming, key, &data, 1)) { ok = FALSE; break; }
+        // Failed class_init leaves a freeable destination.
+        ok = API::class_init(&base[live], &incoming);
+        ++live;
+        if (!API::clear(&incoming)) ok = FALSE;
+    }
+    const NUINT total = (NUINT) (t.n + (NUINT) 4);
+    const std::clock_t start = std::clock();
+    for (unsigned long i = 0; ok && i < calls; ++i) {
+        typename API::Class c;
+        ok = API::class_init(&c, &definition);
+        typename API::Object* object = API::class_object(&c);
+        if (ok && t.reserve) ok = API::expand(object, total);
+        for (BYTE j = 0; ok && j < 4; ++j) ok = API::class_extend(&c, &base[j]);
+        if (ok) ok = observe_object<API>(object, total, 1);
+        if (ok && verify && i == calls - 1) {
+            for (NUINT j = 0; j < total; ++j) {
+                typename API::Member* m = API::get(object, (BYTE) j);
+                BYTE expected = (BYTE) ((BYTE) j ^ (BYTE) 0x5A);
+                if (!observe_member<API>(m, 1, expected, expected)) { ok = FALSE; break; }
+            }
+        }
+        if (!API::class_free(&c)) ok = FALSE;
+    }
+    BOOL clockOk = elapsed(start, ticks);
+    while (live != 0) if (!API::class_free(&base[--live])) ok = FALSE;
+    if (!API::release(&incoming)) ok = FALSE;
+    if (!API::release(&definition)) ok = FALSE;
+    if (!ok) return MEASURE_FAIL;
+    return clockOk ? MEASURE_OK : MEASURE_CLOCK;
+}
+
+static void benchmark_repeated_extension(Summary& summary) {
+    const NUINT counts[] = {
+        2,
+#if TARGET_SIZEOF_VOID_P >= 2
+        16, 64
+#endif
+    };
+    std::printf("\nClass: four sequential single-member extensions (complete lifecycle)\n");
+    for (BYTE i = 0; i < (BYTE) (sizeof(counts) / sizeof(counts[0])); ++i) {
+        if ((NUINT) (counts[i] + (NUINT) 4) > (NUINT) (CATALYST_NUINT_MAX / (NUINT) sizeof(MEMBER))) continue;
+        for (BYTE reserved = 0; reserved < 2; ++reserved) {
+            ExtensionTrial native = { counts[i], (BOOL) reserved };
+            ExtensionTrial comparison = native;
+            char label[48];
+            std::sprintf(label, "%lu + 4 (%s)", (unsigned long) counts[i], reserved ? "reserved" : "exact growth");
+            benchmark_case(label, native, comparison, measure_repeated_extension<NativeAPI>,
+                           measure_repeated_extension<CatalystAPI>, 67108864UL, summary);
+        }
+    }
+}
+
 static void benchmark_all(Summary& summary) {
     const char* names[] = {
         "Member: init + free", "Member: set + get", "Object: empty init + free",
@@ -1139,6 +1210,7 @@ int main() {
     benchmark_all(summary);
     benchmark_wide_keys(summary);
     benchmark_class_create(summary);
+    benchmark_repeated_extension(summary);
     std::printf("\nPerformance summary\n");
     std::printf("  Faster (>5%%):                  %3lu\n", summary.faster);
     std::printf("  Comparable (within 5%%):        %3lu\n", summary.similar);

@@ -458,6 +458,48 @@ static int test_dispatch_argument_results() {
     return 0;
 }
 
+/* Explicit reservation is retained across successful disjoint extensions. */
+static int test_reserved_class_extension() {
+    OBJECT definition, incoming;
+    object_init(&definition, 1);
+    object_init(&incoming, 1);
+    CHECK(status_code_is_success(object_expand(&definition, 1).status));
+    CHECK(status_code_is_success(object_expand(&incoming, 1).status));
+    BYTE key = 0, value = 42;
+    CHECK(status_code_is_success(object_add(&definition, &key, &value, 1).status));
+    CLASS destination;
+    CHECK(status_code_is_success(class_init(&destination, &definition).status));
+    CHECK(status_code_is_success(object_expand(&destination.object, 5).status));
+    POINTER keys = destination.object.members.keys;
+    POINTER members = destination.object.members.values;
+    for (BYTE i = 1; i < 5; ++i) {
+        CHECK(status_code_is_success(object_add(&incoming, &i, &i, 1).status));
+        CLASS base;
+        CHECK(status_code_is_success(class_init(&base, &incoming).status));
+        CHECK(matches(class_extend(&destination, &base), STATUS_CODE_SUCCESS, 0x19, 8));
+        CHECK(destination.object.members.capacity == 5);
+        CHECK(destination.object.members.cardinality == (NUINT) (i + 1));
+        CHECK(destination.object.members.keys == keys && destination.object.members.values == members);
+        CHECK(status_code_is_success(class_free(&base).status));
+        CHECK(status_code_is_success(object_clear(&incoming).status));
+    }
+    OBJECT instance;
+    CHECK(status_code_is_success(class_create(&destination, &instance).status));
+    CHECK(instance.members.cardinality == 5);
+    for (BYTE i = 0; i < 5; ++i) {
+        BYTE actual = 0;
+        MEMBER* m = object_get(&instance, &i);
+        CHECK(m != 0);
+        member_get(m, &actual);
+        CHECK(actual == (i == 0 ? value : i));
+    }
+    CHECK(status_code_is_success(object_free(&instance).status));
+    CHECK(status_code_is_success(class_free(&destination).status));
+    CHECK(status_code_is_success(object_free(&incoming).status));
+    CHECK(status_code_is_success(object_free(&definition).status));
+    return 0;
+}
+
 int main() {
     BYTE value = 17, changed = 42, output = 0;
     MEMBER member;
@@ -579,6 +621,7 @@ int main() {
     CHECK(test_remove_payload_key() == 0);
     std::printf("PASS: removal with payload-backed lookup key\n");
     CHECK(test_byte_class_extension() == 0);
+    CHECK(test_reserved_class_extension() == 0);
     std::printf("PASS: CATOOLIB composites\n");
     return 0;
 }
