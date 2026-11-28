@@ -1,5 +1,6 @@
 #include "catoolib.hpp"
 #include "catrllib.internal.hpp"
+#include <stddef.h>
 
 using namespace catalyst;
 
@@ -138,16 +139,16 @@ CATALYST_RESULT catoo_method_invoke(const FIELD* field, POINTER arguments, POINT
 }
 
 CATALYST_RESULT catoo_property_get(const FIELD* field, POINTERW output) {
-    PROPERTY property;
-    catmm_copy(&property, field->member->data, (NUINT) sizeof(property));
-    RESULT result = property.get(field->object, output);
+    CATALYST_RESULT (*get)(OBJECT*, POINTERW);
+    catrl_store(&get, (const BYTE*) field->member->data + (NUINT) offsetof(PROPERTY, get), (NUINT) sizeof(get));
+    RESULT result = get(field->object, output);
     return RESULT(result.status, 0x12, 0x01, result.detail);
 }
 
 CATALYST_RESULT catoo_property_set(FIELD* field, POINTER data) {
-    PROPERTY property;
-    catmm_copy(&property, field->member->data, (NUINT) sizeof(property));
-    RESULT result = property.set(field->object, data);
+    CATALYST_RESULT (*set)(OBJECT*, POINTER);
+    catrl_store(&set, (const BYTE*) field->member->data + (NUINT) offsetof(PROPERTY, set), (NUINT) sizeof(set));
+    RESULT result = set(field->object, data);
     return RESULT(result.status, 0x13, 0x01, result.detail);
 }
 
