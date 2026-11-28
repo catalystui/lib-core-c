@@ -42,35 +42,56 @@ static NUINT catrl_find(POINTER data, NUINT count, NUINT size, POINTER element) 
             const CATRL_SEARCH_WORD high = (CATRL_SEARCH_WORD) (ones << 7);
             const CATRL_SEARCH_WORD pattern = (CATRL_SEARCH_WORD) (ones * (CATRL_SEARCH_WORD) first);
             const NUINT width = (NUINT) sizeof(CATRL_SEARCH_WORD);
-            /* Detect zero bytes after XOR. Locate the match in the same
-             * word, not a second traversal of the remaining collection. */
-            while ((NUINT) (count - index) >= width) {
-                CATRL_SEARCH_WORD word;
+            const NUINT group = (NUINT) (width * (NUINT) 4);
+            /* Four independent word tests share one branch in the miss path.
+             * All loads are within the checked extent and need no alignment. */
+            while ((NUINT) (count - index) >= group) {
+                CATRL_SEARCH_WORD a, b, c, d;
 #if defined(__GNUC__) || defined(__clang__)
-                __builtin_memcpy(&word, current, sizeof(word));
+                __builtin_memcpy(&a, current, sizeof(a));
+                __builtin_memcpy(&b, current + width, sizeof(b));
+                __builtin_memcpy(&c, current + (NUINT) (width * (NUINT) 2), sizeof(c));
+                __builtin_memcpy(&d, current + (NUINT) (width * (NUINT) 3), sizeof(d));
 #else
-                for (BYTE i = 0; i < (BYTE) sizeof(word); ++i) ((BYTE*) &word)[i] = current[i];
+                for (BYTE i = 0; i < (BYTE) sizeof(a); ++i) {
+                    ((BYTE*) &a)[i] = current[i];
+                    ((BYTE*) &b)[i] = current[width + i];
+                    ((BYTE*) &c)[i] = current[(NUINT) (width * (NUINT) 2) + i];
+                    ((BYTE*) &d)[i] = current[(NUINT) (width * (NUINT) 3) + i];
+                }
 #endif
-                word ^= pattern;
-                CATRL_SEARCH_WORD matches = (CATRL_SEARCH_WORD) ((word - ones) & ~word & high);
-                if (matches != 0) {
-                    /* Borrow propagation may mark higher bytes, but never
-                     * changes the lowest match on little-endian targets. */
+                a ^= pattern; b ^= pattern; c ^= pattern; d ^= pattern;
+                a = (CATRL_SEARCH_WORD) ((a - ones) & ~a & high);
+                b = (CATRL_SEARCH_WORD) ((b - ones) & ~b & high);
+                c = (CATRL_SEARCH_WORD) ((c - ones) & ~c & high);
+                d = (CATRL_SEARCH_WORD) ((d - ones) & ~d & high);
+                if ((a | b | c | d) != 0) {
+                    NUINT offset = 0;
+                    CATRL_SEARCH_WORD matches = a;
+                    if (matches == 0) {
+                        offset = width; matches = b;
+                        if (matches == 0) {
+                            offset = (NUINT) (width * (NUINT) 2); matches = c;
+                            if (matches == 0) {
+                                offset = (NUINT) (width * (NUINT) 3); matches = d;
+                            }
+                        }
+                    }
+                    /* Borrow propagation cannot mark a byte before the first
+                     * true match in little-endian memory order. */
 #if (defined(__GNUC__) || defined(__clang__)) && defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #if CATALYST_SUPPORTS_64BIT && defined(__SIZEOF_LONG_LONG__) && __SIZEOF_LONG_LONG__ == 8
-                    return (NUINT) (index + (NUINT) ((NUINT) __builtin_ctzll(matches) / (NUINT) 8));
+                    return (NUINT) (index + offset + (NUINT) ((NUINT) __builtin_ctzll(matches) / (NUINT) 8));
 #elif !CATALYST_SUPPORTS_64BIT && CATALYST_SUPPORTS_32BIT && defined(__SIZEOF_INT__) && __SIZEOF_INT__ == 4
-                    return (NUINT) (index + (NUINT) ((NUINT) __builtin_ctz(matches) / (NUINT) 8));
+                    return (NUINT) (index + offset + (NUINT) ((NUINT) __builtin_ctz(matches) / (NUINT) 8));
 #endif
 #endif
-                    /* On any other representation, compare the candidate
-                     * bytes in memory order. */
-                    for (BYTE i = 0; i < (BYTE) sizeof(word); ++i) {
-                        if (current[i] == first) return (NUINT) (index + (NUINT) i);
+                    for (NUINT i = 0; i < width; ++i) {
+                        if (current[offset + i] == first) return (NUINT) (index + offset + i);
                     }
                 }
-                current += width;
-                index = (NUINT) (index + width);
+                current += group;
+                index = (NUINT) (index + group);
             }
         }
 #endif
@@ -103,8 +124,15 @@ static inline void catrl_store(POINTERW destination, POINTER source, NUINT size)
     const BYTE* input = (const BYTE*) source;
     if (size == (NUINT) 1) {
         output[0] = input[0];
+#if defined(__GNUC__) || defined(__clang__)
+    } else if (size == (NUINT) 8) {
+        __builtin_memcpy(output, input, 8);
+    } else if (size == (NUINT) 16) {
+        __builtin_memcpy(output, input, 16);
+#else
     } else if (size == (NUINT) 8) {
         for (BYTE i = 0; i < (BYTE) 8; ++i) output[i] = input[i];
+#endif
     } else {
         catmm_copy(destination, source, size);
     }
@@ -457,6 +485,28 @@ static inline void catrl_stream_copy(POINTERW output, POINTER input) {
 #endif
 }
 
+/* Initialized bookkeeping and its aligned local representation. Lifetime
+ * is immutable. On compilers with layout offsets, write only the changed
+ * suffix or spare descriptor without assuming struct packing. */
+static inline void catrl_stream_write_cursor(BYTE* bookkeeping, const CATRLLIB_STREAM_MEMORY* memory) {
+#if defined(__GNUC__) || defined(__clang__)
+    const NUINT offset = (NUINT) __builtin_offsetof(CATRLLIB_STREAM_MEMORY, cursor);
+    catrl_stream_copy<(NUINT) (sizeof(CATRLLIB_STREAM_MEMORY) - __builtin_offsetof(CATRLLIB_STREAM_MEMORY, cursor))>(
+        bookkeeping + offset, (const BYTE*) memory + offset);
+#else
+    catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>(bookkeeping, memory);
+#endif
+}
+
+static inline void catrl_stream_write_spare(BYTE* bookkeeping, const CATRLLIB_STREAM_MEMORY* memory) {
+#if defined(__GNUC__) || defined(__clang__)
+    const NUINT offset = (NUINT) __builtin_offsetof(CATRLLIB_STREAM_MEMORY, spare);
+    catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_CHUNK)>(bookkeeping + offset, &memory->spare);
+#else
+    catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>(bookkeeping, memory);
+#endif
+}
+
 /* Initialized, non-freed Stream; index < its stored lifetime. The complete descriptor extent was checked at initialization. */
 static BYTE* catrl_stream_slot(CATRLLIB_STREAM* stream, NUINT index) {
     return (BYTE*) stream->state + stream->ssize + (NUINT) sizeof(CATRLLIB_STREAM_MEMORY) + (NUINT) (index * (NUINT) sizeof(CATRLLIB_STREAM_CHUNK));
@@ -522,12 +572,13 @@ CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize,
         }
         memory.spare.capacity = capacity;
         /* Keep replacement ownership reachable before invoking producer code. */
-        catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>(bookkeeping, &memory);
+        catrl_stream_write_spare(bookkeeping, &memory);
     }
     RESULT production = stream->next(stream, memory.spare.data, csize);
     if (production.status == STATUS_CODE_SUCCESS) {
         CATRLLIB_STREAM_CHUNK expired;
-        BYTE* slot = catrl_stream_slot(stream, memory.cursor);
+        BYTE* slot = bookkeeping + (NUINT) sizeof(CATRLLIB_STREAM_MEMORY) +
+            (NUINT) (memory.cursor * (NUINT) sizeof(CATRLLIB_STREAM_CHUNK));
         catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_CHUNK)>(&expired, slot);
         catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_CHUNK)>(slot, &memory.spare);
         *output = memory.spare.data;
@@ -540,7 +591,7 @@ CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize,
             RESULT shrink = catmm_heap_realloc(&memory.spare.data, smaller);
             if (!status_code_is_success(shrink.status)) {
                 // Production is already published; commit the rotated state even on failure.
-                catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>(bookkeeping, &memory);
+                catrl_stream_write_cursor(bookkeeping, &memory);
                 if (status_code_is_fatal(shrink.status)) {
                     return RESULT(shrink.status, 0x22, 0x05, shrink.detail);
                 }
@@ -548,7 +599,7 @@ CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize,
             }
             memory.spare.capacity = smaller;
         }
-        catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>(bookkeeping, &memory);
+        catrl_stream_write_cursor(bookkeeping, &memory);
     }
     /* Map producer csize to public argument 1; rejecting the managed chunk indicates invalid internal state. */
     if (production.status == STATUS_CODE_ERROR_INVALID_ARGUMENT) {
@@ -830,64 +881,79 @@ void catrl_pool_init(CATRLLIB_POOL* pool, CATALYST_NUINT size) {
 CATALYST_BOOL catrl_pool_acquire(CATRLLIB_POOL* pool, CATALYST_NUINT* index) {
     if (pool->cardinality == pool->capacity) return FALSE;
     BYTE* occupied = (BYTE*) pool->occupied;
-    NUINT bytes = catrl_pool_bitmap_size(pool->capacity);
     NUINT i = 0;
+    /* Most acquisitions reuse an early slot. Only prepare the wider
+     * search when the first byte is completely occupied. */
+    if (occupied[0] == CATALYST_BYTE_MAX) {
 #if CATALYST_SUPPORTS_64BIT || CATALYST_SUPPORTS_32BIT
 #if CATALYST_SUPPORTS_64BIT
-    typedef ULONG CATRL_POOL_WORD;
-    const CATRL_POOL_WORD full = CATALYST_ULONG_MAX;
+        typedef ULONG CATRL_POOL_WORD;
+        const CATRL_POOL_WORD full = CATALYST_ULONG_MAX;
 #else
-    typedef UINT CATRL_POOL_WORD;
-    const CATRL_POOL_WORD full = CATALYST_UINT_MAX;
+        typedef UINT CATRL_POOL_WORD;
+        const CATRL_POOL_WORD full = CATALYST_UINT_MAX;
 #endif
-    const NUINT width = (NUINT) sizeof(CATRL_POOL_WORD);
-    /* Skip full words, using byte access for unaligned storage and for
-     * the final partial word. The all-ones test is endian independent. */
-    while ((NUINT) (bytes - i) >= width) {
-        CATRL_POOL_WORD word;
+        const NUINT width = (NUINT) sizeof(CATRL_POOL_WORD);
+        const NUINT bytes = catrl_pool_bitmap_size(pool->capacity);
+        /* Skip full words, using byte access for unaligned storage and for
+         * the final partial word. The all-ones test is endian independent. */
+        while ((NUINT) (bytes - i) >= width) {
+            CATRL_POOL_WORD word;
 #if defined(__GNUC__) || defined(__clang__)
-        __builtin_memcpy(&word, occupied + i, sizeof(word));
+            __builtin_memcpy(&word, occupied + i, sizeof(word));
 #else
-        for (BYTE j = 0; j < (BYTE) sizeof(word); ++j) ((BYTE*) &word)[j] = occupied[i + j];
+            for (BYTE j = 0; j < (BYTE) sizeof(word); ++j) ((BYTE*) &word)[j] = occupied[i + j];
 #endif
-        if (word != full) break;
-        i = (NUINT) (i + width);
+            if (word != full) break;
+            i = (NUINT) (i + width);
+        }
+#endif
+        /* A free logical slot exists, so the first zero bit is not padding. */
+        while (occupied[i] == CATALYST_BYTE_MAX) ++i;
     }
-#endif
-    /* A free logical slot exists, so the first zero bit is not padding. */
-    while (occupied[i] == CATALYST_BYTE_MAX) ++i;
     BYTE available = (BYTE) ~occupied[i];
     BYTE bit = 0;
-    if ((available & (BYTE) 0x0F) == 0) {
-        available = (BYTE) (available >> 4);
-        bit = 4;
+    if ((available & (BYTE) 1) == 0) {
+        if ((available & (BYTE) 0x0F) == 0) {
+            available = (BYTE) (available >> 4);
+            bit = 4;
+        }
+        if ((available & (BYTE) 0x03) == 0) {
+            available = (BYTE) (available >> 2);
+            bit = (BYTE) (bit + (BYTE) 2);
+        }
+        if ((available & (BYTE) 1) == 0) ++bit;
     }
-    if ((available & (BYTE) 0x03) == 0) {
-        available = (BYTE) (available >> 2);
-        bit = (BYTE) (bit + (BYTE) 2);
-    }
-    if ((available & (BYTE) 1) == 0) ++bit;
     occupied[i] = (BYTE) (occupied[i] | (BYTE) ((BYTE) 1 << bit));
     ++pool->cardinality;
     *index = (NUINT) (i * (NUINT) 8 + (NUINT) bit);
     return TRUE;
 }
 
-CATALYST_BOOL catrl_pool_contains(const CATRLLIB_POOL* pool, CATALYST_NUINT index) {
+/* An initialized Pool; arbitrary index. Check the logical extent before
+ * reading the bitmap. A free or out-of-range slot is ordinarily absent. */
+static inline BOOL catrl_pool_is_occupied(const CATRLLIB_POOL* pool, NUINT index) {
     if (index >= pool->capacity) return FALSE;
     return (((const BYTE*) pool->occupied)[index / (NUINT) 8] & catrl_pool_mask(index)) != 0 ? TRUE : FALSE;
 }
 
+CATALYST_BOOL catrl_pool_contains(const CATRLLIB_POOL* pool, CATALYST_NUINT index) {
+    return catrl_pool_is_occupied(pool, index);
+}
+
 CATALYST_BOOL catrl_pool_release(CATRLLIB_POOL* pool, CATALYST_NUINT index) {
-    if (!catrl_pool_contains(pool, index)) return FALSE;
+    if (index >= pool->capacity) return FALSE;
     BYTE* occupied = (BYTE*) pool->occupied + index / (NUINT) 8;
-    *occupied = (BYTE) (*occupied & (BYTE) ~catrl_pool_mask(index));
+    BYTE mask = catrl_pool_mask(index);
+    BYTE bits = *occupied;
+    if ((bits & mask) == 0) return FALSE;
+    *occupied = (BYTE) (bits & (BYTE) ~mask);
     --pool->cardinality;
     return TRUE;
 }
 
 CATMMLIB_POINTERW catrl_pool_get(CATRLLIB_POOL* pool, CATALYST_NUINT index) {
-    if (!catrl_pool_contains(pool, index)) return 0;
+    if (!catrl_pool_is_occupied(pool, index)) return 0;
     return (BYTE*) pool->data + (NUINT) (index * pool->size);
 }
 
