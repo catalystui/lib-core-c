@@ -231,42 +231,42 @@ inline RESULT stream_free(STREAM* stream) {
  * C++ API :: QUEUE OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Initialize an empty queue with elements of the specified size in bytes. */
+/** Initialize unused Queue storage without allocation; size is nonzero bytes per element. */
 inline void queue_init(QUEUE* queue, NUINT size) {
     ::catrl_queue_init(queue, size);
 }
 
-/** Append an element to the queue. Requires sufficient capacity. */
+/** Copy size readable bytes from outside the initialized Queue and its allocation; requires length < capacity. */
 inline void queue_enqueue(QUEUE* queue, POINTER element) {
     ::catrl_queue_enqueue(queue, element);
 }
 
-/** Remove the first element from the queue and copy it to output if present. */
+/** Remove the oldest element and copy size bytes to valid non-overlapping output outside the Queue; return FALSE without changing output if empty. */
 inline BOOL queue_dequeue(QUEUE* queue, POINTERW output) {
     return ::catrl_queue_dequeue(queue, output);
 }
 
-/** Borrow the first element in the queue, or null if empty. */
+/** Borrow the oldest writable element, or null if empty; reacquire after mutation or resize/free attempts. Do not free independently. */
 inline POINTERW queue_peek(QUEUE* queue) {
     return ::catrl_queue_peek(queue);
 }
 
-/** Remove all elements from the queue without changing its capacity. */
+/** Clear an initialized Queue and reset head without changing capacity. */
 inline void queue_clear(QUEUE* queue) {
     ::catrl_queue_clear(queue);
 }
 
-/** Increase the queue's capacity to accommodate the specified number of elements. */
+/** Expand an initialized Queue to the requested larger capacity, preserving order; smaller/equal requests are no-ops. Failure preserves the Queue. */
 inline RESULT queue_expand(QUEUE* queue, NUINT capacity) {
     return ::catrl_queue_expand(queue, capacity);
 }
 
-/** Reduce the queue's capacity to accommodate its existing elements. */
+/** Halve capacity (at least length), preserving order. Failure retains capacity and elements but may normalize head and move elements. */
 inline RESULT queue_shrink(QUEUE* queue) {
     return ::catrl_queue_shrink(queue);
 }
 
-/** Release the resources owned by the queue. */
+/** Release an initialized Queue, retaining element size for reuse. Failure retains ownership; unallocated storage is a no-op. */
 inline RESULT queue_free(QUEUE* queue) {
     return ::catrl_queue_free(queue);
 }
@@ -275,42 +275,42 @@ inline RESULT queue_free(QUEUE* queue) {
  * C++ API :: STACK OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Initialize an empty stack with elements of the specified size in bytes. */
+/** Initialize unused Stack storage without allocation; size is nonzero bytes per element. */
 inline void stack_init(STACK* stack, NUINT size) {
     ::catrl_stack_init(stack, size);
 }
 
-/** Append an element to the stack. Requires sufficient capacity. */
+/** Copy size readable bytes from outside the initialized Stack and its allocation; requires length < capacity. */
 inline void stack_push(STACK* stack, POINTER element) {
     ::catrl_stack_push(stack, element);
 }
 
-/** Remove the last element from the stack and copy it to output if present. */
+/** Remove the top element and copy size bytes to valid non-overlapping output outside the Stack; return FALSE without changing output if empty. */
 inline BOOL stack_pop(STACK* stack, POINTERW output) {
     return ::catrl_stack_pop(stack, output);
 }
 
-/** Borrow the last element in the stack, or null if empty. */
+/** Borrow the writable top element, or null if empty; reacquire after mutation or resize/free attempts. Do not free independently. */
 inline POINTERW stack_peek(STACK* stack) {
     return ::catrl_stack_peek(stack);
 }
 
-/** Remove all elements from the stack without changing its capacity. */
+/** Clear an initialized Stack without releasing storage or changing capacity. */
 inline void stack_clear(STACK* stack) {
     ::catrl_stack_clear(stack);
 }
 
-/** Increase the stack's capacity to accommodate the specified number of elements. */
+/** Expand an initialized Stack to the requested larger capacity; smaller/equal requests are no-ops. Failure leaves it unchanged. */
 inline RESULT stack_expand(STACK* stack, NUINT capacity) {
     return ::catrl_stack_expand(stack, capacity);
 }
 
-/** Reduce the stack's capacity to accommodate its existing elements. */
+/** Halve capacity (at least length), preserving elements and order. Failure leaves the Stack unchanged. */
 inline RESULT stack_shrink(STACK* stack) {
     return ::catrl_stack_shrink(stack);
 }
 
-/** Release the resources owned by the stack. */
+/** Release an initialized Stack, retaining element size for reuse. Failure retains ownership; unallocated storage is a no-op. */
 inline RESULT stack_free(STACK* stack) {
     return ::catrl_stack_free(stack);
 }
@@ -319,47 +319,47 @@ inline RESULT stack_free(STACK* stack) {
  * C++ API :: POOL OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Initialize an empty pool with slots of the specified size in bytes. */
+/** Initialize unused Pool storage without allocation; size is nonzero bytes per slot. */
 inline void pool_init(POOL* pool, NUINT size) {
     ::catrl_pool_init(pool, size);
 }
 
-/** Acquire an available slot and output its index if one is available. */
+/** Acquire the lowest available index without allocation; initialize its slot before reading. Output must be writable and outside Pool storage; FALSE leaves it unchanged. */
 inline BOOL pool_acquire(POOL* pool, NUINT* index) {
     return ::catrl_pool_acquire(pool, index);
 }
 
-/** Release an acquired slot at the specified index. */
+/** Release an occupied index without erasing bytes or moving other slots; return FALSE for absent or out-of-range indices. */
 inline BOOL pool_release(POOL* pool, NUINT index) {
     return ::catrl_pool_release(pool, index);
 }
 
-/** Determine whether the slot at the specified index is occupied. */
+/** Return TRUE for an occupied index; FALSE for absent or out-of-range indices. */
 inline BOOL pool_contains(const POOL* pool, NUINT index) {
     return ::catrl_pool_contains(pool, index);
 }
 
-/** Borrow the element at the specified occupied index, or null if unavailable. */
+/** Borrow the writable occupied slot or null if unavailable. Reacquire after release, clear, resize/free attempts; do not free independently. */
 inline POINTERW pool_get(POOL* pool, NUINT index) {
     return ::catrl_pool_get(pool, index);
 }
 
-/** Release all acquired slots without changing the pool's capacity. */
+/** Release all occupied slots without erasing data bytes or changing capacity. */
 inline void pool_clear(POOL* pool) {
     ::catrl_pool_clear(pool);
 }
 
-/** Increase the pool's capacity to accommodate the specified number of slots. */
+/** Expand an initialized Pool to the requested larger capacity, preserving indices and contents; failure may retain extra zero bitmap storage. */
 inline RESULT pool_expand(POOL* pool, NUINT capacity) {
     return ::catrl_pool_expand(pool, capacity);
 }
 
-/** Reduce the pool's capacity by removing trailing unoccupied slots. */
+/** Halve capacity without truncating occupied indices. A bitmap resize failure may retain the smaller logical capacity and extra bitmap storage. */
 inline RESULT pool_shrink(POOL* pool) {
     return ::catrl_pool_shrink(pool);
 }
 
-/** Release the resources owned by the pool. */
+/** Release data then bitmap, retaining slot size for reuse. Failure retains unreleased ownership for retry; no allocations is a no-op. */
 inline RESULT pool_free(POOL* pool) {
     return ::catrl_pool_free(pool);
 }

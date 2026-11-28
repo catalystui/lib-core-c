@@ -71,18 +71,38 @@ static const NUINT catmm_slab_prefix = (NUINT) (((sizeof(CATMMLIB_HEAP_SLAB_PREF
 
 /* Classify the payload without calculating slab geometry on reuse or release. */
 static BYTE catmm_heap_class(NUINT payload, NUINT* capacity) {
-    NUINT current = (NUINT) 8;
-    if (payload <= catmm_payload_max) {
-        BYTE index = 0;
-        while (payload > current) {
-            current = (NUINT) (current + current);
-            ++index;
-        }
-        *capacity = current;
-        return index;
+    if (payload > catmm_payload_max) {
+        *capacity = 0;
+        return catmm_class_count;
     }
-    *capacity = 0;
-    return catmm_class_count;
+    if (payload <= (NUINT) 8) {
+        *capacity = (NUINT) 8;
+        return 0;
+    }
+    /* The class is the bit length of (payload - 1) / 8. Managed
+     * heaps use at least two-byte addresses and at most 65536-byte
+     * payload classes, so these shifts and the resulting class fit. */
+    NUINT remaining = (NUINT) ((payload - (NUINT) 1) >> 3);
+    BYTE index = 0;
+    if (remaining >= (NUINT) 256) {
+        remaining = (NUINT) (remaining >> 8);
+        index = 8;
+    }
+    if (remaining >= (NUINT) 16) {
+        remaining = (NUINT) (remaining >> 4);
+        index = (BYTE) (index + (BYTE) 4);
+    }
+    if (remaining >= (NUINT) 4) {
+        remaining = (NUINT) (remaining >> 2);
+        index = (BYTE) (index + (BYTE) 2);
+    }
+    if (remaining >= (NUINT) 2) {
+        remaining = (NUINT) (remaining >> 1);
+        ++index;
+    }
+    ++index;
+    *capacity = (NUINT) ((NUINT) 8 << index);
+    return index;
 }
 
 /* Caller holds the lock; slab is not in the partial list. The caller writes
@@ -151,7 +171,9 @@ static void __attribute__((destructor)) catmm_heap_dispose() {
 #endif
 #endif /* CATMMLIB_MANAGED_HEAP */
 
-static RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, NUINT size, NUINT* backing_size) {
+/* overwrite bytes at the beginning of the payload will be filled by the
+ * caller before the replacement can become public; ordinary allocations use zero. */
+static RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, NUINT size, NUINT* backing_size, NUINT overwrite) {
     *memory = 0;
     CATMMLIB_POINTERW base = 0;
     RESULT allocation(STATUS_CODE_SUCCESS, 0x04, 0x02, 0);
@@ -222,10 +244,14 @@ static RESULT catmm_heap_extent_alloc(CATMMLIB_POINTERW* memory, NUINT size, NUI
         /* The live slot now belongs exclusively to this allocation. Clear
          * reused storage outside the lock, before publishing the pointer.
          */
-        if (reused) catmm_fill((BYTE*) base + prefix, (BYTE) 0, (NUINT) (size - prefix));
+        NUINT payload = (NUINT) (size - prefix);
+        if (reused && overwrite < payload) {
+            catmm_fill((BYTE*) base + prefix + overwrite, (BYTE) 0, (NUINT) (payload - overwrite));
+        }
     } else
 #endif
     {
+        (void) overwrite;
         allocation = catmm_platform_alloc(&base, size);
     }
     if (!status_code_is_success(allocation.status)) {
@@ -296,7 +322,8 @@ static RESULT catmm_heap_extent_free(CATMMLIB_POINTERW memory, CATALYST_NUINT si
  * Shared operations are assigned below.
  */
 
-static RESULT catmm_allocate(CATMMLIB_POINTERW* memory, NUINT size, BOOL managed) {
+/* overwrite is at most size and nonzero only for private resize replacements. */
+static RESULT catmm_allocate(CATMMLIB_POINTERW* memory, NUINT size, BOOL managed, NUINT overwrite) {
     const CONTEXT_CODE context = managed ? (CONTEXT_CODE) 0x04 : (CONTEXT_CODE) 0x01;
     *memory = 0;
     const NUINT prefix = (NUINT) sizeof(CATMMLIB_NATIVE_PREFIX);
@@ -306,7 +333,7 @@ static RESULT catmm_allocate(CATMMLIB_POINTERW* memory, NUINT size, BOOL managed
     CATMMLIB_POINTERW base = 0;
     NUINT backingSize = size;
     RESULT allocation = managed
-        ? catmm_heap_extent_alloc(&base, (NUINT) (prefix + size), &backingSize)
+        ? catmm_heap_extent_alloc(&base, (NUINT) (prefix + size), &backingSize, overwrite)
         : catmm_platform_alloc(&base, (NUINT) (prefix + size));
     if (!status_code_is_success(allocation.status)) {
         return RESULT(allocation.status, context, 0x04, allocation.detail);
@@ -350,7 +377,7 @@ static RESULT catmm_release(CATMMLIB_POINTERW memory, BOOL managed) {
 static RESULT catmm_resize(CATMMLIB_POINTERW* memory, NUINT new_size, BOOL managed) {
     const CONTEXT_CODE context = managed ? (CONTEXT_CODE) 0x05 : (CONTEXT_CODE) 0x02;
     if (*memory == 0) {
-        RESULT allocation = catmm_allocate(memory, new_size, managed);
+        RESULT allocation = catmm_allocate(memory, new_size, managed, 0);
         return RESULT(allocation.status, context, 0x03, allocation.detail);
     }
     if (new_size == 0) {
@@ -433,11 +460,11 @@ static RESULT catmm_resize(CATMMLIB_POINTERW* memory, NUINT new_size, BOOL manag
 #endif
             } else {
                 CATMMLIB_POINTERW replacement = 0;
-                RESULT allocation = catmm_allocate(&replacement, new_size, managed);
+                NUINT retained = header.requested_size < new_size ? header.requested_size : new_size;
+                RESULT allocation = catmm_allocate(&replacement, new_size, managed, retained);
                 if (!status_code_is_success(allocation.status)) {
                     return RESULT(allocation.status, context, 0x09, allocation.detail);
                 }
-                NUINT retained = header.requested_size < new_size ? header.requested_size : new_size;
                 catmm_copy(replacement, *memory, retained);
                 RESULT release = managed ? catmm_heap_extent_free(base, oldExtent)
                     : catmm_platform_free(base, oldExtent);
@@ -467,7 +494,7 @@ static RESULT catmm_resize(CATMMLIB_POINTERW* memory, NUINT new_size, BOOL manag
 }
 
 CATALYST_RESULT catmm_alloc(CATMMLIB_POINTERW* memory, NUINT size) {
-    return catmm_allocate(memory, size, FALSE);
+    return catmm_allocate(memory, size, FALSE, 0);
 }
 
 CATALYST_RESULT catmm_realloc(CATMMLIB_POINTERW* memory, NUINT new_size) {
@@ -479,7 +506,7 @@ CATALYST_RESULT catmm_free(CATMMLIB_POINTERW memory) {
 }
 
 CATALYST_RESULT catmm_heap_alloc(CATMMLIB_POINTERW* memory, NUINT size) {
-    return catmm_allocate(memory, size, TRUE);
+    return catmm_allocate(memory, size, TRUE, 0);
 }
 
 CATALYST_RESULT catmm_heap_realloc(CATMMLIB_POINTERW* memory, NUINT new_size) {

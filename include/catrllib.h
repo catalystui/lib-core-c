@@ -232,28 +232,28 @@ CATRLLIB_API CATALYST_RESULT catrl_stream_free(CATRLLIB_STREAM* stream);
  * C API :: QUEUE OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Initialize an empty queue with elements of the specified size in bytes. */
+/** Initialize unused Queue storage without allocation; size is nonzero bytes per element. */
 CATRLLIB_API void catrl_queue_init(CATRLLIB_QUEUE* queue, CATALYST_NUINT size);
 
-/** Append an element to the queue. Requires sufficient capacity. */
+/** Copy size readable bytes from outside the initialized Queue and its allocation; requires length < capacity. */
 CATRLLIB_API void catrl_queue_enqueue(CATRLLIB_QUEUE* queue, CATMMLIB_POINTER element);
 
-/** Remove the first element from the queue and copy it to output if present. */
+/** Remove the oldest element and copy size bytes to valid non-overlapping output outside the Queue; return FALSE without changing output if empty. */
 CATRLLIB_API CATALYST_BOOL catrl_queue_dequeue(CATRLLIB_QUEUE* queue, CATMMLIB_POINTERW output);
 
-/** Borrow the first element in the queue, or null if empty. */
+/** Borrow the oldest writable element, or null if empty; reacquire after mutation or resize/free attempts. Do not free independently. */
 CATRLLIB_API CATMMLIB_POINTERW catrl_queue_peek(CATRLLIB_QUEUE* queue);
 
-/** Remove all elements from the queue without changing its capacity. */
+/** Clear an initialized Queue and reset head without changing capacity. */
 CATRLLIB_API void catrl_queue_clear(CATRLLIB_QUEUE* queue);
 
-/** Increase the queue's capacity to accommodate the specified number of elements. */
+/** Expand an initialized Queue to the requested larger capacity, preserving order; smaller/equal requests are no-ops. Failure preserves the Queue. */
 CATRLLIB_API CATALYST_RESULT catrl_queue_expand(CATRLLIB_QUEUE* queue, CATALYST_NUINT capacity);
 
-/** Reduce the queue's capacity to accommodate its existing elements. */
+/** Halve capacity (at least length), preserving order. Failure retains capacity and elements but may normalize head and move elements. */
 CATRLLIB_API CATALYST_RESULT catrl_queue_shrink(CATRLLIB_QUEUE* queue);
 
-/** Release the resources owned by the queue. */
+/** Release an initialized Queue, retaining element size for reuse. Failure retains ownership; unallocated storage is a no-op. */
 CATRLLIB_API CATALYST_RESULT catrl_queue_free(CATRLLIB_QUEUE* queue);
 
 
@@ -261,59 +261,59 @@ CATRLLIB_API CATALYST_RESULT catrl_queue_free(CATRLLIB_QUEUE* queue);
  * C API :: STACK OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Initialize an empty stack with elements of the specified size in bytes. */
+/** Initialize unused Stack storage without allocation; size is nonzero bytes per element. */
 CATRLLIB_API void catrl_stack_init(CATRLLIB_STACK* stack, CATALYST_NUINT size);
 
-/** Append an element to the stack. Requires sufficient capacity. */
+/** Copy size readable bytes from outside the initialized Stack and its allocation; requires length < capacity. */
 CATRLLIB_API void catrl_stack_push(CATRLLIB_STACK* stack, CATMMLIB_POINTER element);
 
-/** Remove the last element from the stack and copy it to output if present. */
+/** Remove the top element and copy size bytes to valid non-overlapping output outside the Stack; return FALSE without changing output if empty. */
 CATRLLIB_API CATALYST_BOOL catrl_stack_pop(CATRLLIB_STACK* stack, CATMMLIB_POINTERW output);
 
-/** Borrow the last element in the stack, or null if empty. */
+/** Borrow the writable top element, or null if empty; reacquire after mutation or resize/free attempts. Do not free independently. */
 CATRLLIB_API CATMMLIB_POINTERW catrl_stack_peek(CATRLLIB_STACK* stack);
 
-/** Remove all elements from the stack without changing its capacity. */
+/** Clear an initialized Stack without releasing storage or changing capacity. */
 CATRLLIB_API void catrl_stack_clear(CATRLLIB_STACK* stack);
 
-/** Increase the stack's capacity to accommodate the specified number of elements. */
+/** Expand an initialized Stack to the requested larger capacity; smaller/equal requests are no-ops. Failure leaves it unchanged. */
 CATRLLIB_API CATALYST_RESULT catrl_stack_expand(CATRLLIB_STACK* stack, CATALYST_NUINT capacity);
 
-/** Reduce the stack's capacity to accommodate its existing elements. */
+/** Halve capacity (at least length), preserving elements and order. Failure leaves the Stack unchanged. */
 CATRLLIB_API CATALYST_RESULT catrl_stack_shrink(CATRLLIB_STACK* stack);
 
-/** Release the resources owned by the stack. */
+/** Release an initialized Stack, retaining element size for reuse. Failure retains ownership; unallocated storage is a no-op. */
 CATRLLIB_API CATALYST_RESULT catrl_stack_free(CATRLLIB_STACK* stack);
 
 /* -------------------------------------------------------------------------------------------------
  * C API :: POOL OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
 
-/** Initialize an empty pool with slots of the specified size in bytes. */
+/** Initialize unused Pool storage without allocation; size is nonzero bytes per slot. */
 CATRLLIB_API void catrl_pool_init(CATRLLIB_POOL* pool, CATALYST_NUINT size);
 
-/** Acquire an available slot and output its index if one is available. */
+/** Acquire the lowest available index without allocation; initialize its slot before reading. Output must be writable and outside Pool storage; FALSE leaves it unchanged. */
 CATRLLIB_API CATALYST_BOOL catrl_pool_acquire(CATRLLIB_POOL* pool, CATALYST_NUINT* index);
 
-/** Release an acquired slot at the specified index. */
+/** Release an occupied index without erasing bytes or moving other slots; return FALSE for absent or out-of-range indices. */
 CATRLLIB_API CATALYST_BOOL catrl_pool_release(CATRLLIB_POOL* pool, CATALYST_NUINT index);
 
-/** Determine whether the slot at the specified index is occupied. */
+/** Return TRUE for an occupied index; FALSE for absent or out-of-range indices. */
 CATRLLIB_API CATALYST_BOOL catrl_pool_contains(const CATRLLIB_POOL* pool, CATALYST_NUINT index);
 
-/** Borrow the element at the specified occupied index, or null if unavailable. */
+/** Borrow the writable occupied slot or null if unavailable. Reacquire after release, clear, resize/free attempts; do not free independently. */
 CATRLLIB_API CATMMLIB_POINTERW catrl_pool_get(CATRLLIB_POOL* pool, CATALYST_NUINT index);
 
-/** Release all acquired slots without changing the pool's capacity. */
+/** Release all occupied slots without erasing data bytes or changing capacity. */
 CATRLLIB_API void catrl_pool_clear(CATRLLIB_POOL* pool);
 
-/** Increase the pool's capacity to accommodate the specified number of slots. */
+/** Expand an initialized Pool to the requested larger capacity, preserving indices and contents; failure may retain extra zero bitmap storage. */
 CATRLLIB_API CATALYST_RESULT catrl_pool_expand(CATRLLIB_POOL* pool, CATALYST_NUINT capacity);
 
-/** Reduce the pool's capacity by removing trailing unoccupied slots. */
+/** Halve capacity without truncating occupied indices. A bitmap resize failure may retain the smaller logical capacity and extra bitmap storage. */
 CATRLLIB_API CATALYST_RESULT catrl_pool_shrink(CATRLLIB_POOL* pool);
 
-/** Release the resources owned by the pool. */
+/** Release data then bitmap, retaining slot size for reuse. Failure retains unreleased ownership for retry; no allocations is a no-op. */
 CATRLLIB_API CATALYST_RESULT catrl_pool_free(CATRLLIB_POOL* pool);
 
 #ifdef __cplusplus
