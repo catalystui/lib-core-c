@@ -548,6 +548,183 @@ static int test_member_resize() {
     return 0;
 }
 
+/* Distinct language-level implementations share a method key and ABI.
+ * Nested invocation and receiver mutation must not retain stale descriptors. */
+static const BYTE nested_key = 10;
+static const BYTE outer_key = 11;
+static const BYTE delete_key = 12;
+static const BYTE added_key = 13;
+static const BYTE grow_key = 14;
+
+extern "C" {
+static CATALYST_RESULT polymorphic_first(OBJECT* object, POINTER, POINTERW output) {
+    MEMBER* member = object_get(object, &value_key);
+    if (!member) return RESULT(STATUS_CODE_ERROR_NOT_FOUND, 0xC0, 1, 0);
+    member_get(member, output);
+    return RESULT(STATUS_CODE_SUCCESS, 0xC0, 2, 0);
+}
+
+static CATALYST_RESULT polymorphic_second(OBJECT* object, POINTER, POINTERW output) {
+    MEMBER* member = object_get(object, &value_key);
+    if (!member) return RESULT(STATUS_CODE_ERROR_NOT_FOUND, 0xC1, 1, 0);
+    BYTE value = 0;
+    member_get(member, &value);
+    *(BYTE*) output = (BYTE) (value ^ (BYTE) 0xFF);
+    return RESULT(STATUS_CODE_SUCCESS, 0xC1, 2, 0);
+}
+
+static CATALYST_RESULT invoke_nested(OBJECT* object, POINTER arguments, POINTERW output) {
+    MEMBER* member = object_get(object, &nested_key);
+    if (!member) return RESULT(STATUS_CODE_ERROR_NOT_FOUND, 0xC2, 1, 0);
+    OBJECT* child = 0;
+    member_get(member, &child);
+    FIELD method;
+    if (!field_init(&method, child, &method_key)) return RESULT(STATUS_CODE_ERROR_NOT_FOUND, 0xC2, 2, 0);
+    return method_invoke(&method, arguments, output);
+}
+
+static CATALYST_RESULT invoke_receiver(OBJECT* object, POINTER arguments, POINTERW output) {
+    FIELD field;
+    if (!field_init(&field, object, &method_key)) return RESULT(STATUS_CODE_ERROR_NOT_FOUND, 0xC3, 1, 0);
+    return method_invoke(&field, arguments, output);
+}
+
+static CATALYST_RESULT remove_self(OBJECT* object, POINTER arguments, POINTERW output) {
+    RESULT result = object_remove(object, &delete_key);
+    if (!status_code_is_success(result.status)) return result;
+    *(BYTE*) output = *(const BYTE*) arguments;
+    return RESULT(STATUS_CODE_SUCCESS, 0xC4, 1, 0);
+}
+
+static CATALYST_RESULT grow_receiver(OBJECT* object, POINTER arguments, POINTERW output) {
+    RESULT result = object_expand(object, (NUINT) (object->members.capacity + (NUINT) 1));
+    if (!status_code_is_success(result.status)) return result;
+    result = object_add(object, &added_key, arguments, 1);
+    if (!status_code_is_success(result.status)) return result;
+    *(BYTE*) output = *(const BYTE*) arguments;
+    return RESULT(STATUS_CODE_SUCCESS, 0xC5, 1, 0);
+}
+
+static CATALYST_RESULT validate_byte_value(const MEMBER* member, const MEMBER* requirement, BOOL* valid) {
+    *valid = member->size == requirement->size &&
+        catmm_compare(member->data, requirement->data, member->size) == 0 ? TRUE : FALSE;
+    return RESULT(STATUS_CODE_SUCCESS, 0xC6, 1, 0);
+}
+}
+
+static int test_polymorphism_and_nested_objects() {
+    OBJECT definition;
+    object_init(&definition, 1);
+    CHECK(status_code_is_success(object_expand(&definition, 2).status));
+    BYTE value = 0x27;
+    METHOD method = polymorphic_first;
+    CHECK(status_code_is_success(object_add(&definition, &value_key, &value, 1).status));
+    CHECK(status_code_is_success(object_add(&definition, &method_key, &method, (NUINT) sizeof(method)).status));
+    CLASS first, second;
+    CHECK(status_code_is_success(class_init(&first, &definition).status));
+    CHECK(status_code_is_success(class_init(&second, &definition).status));
+    method = polymorphic_second;
+    MEMBER* override_member = object_get(&second.object, &method_key);
+    CHECK(override_member != 0);
+    member_set(override_member, &method);
+    OBJECT instances[2];
+    CHECK(status_code_is_success(class_create(&first, &instances[0]).status));
+    CHECK(status_code_is_success(class_create(&second, &instances[1]).status));
+    CHECK(status_code_is_success(class_free(&first).status));
+    CHECK(status_code_is_success(class_free(&second).status));
+    CHECK(status_code_is_success(object_free(&definition).status));
+
+    /* Two independent interfaces: a callable-shaped member and a value rule. */
+    OBJECT requirement;
+    object_init(&requirement, 1);
+    CHECK(status_code_is_success(object_expand(&requirement, 1).status));
+    CHECK(status_code_is_success(object_add(&requirement, &method_key, &method, (NUINT) sizeof(method)).status));
+    INTERFACE callable, state;
+    CHECK(status_code_is_success(interface_init(&callable, &requirement, match_size).status));
+    CHECK(status_code_is_success(object_clear(&requirement).status));
+    CHECK(status_code_is_success(object_add(&requirement, &value_key, &value, 1).status));
+    CHECK(status_code_is_success(interface_init(&state, &requirement, validate_byte_value).status));
+    CHECK(status_code_is_success(object_free(&requirement).status));
+
+    for (BYTE i = 0; i < 2; ++i) {
+        BOOL valid = FALSE;
+        CHECK(status_code_is_success(interface_validate(&callable, &instances[i], &valid).status) && valid);
+        CHECK(status_code_is_success(interface_validate(&state, &instances[i], &valid).status) && valid);
+        FIELD field;
+        BYTE output = 0;
+        CHECK(field_init(&field, &instances[i], &method_key));
+        CHECK(matches(method_invoke(&field, 0, &output), STATUS_CODE_SUCCESS, 0x11, 1));
+        CHECK(output == (i == 0 ? value : (BYTE) (value ^ (BYTE) 0xFF)));
+    }
+
+    OBJECT parent;
+    object_init(&parent, 1);
+    CHECK(status_code_is_success(object_expand(&parent, 2).status));
+    OBJECT* child = &instances[0];
+    CHECK(status_code_is_success(object_add(&parent, &nested_key, &child, (NUINT) sizeof(child)).status));
+    method = invoke_nested;
+    CHECK(status_code_is_success(object_add(&parent, &method_key, &method, (NUINT) sizeof(method)).status));
+    CLASS parent_class;
+    CHECK(status_code_is_success(class_init(&parent_class, &parent).status));
+    OBJECT other_parent;
+    CHECK(status_code_is_success(class_create(&parent_class, &other_parent).status));
+    CHECK(status_code_is_success(class_free(&parent_class).status));
+    CHECK(status_code_is_success(object_free(&parent).status));
+    FIELD field;
+    BYTE output = 0;
+    CHECK(field_init(&field, &other_parent, &method_key));
+    CHECK(matches(method_invoke(&field, 0, &output), STATUS_CODE_SUCCESS, 0x11, 1) && output == value);
+    child = &instances[1];
+    MEMBER* reference = object_get(&other_parent, &nested_key);
+    CHECK(reference != 0);
+    member_set(reference, &child);
+    CHECK(matches(method_invoke(&field, 0, &output), STATUS_CODE_SUCCESS, 0x11, 1) && output == (BYTE) (value ^ (BYTE) 0xFF));
+    CHECK(status_code_is_success(object_free(&other_parent).status));
+    /* Freeing parents did not release either referenced instance. */
+    BYTE changed = 0x30;
+    MEMBER* member = object_get(&instances[0], &value_key);
+    CHECK(member != 0);
+    member_set(member, &changed);
+    BOOL valid = TRUE;
+    CHECK(status_code_is_success(interface_validate(&state, &instances[0], &valid).status) && !valid);
+    CHECK(status_code_is_success(interface_validate(&callable, &instances[0], &valid).status) && valid);
+    CHECK(status_code_is_success(interface_free(&callable).status));
+    CHECK(status_code_is_success(interface_free(&state).status));
+    CHECK(status_code_is_success(object_free(&instances[0]).status));
+    CHECK(status_code_is_success(object_free(&instances[1]).status));
+    return 0;
+}
+
+static int test_reentrant_and_mutating_methods() {
+    OBJECT object;
+    object_init(&object, 1);
+    CHECK(status_code_is_success(object_expand(&object, 5).status));
+    BYTE value = 0x42, input = 0x93, output = 0;
+    METHOD inner = polymorphic_first, outer = invoke_receiver, erase = remove_self, grow = grow_receiver;
+    CHECK(status_code_is_success(object_add(&object, &value_key, &value, 1).status));
+    CHECK(status_code_is_success(object_add(&object, &method_key, &inner, (NUINT) sizeof(inner)).status));
+    CHECK(status_code_is_success(object_add(&object, &outer_key, &outer, (NUINT) sizeof(outer)).status));
+    CHECK(status_code_is_success(object_add(&object, &delete_key, &erase, (NUINT) sizeof(erase)).status));
+    CHECK(status_code_is_success(object_add(&object, &grow_key, &grow, (NUINT) sizeof(grow)).status));
+    FIELD field;
+    CHECK(field_init(&field, &object, &outer_key));
+    CHECK(matches(method_invoke(&field, 0, &output), STATUS_CODE_SUCCESS, 0x11, 1) && output == value);
+    CHECK(field_init(&field, &object, &delete_key));
+    CHECK(matches(method_invoke(&field, &input, &output), STATUS_CODE_SUCCESS, 0x11, 1) && output == input);
+    CHECK(!object_contains(&object, &delete_key) && object.members.cardinality == 4);
+    /* The previous field may now be invalid; resolve again before using it. */
+    CHECK(field_init(&field, &object, &grow_key));
+    CHECK(matches(method_invoke(&field, &input, &output), STATUS_CODE_SUCCESS, 0x11, 1) && output == input);
+    CHECK(object.members.capacity == 6 && object.members.cardinality == 5);
+    CHECK(field_init(&field, &object, &added_key));
+    field_get(&field, &output);
+    CHECK(output == input);
+    CHECK(field_init(&field, &object, &outer_key));
+    CHECK(matches(method_invoke(&field, 0, &output), STATUS_CODE_SUCCESS, 0x11, 1) && output == value);
+    CHECK(status_code_is_success(object_free(&object).status));
+    return 0;
+}
+
 int main() {
     BYTE value = 17, changed = 42, output = 0;
     MEMBER member;
@@ -671,6 +848,9 @@ int main() {
     CHECK(test_byte_class_extension() == 0);
     CHECK(test_reserved_class_extension() == 0);
     CHECK(test_member_resize() == 0);
+    CHECK(test_polymorphism_and_nested_objects() == 0);
+    CHECK(test_reentrant_and_mutating_methods() == 0);
+    std::printf("PASS: polymorphism, nested objects, composed interfaces and mutating methods\n");
     std::printf("PASS: CATOOLIB composites\n");
     return 0;
 }
