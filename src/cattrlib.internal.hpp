@@ -19,9 +19,15 @@ CATTRLIB_PRIVATE CATALYST_BOOL cattr_platform_process_equals(CATMMLIB_POINTER fi
 CATTRLIB_PRIVATE CATALYST_BOOL cattr_platform_process_is_current(CATMMLIB_POINTER state);
 CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_process_free(CATMMLIB_POINTERW* state);
 
+/* A native thread allocation begins with this shared lifecycle record. */
+struct CATTRLIB_THREAD_STATE {
+    CATALYST_BYTE stage;
+};
+
+CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_thread_create(CATMMLIB_POINTERW* state);
 CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_thread_current(CATMMLIB_POINTERW* state);
 /* Publish identity before entry can execute. Failure starts no entry. */
-CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_thread_start(CATMMLIB_POINTERW* state, void (*entry)(CATMMLIB_POINTERW), CATMMLIB_POINTERW arguments);
+CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_thread_start(CATMMLIB_POINTERW state, void (*entry)(CATMMLIB_POINTERW), CATMMLIB_POINTERW arguments);
 CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_thread_wait(CATMMLIB_POINTERW state);
 CATTRLIB_PRIVATE CATALYST_BOOL cattr_platform_thread_equals(CATMMLIB_POINTER first, CATMMLIB_POINTER second);
 CATTRLIB_PRIVATE CATALYST_BOOL cattr_platform_thread_is_current(CATMMLIB_POINTER state);

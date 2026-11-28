@@ -57,6 +57,7 @@ CATALYST_RESULT cattr_platform_process_free(POINTERW* state) {
  * ------------------------------------------------------------------------------------------------- */
 
 struct CATTRLIB_WIN32_THREAD {
+    CATTRLIB_THREAD_STATE common;
     HANDLE handle;
     DWORD identity;
     SRWLOCK gate;
@@ -74,19 +75,24 @@ static DWORD WINAPI cattr_win32_entry(LPVOID arguments) {
     return 0;
 }
 
-CATALYST_RESULT cattr_platform_thread_current(POINTERW* state) {
+CATALYST_RESULT cattr_platform_thread_create(POINTERW* state) {
     RESULT allocation = catmm_heap_alloc(state, (NUINT) sizeof(CATTRLIB_WIN32_THREAD));
-    if (!status_code_is_success(allocation.status)) return RESULT(allocation.status, 0x03, 0x01, allocation.detail);
+    if (!status_code_is_success(allocation.status)) return RESULT(allocation.status, 0x0A, 0x01, allocation.detail);
     CATTRLIB_WIN32_THREAD* thread = (CATTRLIB_WIN32_THREAD*) *state;
     thread->handle = 0;
+    return RESULT(STATUS_CODE_SUCCESS, 0x0A, 0x02, 0);
+}
+
+CATALYST_RESULT cattr_platform_thread_current(POINTERW* state) {
+    RESULT allocation = cattr_platform_thread_create(state);
+    if (!status_code_is_success(allocation.status)) return RESULT(allocation.status, 0x03, 0x01, allocation.detail);
+    CATTRLIB_WIN32_THREAD* thread = (CATTRLIB_WIN32_THREAD*) *state;
     thread->identity = GetCurrentThreadId();
     return RESULT(STATUS_CODE_SUCCESS, 0x03, 0x02, 0);
 }
 
-CATALYST_RESULT cattr_platform_thread_start(POINTERW* state, void (*entry)(POINTERW), POINTERW arguments) {
-    RESULT allocation = catmm_heap_alloc(state, (NUINT) sizeof(CATTRLIB_WIN32_THREAD));
-    if (!status_code_is_success(allocation.status)) return RESULT(allocation.status, 0x04, 0x01, allocation.detail);
-    CATTRLIB_WIN32_THREAD* thread = (CATTRLIB_WIN32_THREAD*) *state;
+CATALYST_RESULT cattr_platform_thread_start(POINTERW state, void (*entry)(POINTERW), POINTERW arguments) {
+    CATTRLIB_WIN32_THREAD* thread = (CATTRLIB_WIN32_THREAD*) state;
     thread->entry = entry;
     thread->arguments = arguments;
     InitializeSRWLock(&thread->gate);

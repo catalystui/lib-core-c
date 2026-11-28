@@ -59,6 +59,7 @@ CATALYST_RESULT cattr_platform_process_free(POINTERW* state) {
  * ------------------------------------------------------------------------------------------------- */
 
 struct CATTRLIB_POSIX_THREAD {
+    CATTRLIB_THREAD_STATE common;
     pthread_t identity;
     pthread_mutex_t gate;
     BOOL gate_initialized;
@@ -76,19 +77,24 @@ static void* cattr_posix_entry(void* arguments) {
     return 0;
 }
 
-CATALYST_RESULT cattr_platform_thread_current(POINTERW* state) {
+CATALYST_RESULT cattr_platform_thread_create(POINTERW* state) {
     RESULT allocation = catmm_heap_alloc(state, (NUINT) sizeof(CATTRLIB_POSIX_THREAD));
-    if (!status_code_is_success(allocation.status)) return RESULT(allocation.status, 0x03, 0x01, allocation.detail);
+    if (!status_code_is_success(allocation.status)) return RESULT(allocation.status, 0x0A, 0x01, allocation.detail);
     CATTRLIB_POSIX_THREAD* thread = (CATTRLIB_POSIX_THREAD*) *state;
     thread->gate_initialized = FALSE;
+    return RESULT(STATUS_CODE_SUCCESS, 0x0A, 0x02, 0);
+}
+
+CATALYST_RESULT cattr_platform_thread_current(POINTERW* state) {
+    RESULT allocation = cattr_platform_thread_create(state);
+    if (!status_code_is_success(allocation.status)) return RESULT(allocation.status, 0x03, 0x01, allocation.detail);
+    CATTRLIB_POSIX_THREAD* thread = (CATTRLIB_POSIX_THREAD*) *state;
     thread->identity = pthread_self();
     return RESULT(STATUS_CODE_SUCCESS, 0x03, 0x02, 0);
 }
 
-CATALYST_RESULT cattr_platform_thread_start(POINTERW* state, void (*entry)(POINTERW), POINTERW arguments) {
-    RESULT allocation = catmm_heap_alloc(state, (NUINT) sizeof(CATTRLIB_POSIX_THREAD));
-    if (!status_code_is_success(allocation.status)) return RESULT(allocation.status, 0x04, 0x01, allocation.detail);
-    CATTRLIB_POSIX_THREAD* thread = (CATTRLIB_POSIX_THREAD*) *state;
+CATALYST_RESULT cattr_platform_thread_start(POINTERW state, void (*entry)(POINTERW), POINTERW arguments) {
+    CATTRLIB_POSIX_THREAD* thread = (CATTRLIB_POSIX_THREAD*) state;
     thread->gate_initialized = FALSE;
     thread->entry = entry;
     thread->arguments = arguments;

@@ -15,17 +15,12 @@ static const BYTE THREAD_CAPTURED = 2;
 static const BYTE THREAD_JOINED = 3;
 static const BYTE THREAD_CLEANUP = 4;
 
-struct CATTRLIB_THREAD_STATE {
-    POINTERW native;
-    BYTE stage;
-};
-
 /* Lifecycle changes are externally serialized with all uses. A captured
  * identity must remain live; the backend publishes identity before entry. */
 static BOOL cattr_thread_is_current(const THREAD* thread) {
     const CATTRLIB_THREAD_STATE* state = (const CATTRLIB_THREAD_STATE*) thread->state;
     return (state->stage == THREAD_STARTED || state->stage == THREAD_CAPTURED)
-        && cattr_platform_thread_is_current(state->native) ? TRUE : FALSE;
+        && cattr_platform_thread_is_current(thread->state) ? TRUE : FALSE;
 }
 
 /* -------------------------------------------------------------------------------------------------
@@ -58,11 +53,9 @@ CATALYST_RESULT cattr_thread_create(THREAD* thread, PROCESS* process, POINTERX e
     thread->arguments = arguments;
     thread->state = 0;
     if (!cattr_platform_process_is_current(process->state)) return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x04, 0x01, 0);
-    RESULT allocation = catmm_heap_alloc(&thread->state, (NUINT) sizeof(CATTRLIB_THREAD_STATE));
+    RESULT allocation = cattr_platform_thread_create(&thread->state);
     if (!status_code_is_success(allocation.status)) return RESULT(allocation.status, 0x04, 0x02, allocation.detail);
-    CATTRLIB_THREAD_STATE* state = (CATTRLIB_THREAD_STATE*) thread->state;
-    state->native = 0;
-    state->stage = THREAD_CREATED;
+    ((CATTRLIB_THREAD_STATE*) thread->state)->stage = THREAD_CREATED;
     return RESULT(STATUS_CODE_SUCCESS, 0x04, 0x03, 0);
 }
 
@@ -72,14 +65,9 @@ CATALYST_RESULT cattr_thread_current(THREAD* thread, PROCESS* process) {
     thread->arguments = 0;
     thread->state = 0;
     if (!cattr_platform_process_is_current(process->state)) return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x05, 0x01, 0);
-    RESULT allocation = catmm_heap_alloc(&thread->state, (NUINT) sizeof(CATTRLIB_THREAD_STATE));
-    if (!status_code_is_success(allocation.status)) return RESULT(allocation.status, 0x05, 0x02, allocation.detail);
-    CATTRLIB_THREAD_STATE* state = (CATTRLIB_THREAD_STATE*) thread->state;
-    state->native = 0;
-    state->stage = THREAD_CLEANUP;
-    RESULT capture = cattr_platform_thread_current(&state->native);
+    RESULT capture = cattr_platform_thread_current(&thread->state);
     if (!status_code_is_success(capture.status)) return RESULT(capture.status, 0x05, 0x03, capture.detail);
-    state->stage = THREAD_CAPTURED;
+    ((CATTRLIB_THREAD_STATE*) thread->state)->stage = THREAD_CAPTURED;
     return RESULT(STATUS_CODE_SUCCESS, 0x05, 0x04, 0);
 }
 
@@ -87,7 +75,7 @@ CATALYST_RESULT cattr_thread_start(THREAD* thread) {
     CATTRLIB_THREAD_STATE* state = (CATTRLIB_THREAD_STATE*) thread->state;
     if (state->stage != THREAD_CREATED) return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x06, 0x01, 0);
     state->stage = THREAD_STARTED;
-    RESULT start = cattr_platform_thread_start(&state->native, (void (*)(POINTERW)) thread->entry, thread->arguments);
+    RESULT start = cattr_platform_thread_start(thread->state, (void (*)(POINTERW)) thread->entry, thread->arguments);
     if (!status_code_is_success(start.status)) {
         state->stage = THREAD_CLEANUP;
         return RESULT(start.status, 0x06, 0x02, start.detail);
@@ -99,7 +87,7 @@ CATALYST_RESULT cattr_thread_wait(THREAD* thread) {
     CATTRLIB_THREAD_STATE* state = (CATTRLIB_THREAD_STATE*) thread->state;
     if (state->stage == THREAD_JOINED) return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x07, 0x01, 0);
     if (state->stage != THREAD_STARTED || cattr_thread_is_current(thread)) return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x07, 0x02, 0);
-    RESULT wait = cattr_platform_thread_wait(state->native);
+    RESULT wait = cattr_platform_thread_wait(thread->state);
     if (!status_code_is_success(wait.status)) return RESULT(wait.status, 0x07, 0x03, wait.detail);
     state->stage = THREAD_JOINED;
     return RESULT(STATUS_CODE_SUCCESS, 0x07, 0x04, 0);
@@ -112,7 +100,7 @@ CATALYST_BOOL cattr_thread_equals(const THREAD* thread1, const THREAD* thread2) 
     const CATTRLIB_THREAD_STATE* second = (const CATTRLIB_THREAD_STATE*) thread2->state;
     if ((first->stage != THREAD_STARTED && first->stage != THREAD_CAPTURED)
         || (second->stage != THREAD_STARTED && second->stage != THREAD_CAPTURED)) return FALSE;
-    return cattr_platform_thread_equals(first->native, second->native);
+    return cattr_platform_thread_equals(thread1->state, thread2->state);
 }
 
 CATALYST_RESULT cattr_thread_free(THREAD* thread) {
@@ -120,12 +108,8 @@ CATALYST_RESULT cattr_thread_free(THREAD* thread) {
     CATTRLIB_THREAD_STATE* state = (CATTRLIB_THREAD_STATE*) thread->state;
     if (state->stage == THREAD_STARTED) return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x09, 0x02, 0);
     state->stage = THREAD_CLEANUP;
-    if (state->native != 0) {
-        RESULT release = cattr_platform_thread_free(&state->native);
-        if (!status_code_is_success(release.status)) return RESULT(release.status, 0x09, 0x03, release.detail);
-    }
-    RESULT release = catmm_heap_free(state);
-    if (!status_code_is_success(release.status)) return RESULT(release.status, 0x09, 0x04, release.detail);
+    RESULT release = cattr_platform_thread_free(&thread->state);
+    if (!status_code_is_success(release.status)) return RESULT(release.status, 0x09, 0x03, release.detail);
     thread->process = 0;
     thread->entry = 0;
     thread->arguments = 0;
