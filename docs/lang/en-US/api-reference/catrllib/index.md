@@ -1,6 +1,6 @@
 # CATRLLIB
 
-Provides Set, Map, Array, File, Stream, Queue, Stack, and Pool operations with managed memory.
+Provides Set, Map, Array, File, Stream, Queue, Stack, Pool, HashSet, and HashMap operations with managed memory.
 
 **C Header:** `catrllib.h`  
 **C++ Header:** `catrllib.hpp`  
@@ -25,11 +25,13 @@ CATRLLIB uses [CATMMLIB](../catmmlib/index.md) for internal storage and lifecycl
 
 Initialize unused collection storage only; do not shallow-copy owning collections or modify bookkeeping directly. Synchronize access externally.
 
-Set, Map, Array, Queue, and Stack own copies of fixed-size byte representations. Initialize representation bytes consistently, including padding. Collections do not perform typed comparisons, construct or destroy objects, release referenced objects, or securely erase removed data.
+Set, Map, Array, Queue, Stack, HashSet, and HashMap own copies of fixed-size byte representations. Initialize representation bytes consistently, including padding. Collections do not perform typed comparisons, construct or destroy objects, release referenced objects, or securely erase removed data.
 
-Capacity counts slots, not bytes. Reserve space before insertion; insertion never allocates. Only live slots represent elements. Pool owns its slot and bitmap storage; clients initialize acquired slot contents before reading them. Queue, Stack, and Pool borrow pointers only while their relevant slot remains live; reacquire after mutation or resize/free attempts. Use current pointers after Map resizing, including partial failure. Allocation extents use `CATALYST_NUINT` and follow CATMMLIB's allocation and resizing guarantees.
+Capacity counts slots, not bytes. Reserve space before insertion; insertion never allocates. Only live slots represent elements. Pool owns its slot and bitmap storage; clients initialize acquired slot contents before reading them. Queue, Stack, and Pool borrow pointers only while their relevant slot remains live; reacquire after mutation or resize/free attempts. Use current pointers after Map, HashSet, and HashMap resizing, including partial failure. Allocation extents use `CATALYST_NUINT` and follow CATMMLIB's allocation and resizing guarantees.
 
-Copy inputs and removal outputs must lie outside the collection object and its allocations. Search inputs may identify live elements or keys, including Map replacement keys.
+Copy inputs and removal outputs must lie outside the collection object and its allocations. Search inputs may identify live elements or keys, including Map and HashMap replacement keys.
+
+HashSet and HashMap implement Set and Map relationships using a separate hash bucket index over contiguous live elements or keys. Hashing and equality operate on representation bytes; do not modify stored HashSet elements, HashMap keys, or bucket entries directly. HashMap values remain writable. Bucket capacity is distinct from element or pair capacity and normally equals twice that capacity; partial shrink or cleanup may retain additional buckets.
 
 File resolvers define metadata interpretation and resolved-output ownership. Stream producers define chunk contents, sequencing, and exhaustion; CATRLLIB owns the raw Stream state and chunk storage, not resources referenced by those bytes.
 
@@ -47,6 +49,8 @@ For Core-wide requirements, see [Assumptions](../../assumptions/index.md).
 | [CATRLLIB_QUEUE](#catrllib_queue) | A finite ordered collection of fixed-size elements retrieved in first-in, first-out order. |
 | [CATRLLIB_STACK](#catrllib_stack) | A finite ordered collection of fixed-size elements retrieved in last-in, first-out order. |
 | [CATRLLIB_POOL](#catrllib_pool) | A finite collection of fixed-size, reusable slots, each independently acquired or released. |
+| [CATRLLIB_HASHSET](#catrllib_hashset) | Finite, unordered collection of distinct elements indexed by hash. |
+| [CATRLLIB_HASHMAP](#catrllib_hashmap) | Finite collection of unique keys and their values, indexed by hash. |
 
 | Macro | Meaning |
 | --- | --- |
@@ -114,6 +118,24 @@ For Core-wide requirements, see [Assumptions](../../assumptions/index.md).
 | [catrl_pool_expand](#catrl_pool_expand) | Increase capacity to the exact requested slot count; smaller or equal requests are no-ops. |
 | [catrl_pool_shrink](#catrl_pool_shrink) | Reduce capacity to the larger of half the current capacity (rounded down) and one past the highest occupied index (zero if empty). |
 | [catrl_pool_free](#catrl_pool_free) | Release data, then bitmap, retaining slot size for reuse. |
+| [catrl_hashset_init](#catrl_hashset_init) | Initialize an empty HashSet without allocation. |
+| [catrl_hashset_add](#catrl_hashset_add) | Copy an element if absent using the hash index. |
+| [catrl_hashset_remove](#catrl_hashset_remove) | Remove a member if present. |
+| [catrl_hashset_contains](#catrl_hashset_contains) | Determine membership using the hash index. |
+| [catrl_hashset_clear](#catrl_hashset_clear) | Empty the HashSet while retaining capacity. |
+| [catrl_hashset_expand](#catrl_hashset_expand) | Request an exact larger element capacity. |
+| [catrl_hashset_shrink](#catrl_hashset_shrink) | Halve capacity, retaining all members. |
+| [catrl_hashset_free](#catrl_hashset_free) | Release owned element and bucket storage. |
+| [catrl_hashmap_init](#catrl_hashmap_init) | Initialize an empty HashMap without allocation. |
+| [catrl_hashmap_add](#catrl_hashmap_add) | Copy a new key and value if the key is absent using the hash index. |
+| [catrl_hashmap_remove](#catrl_hashmap_remove) | Remove a key and its value if present. |
+| [catrl_hashmap_contains](#catrl_hashmap_contains) | Determine key membership using the hash index. |
+| [catrl_hashmap_get](#catrl_hashmap_get) | Borrow the associated writable value if present. |
+| [catrl_hashmap_set](#catrl_hashmap_set) | Replace the value of an existing key. |
+| [catrl_hashmap_clear](#catrl_hashmap_clear) | Empty the HashMap while retaining capacity. |
+| [catrl_hashmap_expand](#catrl_hashmap_expand) | Request an exact larger pair capacity. |
+| [catrl_hashmap_shrink](#catrl_hashmap_shrink) | Halve capacity, retaining all associations. |
+| [catrl_hashmap_free](#catrl_hashmap_free) | Release owned key, value, and bucket storage. |
 
 ## Macros
 
@@ -336,6 +358,66 @@ typedef struct CATRLLIB_POOL {
 **C++ equivalent:** `catalyst::POOL`.
 
 Acquire scans for the lowest free index; release, contains, and get address the bitmap directly. Live indices survive resizing; pointers do not. Released indices may be reused, with no generation counter. Unoccupied bytes are not elements and may contain old contents; acquisition does not initialize them. Partial resize or cleanup can retain extra owned bitmap storage even at zero logical capacity.
+
+### CATRLLIB_HASHSET
+
+A finite, unordered collection of distinct, fixed-size elements stored contiguously and indexed by hash.
+
+```c
+typedef struct CATRLLIB_HASHSET {
+    CATMMLIB_POINTERW data;
+    CATMMLIB_POINTERW buckets;
+    CATALYST_NUINT size;
+    CATALYST_NUINT cardinality;
+    CATALYST_NUINT capacity;
+    CATALYST_NUINT bcapacity;
+} CATRLLIB_HASHSET;
+```
+
+**Fields:**
+
+- `data`: Owned contiguous element storage. Only the first `cardinality` slots are live.  
+- `buckets`: Independently owned hash index containing `bcapacity` entries of `CATALYST_NUINT`; zero marks an empty bucket, otherwise the entry is a live dense index plus one.  
+- `size`: Nonzero bytes per element, fixed at initialization.  
+- `cardinality`: Number of distinct members, from zero through `capacity`.  
+- `capacity`: Logical number of element slots; element storage can accommodate this count.  
+- `bcapacity`: Number of allocated bucket entries; normally `2 * capacity`. The bucket byte extent must be representable in `CATALYST_NUINT`; CATMMLIB may impose a smaller limit.
+
+**C++ equivalent:** `catalyst::HASHSET`.
+
+Owns its element and bucket storage. Lookup uses bytewise hashing and equality with linear probing; collisions do not imply equality. Removal may move the last live member into the removed slot and repair the index. Stored members must not be modified directly. Partial resize or cleanup may leave extra owned storage; use current pointers after any resize or free attempt.
+
+### CATRLLIB_HASHMAP
+
+A finite collection of distinct, fixed-size keys, each associated with a fixed-size value, stored contiguously and indexed by hash.
+
+```c
+typedef struct CATRLLIB_HASHMAP {
+    CATMMLIB_POINTERW keys;
+    CATMMLIB_POINTERW values;
+    CATMMLIB_POINTERW buckets;
+    CATALYST_NUINT ksize;
+    CATALYST_NUINT vsize;
+    CATALYST_NUINT cardinality;
+    CATALYST_NUINT capacity;
+    CATALYST_NUINT bcapacity;
+} CATRLLIB_HASHMAP;
+```
+
+**Fields:**
+
+- `keys`: Owned contiguous key storage. Only the first `cardinality` slots are live.  
+- `values`: Independently owned contiguous value storage, with each live slot corresponding to the key at the same index.  
+- `buckets`: Independently owned hash index containing `bcapacity` entries of `CATALYST_NUINT`; zero marks an empty bucket, otherwise the entry is a live dense index plus one.  
+- `ksize`: Nonzero bytes per key, fixed at initialization.  
+- `vsize`: Nonzero bytes per value, fixed at initialization.  
+- `cardinality`: Number of distinct keys, from zero through `capacity`.  
+- `capacity`: Logical number of pair slots; key and value storage can accommodate this count.  
+- `bcapacity`: Number of allocated bucket entries; normally `2 * capacity`. The bucket byte extent must be representable in `CATALYST_NUINT`; CATMMLIB may impose a smaller limit.
+
+**C++ equivalent:** `catalyst::HASHMAP`.
+
+Owns its key, value, and bucket storage. Lookup uses bytewise hashing and equality with linear probing; collisions do not imply equality. Removal may move the last live association into the removed slot and repair the index. Keys must not be modified directly; associated values may be modified. Partial resize or cleanup may leave extra owned storage; use current pointers after any resize or free attempt.
 
 ## Functions
 
@@ -1715,3 +1797,426 @@ Release data, then bitmap, retaining slot size for reuse. After successful data 
 | `0x823C0300` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release bitmap | — |
 | `0x843C0300` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Release bitmap | — |
 | `0x003C0400` | `SUCCESS` | Clear ownership | — |
+
+### catrl_hashset_init
+
+```c
+void catrl_hashset_init(CATRLLIB_HASHSET* set, CATALYST_NUINT size);
+```
+
+Initialize unused HashSet storage without allocation. All fields except element size become zero or null. Do not initialize an object that still owns allocations.
+
+**Parameters:**
+
+- `set`: Writable unused HashSet storage.  
+- `size`: Nonzero bytes per element.
+
+**C++ equivalent:** `catalyst::hashset_init`.
+
+### catrl_hashset_add
+
+```c
+CATALYST_BOOL catrl_hashset_add(CATRLLIB_HASHSET* set, CATMMLIB_POINTER element);
+```
+
+Look up the element by hash and byte equality. If absent, copy the element into the next dense slot and update the bucket index without allocating. If present, leave the collection unchanged. Requires spare capacity when inserting a new member.
+
+**Parameters:**
+
+- `set`: Valid initialized HashSet.  
+- `element`: Readable `size` bytes outside the HashSet and its allocations.
+
+**Returns:** `CATALYST_TRUE` if inserted; `CATALYST_FALSE` if the element already exists.
+
+**C++ equivalent:** `catalyst::hashset_add`.
+
+### catrl_hashset_remove
+
+```c
+CATALYST_BOOL catrl_hashset_remove(CATRLLIB_HASHSET* set, CATMMLIB_POINTER element);
+```
+
+Remove the matching member without allocating or changing capacity. If a match is not in the last dense slot, move the last member into its place. Repair the hash index; do not rely on storage order or existing pointers after removal.
+
+**Parameters:**
+
+- `set`: Valid initialized HashSet.  
+- `element`: Readable `size` bytes; may identify a live member.
+
+**Returns:** `CATALYST_TRUE` if removed; `CATALYST_FALSE` if absent.
+
+**C++ equivalent:** `catalyst::hashset_remove`.
+
+### catrl_hashset_contains
+
+```c
+CATALYST_BOOL catrl_hashset_contains(const CATRLLIB_HASHSET* set, CATMMLIB_POINTER element);
+```
+
+Determine whether the element belongs to the HashSet by hashing and byte equality. Does not modify the collection.
+
+**Parameters:**
+
+- `set`: Valid initialized HashSet.  
+- `element`: Readable `size` bytes; may identify a live member.
+
+**Returns:** `CATALYST_TRUE` if present; `CATALYST_FALSE` otherwise.
+
+**C++ equivalent:** `catalyst::hashset_contains`.
+
+### catrl_hashset_clear
+
+```c
+void catrl_hashset_clear(CATRLLIB_HASHSET* set);
+```
+
+Remove all members and clear the bucket index without releasing storage, changing capacity, or erasing the stored element bytes.
+
+**Parameters:**
+
+- `set`: Valid initialized HashSet.
+
+**C++ equivalent:** `catalyst::hashset_clear`.
+
+### catrl_hashset_expand
+
+```c
+CATALYST_RESULT catrl_hashset_expand(CATRLLIB_HASHSET* set, CATALYST_NUINT capacity);
+```
+
+Increase capacity to the exact requested element count; smaller or equal requests are no-ops. Resize data, then the bucket index to twice the requested capacity as needed. Rebuild the index when its capacity changes. Preserve all live members. Failure preserves logical capacity and the existing index, but earlier successful resizes may retain extra storage or relocate data. Reacquire pointers after the attempt.
+
+**Parameters:**
+
+- `set`: Valid initialized HashSet.  
+- `capacity`: Requested total element capacity, not bytes; zero is a no-op.
+
+**C++ equivalent:** `catalyst::hashset_expand`.
+
+**Context:** `0x42`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x01420100` | `SUCCESS_NOOP`: requested capacity is not larger | Keep storage | — |
+| `0x90420200` | `ERROR_BUFFER_OVERFLOW`: capacity times element size is unrepresentable | Reject extent | — |
+| `0x90420300` | `ERROR_BUFFER_OVERFLOW`: bucket byte extent is unrepresentable | Reject bucket extent | — |
+| `0x82420400` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize data | — |
+| `0x84420400` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize data | — |
+| `0x86420400` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize data | — |
+| `0x90420400` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB allocation extent unrepresentable | Resize data | — |
+| `0x91420400` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize data | — |
+| `0x82420484` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize data | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x84420482` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize data | Other failure is `ERROR_INVALID_STATE` |
+| `0x82420500` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize buckets | — |
+| `0x84420500` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize buckets | — |
+| `0x86420500` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize buckets | — |
+| `0x90420500` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB allocation extent unrepresentable | Resize buckets | — |
+| `0x91420500` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize buckets | — |
+| `0x82420584` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize buckets | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x84420582` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize buckets | Other failure is `ERROR_INVALID_STATE` |
+| `0x00420600` | `SUCCESS` | Commit requested capacity | — |
+
+### catrl_hashset_shrink
+
+```c
+CATALYST_RESULT catrl_hashset_shrink(CATRLLIB_HASHSET* set);
+```
+
+Reduce capacity to `max(cardinality, capacity / 2)`, rounded down. Preserve all live members; release storage at zero capacity. An unchanged target is a no-op. Resize data first and commit the smaller logical capacity before resizing buckets. If a later resize fails, retain the smaller logical capacity and any extra storage; the existing bucket index remains valid. Rebuild the index when bucket capacity changes. Reacquire pointers after the attempt. At zero logical capacity, retained allocations can be released by free.
+
+**Parameters:**
+
+- `set`: Valid initialized HashSet.
+
+**C++ equivalent:** `catalyst::hashset_shrink`.
+
+**Context:** `0x43`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x01430100` | `SUCCESS_NOOP`: target equals current capacity | Keep storage | — |
+| `0x82430200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize data | — |
+| `0x84430200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize data | — |
+| `0x86430200` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize data | — |
+| `0x90430200` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB allocation extent unrepresentable | Resize data | — |
+| `0x91430200` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize data | — |
+| `0x82430284` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize data | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x84430282` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize data | Other failure is `ERROR_INVALID_STATE` |
+| `0x82430300` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize buckets | — |
+| `0x84430300` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize buckets | — |
+| `0x86430300` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize buckets | — |
+| `0x90430300` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB allocation extent unrepresentable | Resize buckets | — |
+| `0x91430300` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize buckets | — |
+| `0x82430384` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize buckets | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x84430382` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize buckets | Other failure is `ERROR_INVALID_STATE` |
+| `0x00430400` | `SUCCESS` | Complete smaller capacity | — |
+
+### catrl_hashset_free
+
+```c
+CATALYST_RESULT catrl_hashset_free(CATRLLIB_HASHSET* set);
+```
+
+Release data, then buckets, retaining element size for reuse. After successful data release, the HashSet is logically empty with capacity zero and its bucket index cleared. If a release fails, retain unreleased ownership for retry; already released storage is not restored. Successful bucket release clears `bcapacity`. No owned allocations is a no-op.
+
+**Parameters:**
+
+- `set`: Valid initialized HashSet, including a previously freed or partially cleaned up object.
+
+**C++ equivalent:** `catalyst::hashset_free`.
+
+**Context:** `0x44`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x01440100` | `SUCCESS_NOOP`: no owned allocations | Keep empty collection | — |
+| `0x82440200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release data | — |
+| `0x84440200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Release data | — |
+| `0x82440300` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release buckets | — |
+| `0x84440300` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Release buckets | — |
+| `0x00440400` | `SUCCESS` | Clear ownership | — |
+
+### catrl_hashmap_init
+
+```c
+void catrl_hashmap_init(CATRLLIB_HASHMAP* map, CATALYST_NUINT ksize, CATALYST_NUINT vsize);
+```
+
+Initialize unused HashMap storage without allocation. All fields except key and value sizes become zero or null. Do not initialize an object that still owns allocations.
+
+**Parameters:**
+
+- `map`: Writable unused HashMap storage.  
+- `ksize`: Nonzero bytes per key.  
+- `vsize`: Nonzero bytes per value.
+
+**C++ equivalent:** `catalyst::hashmap_init`.
+
+### catrl_hashmap_add
+
+```c
+CATALYST_BOOL catrl_hashmap_add(CATRLLIB_HASHMAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTER value);
+```
+
+Look up the key by hash and byte equality. If absent, copy the key and value into the next dense slot and update the bucket index without allocating. If present, leave the collection unchanged. Requires spare capacity when inserting a new association.
+
+**Parameters:**
+
+- `map`: Valid initialized HashMap.  
+- `key`: Readable `ksize` bytes outside the HashMap and its allocations.  
+- `value`: Readable `vsize` bytes outside the HashMap and its allocations.
+
+**Returns:** `CATALYST_TRUE` if inserted; `CATALYST_FALSE` if the key already exists.
+
+**C++ equivalent:** `catalyst::hashmap_add`.
+
+### catrl_hashmap_remove
+
+```c
+CATALYST_BOOL catrl_hashmap_remove(CATRLLIB_HASHMAP* map, CATMMLIB_POINTER key);
+```
+
+Remove the matching association without allocating or changing capacity. If a match is not in the last dense slot, move the last association into its place. Repair the hash index; do not rely on storage order or existing pointers after removal.
+
+**Parameters:**
+
+- `map`: Valid initialized HashMap.  
+- `key`: Readable `ksize` bytes; may identify a live key.
+
+**Returns:** `CATALYST_TRUE` if removed; `CATALYST_FALSE` if absent.
+
+**C++ equivalent:** `catalyst::hashmap_remove`.
+
+### catrl_hashmap_contains
+
+```c
+CATALYST_BOOL catrl_hashmap_contains(const CATRLLIB_HASHMAP* map, CATMMLIB_POINTER key);
+```
+
+Determine whether the key belongs to the HashMap by hashing and byte equality. Does not modify the collection.
+
+**Parameters:**
+
+- `map`: Valid initialized HashMap.  
+- `key`: Readable `ksize` bytes; may identify a live key.
+
+**Returns:** `CATALYST_TRUE` if present; `CATALYST_FALSE` otherwise.
+
+**C++ equivalent:** `catalyst::hashmap_contains`.
+
+### catrl_hashmap_get
+
+```c
+CATMMLIB_POINTERW catrl_hashmap_get(CATRLLIB_HASHMAP* map, CATMMLIB_POINTER key);
+```
+
+Borrow the stored value associated with a key without copying or allocating. The caller may read or modify exactly `vsize` bytes; the HashMap retains ownership. Do not independently resize or release the pointer. Reacquire it after removal, clear, resize or free attempts, including partial failures. Adding within existing capacity or replacing a value does not relocate existing slots.
+
+**Parameters:**
+
+- `map`: Valid initialized HashMap.  
+- `key`: Readable `ksize` bytes; may identify a live key.
+
+**Returns:** A writable pointer to the associated value, or null if the key is absent.
+
+**C++ equivalent:** `catalyst::hashmap_get`.
+
+### catrl_hashmap_set
+
+```c
+CATALYST_BOOL catrl_hashmap_set(CATRLLIB_HASHMAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTER value);
+```
+
+Replace the value bytes of an existing key without allocating or changing the key or bucket index. An absent key leaves the HashMap unchanged.
+
+**Parameters:**
+
+- `map`: Valid initialized HashMap.  
+- `key`: Readable `ksize` bytes; may identify a live key.  
+- `value`: Readable `vsize` bytes outside the HashMap and its allocations.
+
+**Returns:** `CATALYST_TRUE` if replaced; `CATALYST_FALSE` if the key is absent.
+
+**C++ equivalent:** `catalyst::hashmap_set`.
+
+### catrl_hashmap_clear
+
+```c
+void catrl_hashmap_clear(CATRLLIB_HASHMAP* map);
+```
+
+Remove all associations and clear the bucket index without releasing storage, changing capacity, or erasing the stored key/value bytes.
+
+**Parameters:**
+
+- `map`: Valid initialized HashMap.
+
+**C++ equivalent:** `catalyst::hashmap_clear`.
+
+### catrl_hashmap_expand
+
+```c
+CATALYST_RESULT catrl_hashmap_expand(CATRLLIB_HASHMAP* map, CATALYST_NUINT capacity);
+```
+
+Increase capacity to the exact requested pair count; smaller or equal requests are no-ops. Resize keys, then values, then the bucket index to twice the requested capacity as needed. Rebuild the index when its capacity changes. Preserve all live associations. Failure preserves logical capacity and the existing index, but earlier successful resizes may retain extra storage or relocate keys or values. Reacquire pointers after the attempt.
+
+**Parameters:**
+
+- `map`: Valid initialized HashMap.  
+- `capacity`: Requested total pair capacity, not bytes; zero is a no-op.
+
+**C++ equivalent:** `catalyst::hashmap_expand`.
+
+**Context:** `0x4C`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x014C0100` | `SUCCESS_NOOP`: requested capacity is not larger | Keep storage | — |
+| `0x904C0200` | `ERROR_BUFFER_OVERFLOW`: capacity times key size is unrepresentable | Reject extent | — |
+| `0x904C0300` | `ERROR_BUFFER_OVERFLOW`: capacity times value size is unrepresentable | Reject extent | — |
+| `0x904C0400` | `ERROR_BUFFER_OVERFLOW`: bucket byte extent is unrepresentable | Reject bucket extent | — |
+| `0x824C0500` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize keys | — |
+| `0x844C0500` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize keys | — |
+| `0x864C0500` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize keys | — |
+| `0x904C0500` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB allocation extent unrepresentable | Resize keys | — |
+| `0x914C0500` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize keys | — |
+| `0x824C0584` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize keys | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x844C0582` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize keys | Other failure is `ERROR_INVALID_STATE` |
+| `0x824C0600` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize values | — |
+| `0x844C0600` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize values | — |
+| `0x864C0600` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize values | — |
+| `0x904C0600` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB allocation extent unrepresentable | Resize values | — |
+| `0x914C0600` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize values | — |
+| `0x824C0684` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize values | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x844C0682` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize values | Other failure is `ERROR_INVALID_STATE` |
+| `0x824C0700` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize buckets | — |
+| `0x844C0700` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize buckets | — |
+| `0x864C0700` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize buckets | — |
+| `0x904C0700` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB allocation extent unrepresentable | Resize buckets | — |
+| `0x914C0700` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize buckets | — |
+| `0x824C0784` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize buckets | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x844C0782` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize buckets | Other failure is `ERROR_INVALID_STATE` |
+| `0x004C0800` | `SUCCESS` | Commit requested capacity | — |
+
+### catrl_hashmap_shrink
+
+```c
+CATALYST_RESULT catrl_hashmap_shrink(CATRLLIB_HASHMAP* map);
+```
+
+Reduce capacity to `max(cardinality, capacity / 2)`, rounded down. Preserve all live associations; release storage at zero capacity. An unchanged target is a no-op. Resize keys first and commit the smaller logical capacity before resizing values and then buckets. If a later resize fails, retain the smaller logical capacity and any extra storage; the existing bucket index remains valid. Rebuild the index when bucket capacity changes. Reacquire pointers after the attempt. At zero logical capacity, retained allocations can be released by free.
+
+**Parameters:**
+
+- `map`: Valid initialized HashMap.
+
+**C++ equivalent:** `catalyst::hashmap_shrink`.
+
+**Context:** `0x4D`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x014D0100` | `SUCCESS_NOOP`: target equals current capacity | Keep storage | — |
+| `0x824D0200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize keys | — |
+| `0x844D0200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize keys | — |
+| `0x864D0200` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize keys | — |
+| `0x904D0200` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB allocation extent unrepresentable | Resize keys | — |
+| `0x914D0200` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize keys | — |
+| `0x824D0284` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize keys | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x844D0282` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize keys | Other failure is `ERROR_INVALID_STATE` |
+| `0x824D0300` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize values | — |
+| `0x844D0300` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize values | — |
+| `0x864D0300` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize values | — |
+| `0x904D0300` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB allocation extent unrepresentable | Resize values | — |
+| `0x914D0300` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize values | — |
+| `0x824D0384` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize values | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x844D0382` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize values | Other failure is `ERROR_INVALID_STATE` |
+| `0x824D0400` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Resize buckets | — |
+| `0x844D0400` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Resize buckets | — |
+| `0x864D0400` | `ERROR_SYSTEM_NOT_SUPPORTED`: native allocation configuration unsupported | Resize buckets | — |
+| `0x904D0400` | `ERROR_BUFFER_OVERFLOW`: CATMMLIB allocation extent unrepresentable | Resize buckets | — |
+| `0x914D0400` | `ERROR_ALLOCATION_FAILED`: allocation or resize failed | Resize buckets | — |
+| `0x824D0484` | `ERROR_INVALID_STATE`: dual cleanup failure | Resize buckets | Other failure is `ERROR_ACCESS_DENIED` |
+| `0x844D0482` | `ERROR_ACCESS_DENIED`: dual cleanup failure | Resize buckets | Other failure is `ERROR_INVALID_STATE` |
+| `0x004D0500` | `SUCCESS` | Complete smaller capacity | — |
+
+### catrl_hashmap_free
+
+```c
+CATALYST_RESULT catrl_hashmap_free(CATRLLIB_HASHMAP* map);
+```
+
+Release keys, then values, then buckets, retaining key and value sizes for reuse. After successful key release, the HashMap is logically empty with capacity zero and its bucket index cleared. If a release fails, retain unreleased ownership for retry; already released storage is not restored. Successful bucket release clears `bcapacity`. No owned allocations is a no-op.
+
+**Parameters:**
+
+- `map`: Valid initialized HashMap, including a previously freed or partially cleaned up object.
+
+**C++ equivalent:** `catalyst::hashmap_free`.
+
+**Context:** `0x4E`
+
+**Results:**
+
+| Result | Status | Operation | Detail |
+| --- | --- | --- | --- |
+| `0x014E0100` | `SUCCESS_NOOP`: no owned allocations | Keep empty collection | — |
+| `0x824E0200` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release keys | — |
+| `0x844E0200` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Release keys | — |
+| `0x824E0300` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release values | — |
+| `0x844E0300` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Release values | — |
+| `0x824E0400` | `ERROR_INVALID_STATE`: release or pending cleanup failed | Release buckets | — |
+| `0x844E0400` | `ERROR_ACCESS_DENIED`: allocation, release, or cleanup denied | Release buckets | — |
+| `0x004E0500` | `SUCCESS` | Clear ownership | — |
+
