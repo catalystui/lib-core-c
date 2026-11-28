@@ -56,6 +56,32 @@ int main() {
     int failed = 0;
     RESULT result;
 
+    // Every hit position and absent byte at scalar/word/group boundaries.
+    {
+        const BYTE counts[] = { 1, 2, 3, 4, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65 };
+        MAP map;
+        map_init(&map, 1, 1);
+        BOOL passed = TRUE;
+        for (BYTE c = 0; c < (BYTE) sizeof(counts) && passed; ++c) {
+            BYTE count = counts[c];
+            if (!status_code_is_success(map_expand(&map, count).status)) { passed = FALSE; break; }
+            for (BYTE i = 0; i < count; ++i) {
+                BYTE key = (BYTE) (i ^ (BYTE) 0xA5);
+                if (!map_add(&map, &key, &i)) passed = FALSE;
+            }
+            for (BYTE i = 0; i < count; ++i) {
+                BYTE key = (BYTE) (i ^ (BYTE) 0xA5);
+                POINTERW value = map_get(&map, &key);
+                if (!map_contains(&map, &key) || !value || *(const BYTE*) value != i) passed = FALSE;
+            }
+            BYTE absent = (BYTE) (count ^ (BYTE) 0xA5);
+            if (map_contains(&map, &absent) || map_get(&map, &absent)) passed = FALSE;
+            map_clear(&map);
+        }
+        if (!status_code_is_success(map_free(&map).status)) passed = FALSE;
+        check(&failed, passed, "single-byte search at scalar and word boundaries");
+    }
+
     // ------------------------------------------------------------
     // Set: byte equality, distinctness, capacity, removal, and reuse
     // ------------------------------------------------------------

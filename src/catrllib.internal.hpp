@@ -5,6 +5,111 @@
 
 namespace catalyst {
 
+/* A byte key search requires no key-width dispatch. The first byte is
+ * checked directly; no word load reads beyond the established extent. */
+static inline NUINT catrl_find_byte(const BYTE* current, NUINT count, BYTE first) {
+    if (count == 0) return 0;
+    if (current[0] == first) return 0;
+    if (count == (NUINT) 1) return count;
+    if (count == (NUINT) 2) return current[1] == first ? (NUINT) 1 : count;
+    NUINT index = 0;
+#if CATALYST_SUPPORTS_64BIT || CATALYST_SUPPORTS_32BIT
+#if CATALYST_SUPPORTS_64BIT
+    typedef ULONG CATRL_SEARCH_WORD;
+    const CATRL_SEARCH_WORD ones = (CATRL_SEARCH_WORD) (CATALYST_ULONG_MAX / (ULONG) CATALYST_BYTE_MAX);
+#else
+    typedef UINT CATRL_SEARCH_WORD;
+    const CATRL_SEARCH_WORD ones = (CATRL_SEARCH_WORD) (CATALYST_UINT_MAX / (UINT) CATALYST_BYTE_MAX);
+#endif
+    if (count >= (NUINT) sizeof(CATRL_SEARCH_WORD)) {
+        const CATRL_SEARCH_WORD high = (CATRL_SEARCH_WORD) (ones << 7);
+        const CATRL_SEARCH_WORD pattern = (CATRL_SEARCH_WORD) (ones * (CATRL_SEARCH_WORD) first);
+        const NUINT width = (NUINT) sizeof(CATRL_SEARCH_WORD);
+        const NUINT group = (NUINT) (width * (NUINT) 4);
+        /* Four independent word tests share one branch in the miss path.
+         * All loads are within the checked extent and need no alignment. */
+        while ((NUINT) (count - index) >= group) {
+            CATRL_SEARCH_WORD a, b, c, d;
+#if defined(__GNUC__) || defined(__clang__)
+            __builtin_memcpy(&a, current, sizeof(a));
+            __builtin_memcpy(&b, current + width, sizeof(b));
+            __builtin_memcpy(&c, current + (NUINT) (width * (NUINT) 2), sizeof(c));
+            __builtin_memcpy(&d, current + (NUINT) (width * (NUINT) 3), sizeof(d));
+#else
+            for (BYTE i = 0; i < (BYTE) sizeof(a); ++i) {
+                ((BYTE*) &a)[i] = current[i];
+                ((BYTE*) &b)[i] = current[width + i];
+                ((BYTE*) &c)[i] = current[(NUINT) (width * (NUINT) 2) + i];
+                ((BYTE*) &d)[i] = current[(NUINT) (width * (NUINT) 3) + i];
+            }
+#endif
+            a ^= pattern; b ^= pattern; c ^= pattern; d ^= pattern;
+            a = (CATRL_SEARCH_WORD) ((a - ones) & ~a & high);
+            b = (CATRL_SEARCH_WORD) ((b - ones) & ~b & high);
+            c = (CATRL_SEARCH_WORD) ((c - ones) & ~c & high);
+            d = (CATRL_SEARCH_WORD) ((d - ones) & ~d & high);
+            if ((a | b | c | d) != 0) {
+                NUINT offset = 0;
+                CATRL_SEARCH_WORD matches = a;
+                if (matches == 0) {
+                    offset = width; matches = b;
+                    if (matches == 0) {
+                        offset = (NUINT) (width * (NUINT) 2); matches = c;
+                        if (matches == 0) {
+                            offset = (NUINT) (width * (NUINT) 3); matches = d;
+                        }
+                    }
+                }
+                /* Borrow propagation cannot mark a byte before the first
+                 * true match in little-endian memory order. */
+#if (defined(__GNUC__) || defined(__clang__)) && defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#if CATALYST_SUPPORTS_64BIT && defined(__SIZEOF_LONG_LONG__) && __SIZEOF_LONG_LONG__ == 8
+                return (NUINT) (index + offset + (NUINT) ((NUINT) __builtin_ctzll(matches) / (NUINT) 8));
+#elif !CATALYST_SUPPORTS_64BIT && CATALYST_SUPPORTS_32BIT && defined(__SIZEOF_INT__) && __SIZEOF_INT__ == 4
+                return (NUINT) (index + offset + (NUINT) ((NUINT) __builtin_ctz(matches) / (NUINT) 8));
+#endif
+#endif
+                for (NUINT i = 0; i < width; ++i) {
+                    if (current[offset + i] == first) return (NUINT) (index + offset + i);
+                }
+            }
+            current += group;
+            index = (NUINT) (index + group);
+        }
+        /* Medium-sized collections and the tail of larger collections use
+         * one word per test rather than four scalar byte comparisons. */
+        while ((NUINT) (count - index) >= width) {
+            CATRL_SEARCH_WORD word;
+#if defined(__GNUC__) || defined(__clang__)
+            __builtin_memcpy(&word, current, sizeof(word));
+#else
+            for (BYTE i = 0; i < (BYTE) sizeof(word); ++i) ((BYTE*) &word)[i] = current[i];
+#endif
+            word ^= pattern;
+            if (((word - ones) & ~word & high) != 0) {
+                for (NUINT i = 0; i < width; ++i)
+                    if (current[i] == first) return (NUINT) (index + i);
+            }
+            current += width;
+            index = (NUINT) (index + width);
+        }
+    }
+#endif
+    while ((NUINT) (count - index) >= (NUINT) 4) {
+        if (current[0] == first) return index;
+        if (current[1] == first) return (NUINT) (index + (NUINT) 1);
+        if (current[2] == first) return (NUINT) (index + (NUINT) 2);
+        if (current[3] == first) return (NUINT) (index + (NUINT) 3);
+        current += 4;
+        index = (NUINT) (index + (NUINT) 4);
+    }
+    while (index < count) {
+        if (*current++ == first) return index;
+        ++index;
+    }
+    return count;
+}
+
 /* Nonzero size, count * size readable data bytes when count is nonzero, and size readable element bytes. Return count for absence; extents were checked when capacity was established. */
 static inline NUINT catrl_find(POINTER data, NUINT count, NUINT size, POINTER element) {
     if (count == 0) return 0;
@@ -12,87 +117,7 @@ static inline NUINT catrl_find(POINTER data, NUINT count, NUINT size, POINTER el
     const BYTE* target = (const BYTE*) element;
     const BYTE first = target[0];
     NUINT index = 0;
-    if (size == (NUINT) 1) {
-#if CATALYST_SUPPORTS_64BIT || CATALYST_SUPPORTS_32BIT
-        if (count >= (NUINT) 32) {
-            if (current[0] == first) return 0;
-#if CATALYST_SUPPORTS_64BIT
-            typedef ULONG CATRL_SEARCH_WORD;
-            const CATRL_SEARCH_WORD ones = (CATRL_SEARCH_WORD) (CATALYST_ULONG_MAX / (ULONG) CATALYST_BYTE_MAX);
-#else
-            typedef UINT CATRL_SEARCH_WORD;
-            const CATRL_SEARCH_WORD ones = (CATRL_SEARCH_WORD) (CATALYST_UINT_MAX / (UINT) CATALYST_BYTE_MAX);
-#endif
-            const CATRL_SEARCH_WORD high = (CATRL_SEARCH_WORD) (ones << 7);
-            const CATRL_SEARCH_WORD pattern = (CATRL_SEARCH_WORD) (ones * (CATRL_SEARCH_WORD) first);
-            const NUINT width = (NUINT) sizeof(CATRL_SEARCH_WORD);
-            const NUINT group = (NUINT) (width * (NUINT) 4);
-            /* Four independent word tests share one branch in the miss path.
-             * All loads are within the checked extent and need no alignment. */
-            while ((NUINT) (count - index) >= group) {
-                CATRL_SEARCH_WORD a, b, c, d;
-#if defined(__GNUC__) || defined(__clang__)
-                __builtin_memcpy(&a, current, sizeof(a));
-                __builtin_memcpy(&b, current + width, sizeof(b));
-                __builtin_memcpy(&c, current + (NUINT) (width * (NUINT) 2), sizeof(c));
-                __builtin_memcpy(&d, current + (NUINT) (width * (NUINT) 3), sizeof(d));
-#else
-                for (BYTE i = 0; i < (BYTE) sizeof(a); ++i) {
-                    ((BYTE*) &a)[i] = current[i];
-                    ((BYTE*) &b)[i] = current[width + i];
-                    ((BYTE*) &c)[i] = current[(NUINT) (width * (NUINT) 2) + i];
-                    ((BYTE*) &d)[i] = current[(NUINT) (width * (NUINT) 3) + i];
-                }
-#endif
-                a ^= pattern; b ^= pattern; c ^= pattern; d ^= pattern;
-                a = (CATRL_SEARCH_WORD) ((a - ones) & ~a & high);
-                b = (CATRL_SEARCH_WORD) ((b - ones) & ~b & high);
-                c = (CATRL_SEARCH_WORD) ((c - ones) & ~c & high);
-                d = (CATRL_SEARCH_WORD) ((d - ones) & ~d & high);
-                if ((a | b | c | d) != 0) {
-                    NUINT offset = 0;
-                    CATRL_SEARCH_WORD matches = a;
-                    if (matches == 0) {
-                        offset = width; matches = b;
-                        if (matches == 0) {
-                            offset = (NUINT) (width * (NUINT) 2); matches = c;
-                            if (matches == 0) {
-                                offset = (NUINT) (width * (NUINT) 3); matches = d;
-                            }
-                        }
-                    }
-                    /* Borrow propagation cannot mark a byte before the first
-                     * true match in little-endian memory order. */
-#if (defined(__GNUC__) || defined(__clang__)) && defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-#if CATALYST_SUPPORTS_64BIT && defined(__SIZEOF_LONG_LONG__) && __SIZEOF_LONG_LONG__ == 8
-                    return (NUINT) (index + offset + (NUINT) ((NUINT) __builtin_ctzll(matches) / (NUINT) 8));
-#elif !CATALYST_SUPPORTS_64BIT && CATALYST_SUPPORTS_32BIT && defined(__SIZEOF_INT__) && __SIZEOF_INT__ == 4
-                    return (NUINT) (index + offset + (NUINT) ((NUINT) __builtin_ctz(matches) / (NUINT) 8));
-#endif
-#endif
-                    for (NUINT i = 0; i < width; ++i) {
-                        if (current[offset + i] == first) return (NUINT) (index + offset + i);
-                    }
-                }
-                current += group;
-                index = (NUINT) (index + group);
-            }
-        }
-#endif
-        while ((NUINT) (count - index) >= (NUINT) 4) {
-            if (current[0] == first) return index;
-            if (current[1] == first) return (NUINT) (index + (NUINT) 1);
-            if (current[2] == first) return (NUINT) (index + (NUINT) 2);
-            if (current[3] == first) return (NUINT) (index + (NUINT) 3);
-            current += 4;
-            index = (NUINT) (index + (NUINT) 4);
-        }
-        while (index < count) {
-            if (*current++ == first) return index;
-            ++index;
-        }
-        return count;
-    }
+    if (size == (NUINT) 1) return catrl_find_byte(current, count, first);
 #if TARGET_SIZEOF_VOID_P > 1 && (defined(__GNUC__) || defined(__clang__))
     /* Pointer-width elements can be compared as one exact-width Catalyst
      * word. Fixed-size byte copies preserve unaligned access and byte equality
