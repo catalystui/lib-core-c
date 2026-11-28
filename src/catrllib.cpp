@@ -880,19 +880,46 @@ CATALYST_BOOL catrl_pool_acquire(CATRLLIB_POOL* pool, CATALYST_NUINT* index) {
     if (pool->cardinality == pool->capacity) return FALSE;
     BYTE* occupied = (BYTE*) pool->occupied;
     NUINT bytes = catrl_pool_bitmap_size(pool->capacity);
-    for (NUINT i = 0; i < bytes; ++i) {
-        if (occupied[i] == CATALYST_BYTE_MAX) continue;
-        for (BYTE bit = 0; bit < (BYTE) 8; ++bit) {
-            BYTE mask = (BYTE) ((BYTE) 1 << bit);
-            if ((occupied[i] & mask) != 0) continue;
-            /* A free logical slot exists, so the first zero bit is not padding. */
-            occupied[i] = (BYTE) (occupied[i] | mask);
-            ++pool->cardinality;
-            *index = (NUINT) (i * (NUINT) 8 + (NUINT) bit);
-            return TRUE;
-        }
+    NUINT i = 0;
+#if CATALYST_SUPPORTS_64BIT || CATALYST_SUPPORTS_32BIT
+#if CATALYST_SUPPORTS_64BIT
+    typedef ULONG CATRL_POOL_WORD;
+    const CATRL_POOL_WORD full = CATALYST_ULONG_MAX;
+#else
+    typedef UINT CATRL_POOL_WORD;
+    const CATRL_POOL_WORD full = CATALYST_UINT_MAX;
+#endif
+    const NUINT width = (NUINT) sizeof(CATRL_POOL_WORD);
+    /* Skip full words, using byte access for unaligned storage and for
+     * the final partial word. The all-ones test is endian independent. */
+    while ((NUINT) (bytes - i) >= width) {
+        CATRL_POOL_WORD word;
+#if defined(__GNUC__) || defined(__clang__)
+        __builtin_memcpy(&word, occupied + i, sizeof(word));
+#else
+        for (BYTE j = 0; j < (BYTE) sizeof(word); ++j) ((BYTE*) &word)[j] = occupied[i + j];
+#endif
+        if (word != full) break;
+        i = (NUINT) (i + width);
     }
-    return FALSE;
+#endif
+    /* A free logical slot exists, so the first zero bit is not padding. */
+    while (occupied[i] == CATALYST_BYTE_MAX) ++i;
+    BYTE available = (BYTE) ~occupied[i];
+    BYTE bit = 0;
+    if ((available & (BYTE) 0x0F) == 0) {
+        available = (BYTE) (available >> 4);
+        bit = 4;
+    }
+    if ((available & (BYTE) 0x03) == 0) {
+        available = (BYTE) (available >> 2);
+        bit = (BYTE) (bit + (BYTE) 2);
+    }
+    if ((available & (BYTE) 1) == 0) ++bit;
+    occupied[i] = (BYTE) (occupied[i] | (BYTE) ((BYTE) 1 << bit));
+    ++pool->cardinality;
+    *index = (NUINT) (i * (NUINT) 8 + (NUINT) bit);
+    return TRUE;
 }
 
 CATALYST_BOOL catrl_pool_contains(const CATRLLIB_POOL* pool, CATALYST_NUINT index) {
@@ -914,7 +941,7 @@ CATMMLIB_POINTERW catrl_pool_get(CATRLLIB_POOL* pool, CATALYST_NUINT index) {
 }
 
 void catrl_pool_clear(CATRLLIB_POOL* pool) {
-    if (pool->capacity != 0) catmm_fill(pool->occupied, 0, catrl_pool_bitmap_size(pool->capacity));
+    if (pool->cardinality != 0) catmm_fill(pool->occupied, 0, catrl_pool_bitmap_size(pool->capacity));
     pool->cardinality = 0;
 }
 
