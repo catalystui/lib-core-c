@@ -49,6 +49,34 @@ configure_target(
 target_link_libraries(catrllib_shared PUBLIC catmmlib_shared)
 target_link_libraries(catrllib_static PUBLIC catmmlib_static)
 
+# cattrlib: the POSIX backend is shared by Linux and Darwin.
+if(TARGET_PLATFORM_WIN32 OR TARGET_PLATFORM_LINUX OR TARGET_PLATFORM_DARWIN)
+    if(TARGET_PLATFORM_WIN32)
+        set(CATTRLIB_PLATFORM_SOURCE src/cattrlib.win32.cpp)
+    else()
+        set(CATTRLIB_PLATFORM_SOURCE src/cattrlib.posix.cpp)
+        set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+        find_package(Threads REQUIRED)
+    endif()
+    add_library(cattrlib_shared SHARED)
+    add_library(cattrlib_static STATIC)
+    configure_target(
+        NAME cattr
+        TARGETS cattrlib_shared cattrlib_static
+        SOURCES
+            src/cattrlib.cpp
+            src/cattrlib.internal.hpp
+            ${CATTRLIB_PLATFORM_SOURCE}
+    )
+    target_link_libraries(cattrlib_shared PUBLIC catrllib_shared)
+    target_link_libraries(cattrlib_static PUBLIC catrllib_static)
+    if(NOT TARGET_PLATFORM_WIN32)
+        target_link_libraries(cattrlib_shared PRIVATE Threads::Threads)
+        target_link_libraries(cattrlib_static PRIVATE Threads::Threads)
+    endif()
+    target_compile_definitions(cattrlib_shared PRIVATE CATTRLIB_EXPORTS INTERFACE CATTRLIB_USE_DLL)
+endif()
+
 # Export each shared library's C ABI and propagate its import definition.
 target_compile_definitions(cattelib_shared PRIVATE CATTELIB_EXPORTS INTERFACE CATTELIB_USE_DLL)
 target_compile_definitions(catmmlib_shared PRIVATE CATMMLIB_EXPORTS INTERFACE CATMMLIB_USE_DLL)
@@ -67,6 +95,9 @@ target_link_libraries(test_catmmlib PRIVATE catmmlib_static)
 target_link_libraries(perf_catmmlib PRIVATE catmmlib_static)
 target_link_libraries(test_catrllib PRIVATE catrllib_static)
 target_link_libraries(perf_catrllib PRIVATE catrllib_static)
+if(TARGET cattrlib_static)
+    target_link_libraries(test_cattrlib PRIVATE cattrlib_static)
+endif()
 
 # Release optimization is local to Core; preserve Debug and the selected target ISA.
 set(CATALYST_RELEASE_LIBRARIES
@@ -75,6 +106,11 @@ set(CATALYST_RELEASE_LIBRARIES
     catrllib_shared catrllib_static
 )
 set(CATALYST_RELEASE_EXECUTABLES test_cattelib test_catmmlib test_catrllib perf_cattelib perf_catmmlib perf_catrllib)
+
+if(TARGET cattrlib_static)
+    list(APPEND CATALYST_RELEASE_LIBRARIES cattrlib_shared cattrlib_static)
+    list(APPEND CATALYST_RELEASE_EXECUTABLES test_cattrlib)
+endif()
 
 foreach(TARGET_NAME IN LISTS CATALYST_RELEASE_LIBRARIES CATALYST_RELEASE_EXECUTABLES)
     get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)

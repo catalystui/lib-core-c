@@ -106,6 +106,13 @@ jobs:
           }
           & "$output/test_cattelib"
 
+      - name: Compile and test CATTRLIB
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          cmake --build target/ci --parallel --target cattrlib_shared test_cattrlib
+          $output = 'build/linux/linux/${{ matrix.arch }}/release'
+          & "$output/test_cattrlib"
+
       - name: Verify relocatable shared-library runtime
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
@@ -122,6 +129,7 @@ jobs:
           @'
           #include "catalyst.h"
           #include "cattelib.h"
+          #include "cattrlib.h"
           '@ | gcc ${{ matrix.flags }} -std=c${{ matrix.c }} -pedantic-errors -Iinclude -Itarget/ci/generated -x c -c -o target/ci/headers-c.o -
 
       - name: Compile public C++ headers
@@ -129,6 +137,7 @@ jobs:
           @'
           #include "catalyst.hpp"
           #include "cattelib.hpp"
+          #include "cattrlib.hpp"
           '@ | g++ ${{ matrix.flags }} -std=c++${{ matrix.cpp }} -pedantic-errors -Iinclude -Itarget/ci/generated -x c++ -c -o target/ci/headers-cpp.o -
 
       - name: Verify optional-width fallback and 8-bit target compilation
