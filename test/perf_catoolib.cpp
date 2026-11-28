@@ -775,6 +775,113 @@ static void benchmark_case(const char* label, Native& native, Catalyst& comparis
 
 
 
+// Multi-byte keys share a prefix and differ in the last byte. The native
+// reference uses an independent contiguous key/record map and C memcmp.
+struct WideLookup {
+    NUINT n, width;
+    BOOL hit;
+};
+
+static void wide_key(BYTE* key, NUINT width, BYTE id) {
+    for (NUINT i = 0; i < width; ++i) key[i] = (BYTE) i;
+    key[width - (NUINT) 1] = id;
+}
+
+static Measurement measure_wide_native(WideLookup& t, unsigned long calls, unsigned long* ticks, BOOL verify) {
+    const size_t n = t.n, width = t.width;
+    unsigned char* keys = (unsigned char*) ::calloc(n, width);
+    NativeMember* members = (NativeMember*) ::calloc(n, sizeof(NativeMember));
+    size_t live = 0;
+    BOOL ok = keys && members ? TRUE : FALSE;
+    for (; ok && live < n; ++live) {
+        wide_key(keys + live * width, t.width, (BYTE) live);
+        if (!native_member_init(&members[live], 1)) { ok = FALSE; break; }
+        members[live].data[0] = (BYTE) (live ^ 0x5A);
+    }
+    BYTE key[16];
+    const BYTE id = t.hit ? (BYTE) (t.n - (NUINT) 1) : (BYTE) t.n;
+    wide_key(key, t.width, id);
+    const std::clock_t start = std::clock();
+    for (unsigned long i = 0; ok && i < calls; ++i) {
+        size_t index = 0;
+        for (; index < n; ++index) {
+            const unsigned char* candidate = keys + index * width;
+            if (candidate[0] == key[0] && ::memcmp(candidate + 1, key + 1, width - 1) == 0) break;
+        }
+        NativeMember* found = index == n ? 0 : &members[index];
+        observed = found ? ((const volatile BYTE*) found->data)[0] : 0;
+        ok = t.hit ? (found && observed == (BYTE) (id ^ 0x5A) ? TRUE : FALSE)
+                   : (found == 0 ? TRUE : FALSE);
+    }
+    BOOL clockOk = elapsed(start, ticks);
+    if (ok && verify) {
+        for (size_t i = 0; i < n; ++i)
+            if (members[i].size != 1 || members[i].data[0] != (BYTE) (i ^ 0x5A)) ok = FALSE;
+    }
+    while (live != 0) native_member_free(&members[--live]);
+    ::free(keys); ::free(members);
+    if (!ok) return MEASURE_FAIL;
+    return clockOk ? MEASURE_OK : MEASURE_CLOCK;
+}
+
+static Measurement measure_wide_catalyst(WideLookup& t, unsigned long calls, unsigned long* ticks, BOOL verify) {
+    OBJECT object;
+    object_init(&object, t.width);
+    BOOL ok = succeeded(object_expand(&object, t.n));
+    BYTE key[16];
+    for (NUINT i = 0; ok && i < t.n; ++i) {
+        wide_key(key, t.width, (BYTE) i);
+        const BYTE value = (BYTE) ((BYTE) i ^ 0x5A);
+        ok = succeeded(object_add(&object, key, &value, 1));
+    }
+    const BYTE id = t.hit ? (BYTE) (t.n - (NUINT) 1) : (BYTE) t.n;
+    wide_key(key, t.width, id);
+    const std::clock_t start = std::clock();
+    for (unsigned long i = 0; ok && i < calls; ++i) {
+        MEMBER* found = object_get(&object, key);
+        observed = found ? ((const volatile BYTE*) found->data)[0] : 0;
+        ok = t.hit ? (found && observed == (BYTE) (id ^ 0x5A) ? TRUE : FALSE)
+                   : (found == 0 ? TRUE : FALSE);
+    }
+    BOOL clockOk = elapsed(start, ticks);
+    if (ok && verify) {
+        if (object.members.cardinality != t.n) ok = FALSE;
+        for (NUINT i = 0; ok && i < t.n; ++i) {
+            wide_key(key, t.width, (BYTE) i);
+            MEMBER* m = object_get(&object, key);
+            if (!m || m->size != 1 || ((const BYTE*) m->data)[0] != (BYTE) ((BYTE) i ^ 0x5A)) ok = FALSE;
+        }
+    }
+    if (!succeeded(object_free(&object))) ok = FALSE;
+    if (!ok) return MEASURE_FAIL;
+    return clockOk ? MEASURE_OK : MEASURE_CLOCK;
+}
+
+static void benchmark_wide_keys(Summary& summary) {
+#if TARGET_SIZEOF_VOID_P >= 2
+    const NUINT counts[] = { 16, 64 };
+    const NUINT widths[] = { 2, 8, 16 };
+#else
+    const NUINT counts[] = { 2, 4 };
+    const NUINT widths[] = { 2, 4 };
+#endif
+    std::printf("\nObject: get with common-prefix binary keys\n");
+    for (BYTE i = 0; i < (BYTE) (sizeof(counts) / sizeof(counts[0])); ++i) {
+        for (BYTE w = 0; w < (BYTE) (sizeof(widths) / sizeof(widths[0])); ++w) {
+            if (counts[i] > (NUINT) (CATALYST_NUINT_MAX / widths[w]) ||
+                counts[i] > (NUINT) (CATALYST_NUINT_MAX / (NUINT) sizeof(MEMBER))) continue;
+            for (BYTE hit = 0; hit < 2; ++hit) {
+                WideLookup native = { counts[i], widths[w], (BOOL) hit };
+                WideLookup comparison = native;
+                char label[48];
+                std::sprintf(label, "%lu keys x %lu B (%s)", (unsigned long) counts[i],
+                             (unsigned long) widths[w], hit ? "last" : "miss");
+                benchmark_case(label, native, comparison, measure_wide_native, measure_wide_catalyst, 67108864UL, summary);
+            }
+        }
+    }
+}
+
 static void benchmark_all(Summary& summary) {
     const char* names[] = {
         "Member: init + free", "Member: set + get", "Object: empty init + free",
@@ -849,6 +956,7 @@ int main() {
     std::printf("  -------------------------------------------------------------------------------------\n");
     Summary summary = { 0, 0, 0, 0, 0, 0, 0 };
     benchmark_all(summary);
+    benchmark_wide_keys(summary);
     std::printf("\nPerformance summary\n");
     std::printf("  Faster (>5%%):                  %3lu\n", summary.faster);
     std::printf("  Comparable (within 5%%):        %3lu\n", summary.similar);
