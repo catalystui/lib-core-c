@@ -551,6 +551,34 @@ static inline void catmm_copy_block(BYTE* output, const BYTE* input, BOOL large)
     __builtin_memcpy(output, first, sizeof(first));
     __builtin_memcpy(output + (NUINT) CATMMLIB_BLOCK_ALIGNMENT, second, sizeof(second));
 }
+/* Read both ends before writing either end. A valid extent between Width
+ * and twice Width bytes is covered even when the source and destination
+ * overlap in either direction. The duplicated middle bytes agree. */
+template<NUINT Width>
+static inline void catmm_copy_ends(BYTE* output, const BYTE* input, NUINT size) {
+    BYTE first[Width], last[Width];
+    NUINT offset = (NUINT) (size - Width);
+    __builtin_memcpy(first, input, Width);
+    __builtin_memcpy(last, input + offset, Width);
+    __builtin_memcpy(output, first, Width);
+    __builtin_memcpy(output + offset, last, Width);
+}
+
+/* Valid extents of at most 32 bytes. Constant-width compiler copies avoid
+ * byte loops and preserve arbitrary overlap without an address comparison. */
+static inline void catmm_copy_short(BYTE* output, const BYTE* input, NUINT size) {
+    if (size >= (NUINT) 16) {
+        catmm_copy_ends<(NUINT) 16>(output, input, size);
+    } else if (size >= (NUINT) 8) {
+        catmm_copy_ends<(NUINT) 8>(output, input, size);
+    } else if (size >= (NUINT) 4) {
+        catmm_copy_ends<(NUINT) 4>(output, input, size);
+    } else if (size >= (NUINT) 2) {
+        catmm_copy_ends<(NUINT) 2>(output, input, size);
+    } else if (size != 0) {
+        *output = *input;
+    }
+}
 #endif
 
 /* Copy forward when no unread source byte can be overwritten. */
@@ -580,19 +608,17 @@ static inline void catmm_copy_forward(BYTE* output, const BYTE* input, NUINT siz
         input += (NUINT) CATMMLIB_BLOCK_SIZE;
         size = (NUINT) (size - (NUINT) CATMMLIB_BLOCK_SIZE);
     }
-    if (size >= (NUINT) CATMMLIB_BLOCK_ALIGNMENT) {
-        BYTE chunk[CATMMLIB_BLOCK_ALIGNMENT];
-        __builtin_memcpy(chunk, input, sizeof(chunk));
-        __builtin_memcpy(output, chunk, sizeof(chunk));
-        output += (NUINT) sizeof(chunk);
-        input += (NUINT) sizeof(chunk);
-        size = (NUINT) (size - (NUINT) sizeof(chunk));
+    while (size > (NUINT) 32) {
+        *output++ = *input++;
+        --size;
     }
-#endif
+    catmm_copy_short(output, input, size);
+#else
     while (size != 0) {
         *output++ = *input++;
         --size;
     }
+#endif
 }
 
 void catmm_copy(CATMMLIB_POINTERW destination, CATMMLIB_POINTER source, CATALYST_NUINT size) {
@@ -604,6 +630,12 @@ void catmm_move(CATMMLIB_POINTERW destination, CATMMLIB_POINTER source, CATALYST
     if (size == 0 || destination == source) return;
     BYTE* output = (BYTE*) destination;
     const BYTE* input = (const BYTE*) source;
+#if CATMMLIB_BLOCK_COPY
+    if (size <= (NUINT) 32) {
+        catmm_copy_short(output, input, size);
+        return;
+    }
+#endif
     /* Supported targets use flat byte addresses. Subtract only in ascending
      * order; computing the end address could overflow the representation. */
     const CATMMLIB_ADDRESS outputAddress = (CATMMLIB_ADDRESS) destination;
@@ -641,19 +673,17 @@ void catmm_move(CATMMLIB_POINTERW destination, CATMMLIB_POINTER source, CATALYST
         catmm_copy_block(output, input, FALSE);
         size = (NUINT) (size - (NUINT) CATMMLIB_BLOCK_SIZE);
     }
-    if (size >= (NUINT) CATMMLIB_BLOCK_ALIGNMENT) {
-        BYTE chunk[CATMMLIB_BLOCK_ALIGNMENT];
-        output -= (NUINT) sizeof(chunk);
-        input -= (NUINT) sizeof(chunk);
-        __builtin_memcpy(chunk, input, sizeof(chunk));
-        __builtin_memcpy(output, chunk, sizeof(chunk));
-        size = (NUINT) (size - (NUINT) sizeof(chunk));
+    while (size > (NUINT) 32) {
+        *--output = *--input;
+        --size;
     }
-#endif
+    catmm_copy_short(output - size, input - size, size);
+#else
     while (size != 0) {
         *--output = *--input;
         --size;
     }
+#endif
 }
 
 CATALYST_SBYTE catmm_compare(CATMMLIB_POINTER memory1, CATMMLIB_POINTER memory2, CATALYST_NUINT size) {

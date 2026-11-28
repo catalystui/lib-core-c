@@ -868,6 +868,40 @@ int main() {
         check(&failed, passed, "pool bitmap scans all bit positions, word boundaries and padding");
     }
 
+    // Fixed-size transfers must preserve unaligned caller buffers and sentinels.
+    {
+        const NUINT widths[] = {1, 8, 16};
+        BOOL passed = TRUE;
+        for (BYTE w = 0; w < (BYTE) 3 && passed; ++w) {
+            NUINT width = widths[w];
+            BYTE source[18], output[18];
+            for (BYTE i = 0; i < (BYTE) 18; ++i) {
+                source[i] = (BYTE) (i + (BYTE) 37);
+                output[i] = 0xCC;
+            }
+            QUEUE queue;
+            STACK stack;
+            queue_init(&queue, width);
+            stack_init(&stack, width);
+            passed = matches(queue_expand(&queue, 2), STATUS_CODE_SUCCESS, 0x29, 4) &&
+                matches(stack_expand(&stack, 2), STATUS_CODE_SUCCESS, 0x31, 4);
+            if (passed) {
+                queue_enqueue(&queue, source + 1);
+                stack_push(&stack, source + 1);
+                passed = queue_dequeue(&queue, output + 1) &&
+                    value_matches(output + 1, source + 1, width) &&
+                    output[0] == 0xCC && output[width + (NUINT) 1] == 0xCC;
+                for (BYTE i = 0; i < (BYTE) 18; ++i) output[i] = 0xCC;
+                passed = stack_pop(&stack, output + 1) &&
+                    value_matches(output + 1, source + 1, width) &&
+                    output[0] == 0xCC && output[width + (NUINT) 1] == 0xCC && passed;
+            }
+            if (!status_code_is_success(queue_free(&queue).status)) passed = FALSE;
+            if (!status_code_is_success(stack_free(&stack).status)) passed = FALSE;
+        }
+        check(&failed, passed, "queue and stack fixed-size unaligned transfers preserve extent");
+    }
+
     // ------------------------------------------------------------
     // Done
     // ------------------------------------------------------------
