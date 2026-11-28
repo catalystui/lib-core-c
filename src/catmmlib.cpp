@@ -642,6 +642,18 @@ void catmm_move(CATMMLIB_POINTERW destination, CATMMLIB_POINTER source, CATALYST
         catmm_copy_short(output, input, size);
         return;
     }
+#if TARGET_SIZEOF_ADDRESS >= 4
+    /* Fixed medium extents can load both halves before storing either.
+     * This preserves overlap in both directions without address arithmetic. */
+    if (size == (NUINT) 64) {
+        catmm_copy_ends<(NUINT) 32>(output, input, size);
+        return;
+    }
+    if (size == (NUINT) 128) {
+        catmm_copy_ends<(NUINT) 64>(output, input, size);
+        return;
+    }
+#endif
 #endif
     /* Supported targets use flat byte addresses. Subtract only in ascending
      * order; computing the end address could overflow the representation. */
