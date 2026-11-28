@@ -529,17 +529,23 @@ static inline void catmm_copy_block(BYTE* output, const BYTE* input, BOOL large)
 /* Copy forward when no unread source byte can be overwritten. */
 static inline void catmm_copy_forward(BYTE* output, const BYTE* input, NUINT size) {
 #if CATMMLIB_BLOCK_COPY
+    /* Fixed-size compiler copies permit unaligned input/output. Avoid byte
+     * alignment prologues for the short and medium shifts used by collections. */
     if (size >= (NUINT) CATMMLIB_BLOCK_THRESHOLD) {
-        while (((CATMMLIB_ADDRESS) output % (CATMMLIB_ADDRESS) CATMMLIB_BLOCK_ALIGNMENT) != 0) {
-            *output++ = *input++;
-            --size;
-        }
-        while (size >= (NUINT) CATMMLIB_LARGE_BLOCK_SIZE) {
+        while (size >= (NUINT) (CATMMLIB_LARGE_BLOCK_SIZE * 2)) {
             catmm_copy_block(output, input, TRUE);
-            output += (NUINT) CATMMLIB_LARGE_BLOCK_SIZE;
-            input += (NUINT) CATMMLIB_LARGE_BLOCK_SIZE;
-            size = (NUINT) (size - (NUINT) CATMMLIB_LARGE_BLOCK_SIZE);
+            catmm_copy_block(output + (NUINT) CATMMLIB_LARGE_BLOCK_SIZE,
+                input + (NUINT) CATMMLIB_LARGE_BLOCK_SIZE, TRUE);
+            output += (NUINT) (CATMMLIB_LARGE_BLOCK_SIZE * 2);
+            input += (NUINT) (CATMMLIB_LARGE_BLOCK_SIZE * 2);
+            size = (NUINT) (size - (NUINT) (CATMMLIB_LARGE_BLOCK_SIZE * 2));
         }
+    }
+    while (size >= (NUINT) CATMMLIB_LARGE_BLOCK_SIZE) {
+        catmm_copy_block(output, input, TRUE);
+        output += (NUINT) CATMMLIB_LARGE_BLOCK_SIZE;
+        input += (NUINT) CATMMLIB_LARGE_BLOCK_SIZE;
+        size = (NUINT) (size - (NUINT) CATMMLIB_LARGE_BLOCK_SIZE);
     }
     while (size >= (NUINT) CATMMLIB_BLOCK_SIZE) {
         catmm_copy_block(output, input, FALSE);
@@ -583,17 +589,24 @@ void catmm_move(CATMMLIB_POINTERW destination, CATMMLIB_POINTER source, CATALYST
     output += size;
     input += size;
 #if CATMMLIB_BLOCK_COPY
+    /* Process the higher block first so overlapping right shifts cannot
+     * overwrite the next block's unread source bytes. */
     if (size >= (NUINT) CATMMLIB_BLOCK_THRESHOLD) {
-        while (((CATMMLIB_ADDRESS) output % (CATMMLIB_ADDRESS) CATMMLIB_BLOCK_ALIGNMENT) != 0) {
-            *--output = *--input;
-            --size;
-        }
-        while (size >= (NUINT) CATMMLIB_LARGE_BLOCK_SIZE) {
+        while (size >= (NUINT) (CATMMLIB_LARGE_BLOCK_SIZE * 2)) {
             output -= (NUINT) CATMMLIB_LARGE_BLOCK_SIZE;
             input -= (NUINT) CATMMLIB_LARGE_BLOCK_SIZE;
             catmm_copy_block(output, input, TRUE);
-            size = (NUINT) (size - (NUINT) CATMMLIB_LARGE_BLOCK_SIZE);
+            output -= (NUINT) CATMMLIB_LARGE_BLOCK_SIZE;
+            input -= (NUINT) CATMMLIB_LARGE_BLOCK_SIZE;
+            catmm_copy_block(output, input, TRUE);
+            size = (NUINT) (size - (NUINT) (CATMMLIB_LARGE_BLOCK_SIZE * 2));
         }
+    }
+    while (size >= (NUINT) CATMMLIB_LARGE_BLOCK_SIZE) {
+        output -= (NUINT) CATMMLIB_LARGE_BLOCK_SIZE;
+        input -= (NUINT) CATMMLIB_LARGE_BLOCK_SIZE;
+        catmm_copy_block(output, input, TRUE);
+        size = (NUINT) (size - (NUINT) CATMMLIB_LARGE_BLOCK_SIZE);
     }
     while (size >= (NUINT) CATMMLIB_BLOCK_SIZE) {
         output -= (NUINT) CATMMLIB_BLOCK_SIZE;
