@@ -263,7 +263,7 @@ static int test_memory(BOOL managed) {
             { "overlap toward higher addresses", 4, 9, 97 }, { "overlap toward lower addresses", 9, 4, 97 },
             { "one-byte backward overlap", 1, 2, 128 }, { "one-byte forward overlap", 2, 1, 128 },
             { "64-byte backward overlap", 1, 3, 64 }, { "64-byte forward overlap", 3, 1, 64 },
-            { "128-byte unaligned backward overlap", 1, 17, 128 }, { "128-byte unaligned forward overlap", 17, 1, 128 },
+            { "128-byte unaligned backward overlap", 1, 3, 128 }, { "128-byte unaligned forward overlap", 3, 1, 128 },
             { "adjacent regions", 0, 66, 66 }, { "single byte", 4, 5, 1 },
             { "identical addresses", 3, 3, 97 }, { "zero length", 4, 9, 0 }
 #if TARGET_SIZEOF_ADDRESS >= 2
