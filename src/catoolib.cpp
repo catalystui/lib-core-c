@@ -1,4 +1,5 @@
 #include "catoolib.hpp"
+#include "catrllib.internal.hpp"
 
 using namespace catalyst;
 
@@ -52,7 +53,7 @@ CATALYST_RESULT catoo_object_add(OBJECT* object, POINTER key, POINTER data, NUIN
     catoo_member_set(&member, data);
     /* Absence and spare capacity were established above. Transfer payload
      * ownership into the map's copied record; no further allocation occurs. */
-    catrl_map_add(&object->members, key, &member);
+    catrl_map_append_known(&object->members, key, &member);
     return RESULT(STATUS_CODE_SUCCESS, 0x06, 0x05, 0);
 }
 
