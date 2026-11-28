@@ -461,6 +461,19 @@ typedef struct CATRLLIB_STREAM_MEMORY {
     CATRLLIB_STREAM_CHUNK spare;
 } CATRLLIB_STREAM_MEMORY;
 
+/* Copy fixed-size private descriptors through aligned locals. Compiler
+ * constant-size byte copies avoid the general transfer dispatch on warm
+ * calls; other compilers use the existing CATMMLIB operation. Both
+ * regions are valid, non-overlapping extents of Size bytes. */
+template<NUINT Size>
+static inline void catrl_stream_copy(POINTERW output, POINTER input) {
+#if defined(__GNUC__) || defined(__clang__)
+    __builtin_memcpy(output, input, Size);
+#else
+    catmm_copy(output, input, Size);
+#endif
+}
+
 /* Initialized, non-freed Stream; index < its stored lifetime. The complete descriptor extent was checked at initialization. */
 static BYTE* catrl_stream_slot(CATRLLIB_STREAM* stream, NUINT index) {
     return (BYTE*) stream->state + stream->ssize + (NUINT) sizeof(CATRLLIB_STREAM_MEMORY) + (NUINT) (index * (NUINT) sizeof(CATRLLIB_STREAM_CHUNK));
@@ -496,10 +509,10 @@ CATALYST_RESULT catrl_stream_init(CATRLLIB_STREAM* stream, CATALYST_NUINT ssize,
     memory.cursor = 0;
     memory.spare.data = 0;
     memory.spare.capacity = 0;
-    catmm_copy((BYTE*) stream->state + ssize, &memory, headerSize);
+    catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>((BYTE*) stream->state + ssize, &memory);
     /* Zero-filled storage need not represent null pointers. */
     for (NUINT index = 0; index < lifetime; ++index) {
-        catmm_copy(catrl_stream_slot(stream, index), &memory.spare, slotSize);
+        catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_CHUNK)>(catrl_stream_slot(stream, index), &memory.spare);
     }
     return RESULT(STATUS_CODE_SUCCESS, 0x21, 0x05, 0);
 }
@@ -508,7 +521,7 @@ CATALYST_RESULT catrl_stream_init(CATRLLIB_STREAM* stream, CATALYST_NUINT ssize,
 CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize, CATMMLIB_POINTERW* output) {
     CATRLLIB_STREAM_MEMORY memory;
     BYTE* bookkeeping = (BYTE*) stream->state + stream->ssize;
-    catmm_copy(&memory, bookkeeping, (NUINT) sizeof(memory));
+    catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>(&memory, bookkeeping);
     NUINT required = csize == 0 ? (NUINT) 1 : csize;
     NUINT capacity = memory.spare.capacity;
     if (capacity < required) {
@@ -526,14 +539,14 @@ CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize,
         }
         memory.spare.capacity = capacity;
         /* Keep replacement ownership reachable before invoking producer code. */
-        catmm_copy(bookkeeping, &memory, (NUINT) sizeof(memory));
+        catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>(bookkeeping, &memory);
     }
     RESULT production = stream->next(stream, memory.spare.data, csize);
     if (production.status == STATUS_CODE_SUCCESS) {
         CATRLLIB_STREAM_CHUNK expired;
         BYTE* slot = catrl_stream_slot(stream, memory.cursor);
-        catmm_copy(&expired, slot, (NUINT) sizeof(expired));
-        catmm_copy(slot, &memory.spare, (NUINT) sizeof(memory.spare));
+        catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_CHUNK)>(&expired, slot);
+        catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_CHUNK)>(slot, &memory.spare);
         *output = memory.spare.data;
         memory.spare = expired;
         ++memory.cursor;
@@ -544,7 +557,7 @@ CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize,
             RESULT shrink = catmm_heap_realloc(&memory.spare.data, smaller);
             if (!status_code_is_success(shrink.status)) {
                 // Production is already published; commit the rotated state even on failure.
-                catmm_copy(bookkeeping, &memory, (NUINT) sizeof(memory));
+                catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>(bookkeeping, &memory);
                 if (status_code_is_fatal(shrink.status)) {
                     return RESULT(shrink.status, 0x22, 0x05, shrink.detail);
                 }
@@ -552,7 +565,7 @@ CATALYST_RESULT catrl_stream_next(CATRLLIB_STREAM* stream, CATALYST_NUINT csize,
             }
             memory.spare.capacity = smaller;
         }
-        catmm_copy(bookkeeping, &memory, (NUINT) sizeof(memory));
+        catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>(bookkeeping, &memory);
     }
     /* Map producer csize to public argument 1; rejecting the managed chunk indicates invalid internal state. */
     if (production.status == STATUS_CODE_ERROR_INVALID_ARGUMENT) {
@@ -572,11 +585,11 @@ CATALYST_RESULT catrl_stream_free(CATRLLIB_STREAM* stream) {
     stream->next = 0;
     CATRLLIB_STREAM_MEMORY memory;
     BYTE* bookkeeping = (BYTE*) stream->state + stream->ssize;
-    catmm_copy(&memory, bookkeeping, (NUINT) sizeof(memory));
+    catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>(&memory, bookkeeping);
     for (NUINT index = 0; index < memory.lifetime; ++index) {
         CATRLLIB_STREAM_CHUNK chunk;
         BYTE* slot = catrl_stream_slot(stream, index);
-        catmm_copy(&chunk, slot, (NUINT) sizeof(chunk));
+        catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_CHUNK)>(&chunk, slot);
         if (chunk.data != 0) {
             RESULT release = catmm_heap_free(chunk.data);
             if (!status_code_is_success(release.status)) {
@@ -584,7 +597,7 @@ CATALYST_RESULT catrl_stream_free(CATRLLIB_STREAM* stream) {
             }
             chunk.data = 0;
             chunk.capacity = 0;
-            catmm_copy(slot, &chunk, (NUINT) sizeof(chunk));
+            catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_CHUNK)>(slot, &chunk);
         }
     }
     if (memory.spare.data != 0) {
@@ -594,7 +607,7 @@ CATALYST_RESULT catrl_stream_free(CATRLLIB_STREAM* stream) {
         }
         memory.spare.data = 0;
         memory.spare.capacity = 0;
-        catmm_copy(bookkeeping, &memory, (NUINT) sizeof(memory));
+        catrl_stream_copy<(NUINT) sizeof(CATRLLIB_STREAM_MEMORY)>(bookkeeping, &memory);
     }
     RESULT release = catmm_heap_free(stream->state);
     if (!status_code_is_success(release.status)) {
