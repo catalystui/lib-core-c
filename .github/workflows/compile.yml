@@ -109,9 +109,10 @@ jobs:
       - name: Compile and test object-oriented composites
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          cmake --build target/ci --parallel --target catoolib_shared test_catoolib
+          cmake --build target/ci --parallel --target catoolib_shared test_catoolib perf_catoolib test_catrllib
           $output = 'build/linux/linux/${{ matrix.arch }}/release'
           & "$output/test_catoolib"
+          & "$output/test_catrllib"
 
       - name: Verify relocatable shared-library runtime
         run: |
@@ -194,6 +195,8 @@ jobs:
           @'
           #define TARGET_STDC_VERSION 0
           #define TARGET_SIZEOF_VOID_P 2
+          #define TARGET_ADDRESS_KIND 1
+          #define TARGET_SIZEOF_ADDRESS 2
           #define TARGET_SIZEOF_SHORT 2
           #define TARGET_SIZEOF_INT 2
           #define TARGET_SIZEOF_LONG 0
@@ -205,12 +208,17 @@ jobs:
           @'
           #include "catalyst.h"
           #include "cattelib.h"
+          #include "catoolib.h"
           #if !CATALYST_SUPPORTS_16BIT || CATALYST_SUPPORTS_32BIT || CATALYST_SUPPORTS_64BIT
           #error "AVR intermediate configuration must expose 16-bit but not 32-bit or 64-bit types."
           #endif
           '@ | clang -target avr -mmcu=atmega328p -ffreestanding -std=c90 -pedantic-errors -Iinclude "-I$avr" -x c -c -o "$avr/headers.o" -
           clang++ -target avr -mmcu=atmega328p -ffreestanding -std=c++98 -pedantic-errors -Os -Iinclude "-I$avr" -c src/cattelib.cpp -o "$avr/cattelib-fallback.o"
+          clang++ -target avr -mmcu=atmega328p -ffreestanding -std=c++98 -pedantic-errors -Os -Iinclude "-I$avr" -c src/catrllib.cpp -o "$avr/catrllib-fallback.o"
+          clang++ -target avr -mmcu=atmega328p -ffreestanding -std=c++98 -pedantic-errors -Os -Iinclude "-I$avr" -c src/catoolib.cpp -o "$avr/catoolib-fallback.o"
           # Enable the AVR compiler's exact-width C99 integer types as well.
           (Get-Content "$avr/cmakecfg.h" -Raw).Replace('TARGET_STDC_VERSION 0','TARGET_STDC_VERSION 199901L') | Set-Content "$avr/cmakecfg.h"
           clang++ -target avr -mmcu=atmega328p -ffreestanding -std=c++11 -pedantic-errors -Os -Iinclude "-I$avr" -c src/cattelib.cpp -o "$avr/cattelib-wider.o"
-          file "$avr/cattelib-fallback.o" "$avr/cattelib-wider.o"
+          clang++ -target avr -mmcu=atmega328p -ffreestanding -std=c++11 -pedantic-errors -Os -Iinclude "-I$avr" -c src/catrllib.cpp -o "$avr/catrllib-wider.o"
+          clang++ -target avr -mmcu=atmega328p -ffreestanding -std=c++11 -pedantic-errors -Os -Iinclude "-I$avr" -c src/catoolib.cpp -o "$avr/catoolib-wider.o"
+          file "$avr/cattelib-fallback.o" "$avr/cattelib-wider.o" "$avr/catrllib-fallback.o" "$avr/catrllib-wider.o" "$avr/catoolib-fallback.o" "$avr/catoolib-wider.o"

@@ -45,6 +45,7 @@ configure_target(
     TARGETS catrllib_shared catrllib_static
     SOURCES
         src/catrllib.cpp
+        src/catrllib.internal.hpp
 )
 target_link_libraries(catrllib_shared PUBLIC catmmlib_shared)
 target_link_libraries(catrllib_static PUBLIC catmmlib_static)
