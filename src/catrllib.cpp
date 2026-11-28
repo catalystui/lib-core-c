@@ -930,21 +930,30 @@ CATALYST_BOOL catrl_pool_acquire(CATRLLIB_POOL* pool, CATALYST_NUINT* index) {
     return TRUE;
 }
 
-CATALYST_BOOL catrl_pool_contains(const CATRLLIB_POOL* pool, CATALYST_NUINT index) {
+/* An initialized Pool; arbitrary index. Check the logical extent before
+ * reading the bitmap. A free or out-of-range slot is ordinarily absent. */
+static inline BOOL catrl_pool_is_occupied(const CATRLLIB_POOL* pool, NUINT index) {
     if (index >= pool->capacity) return FALSE;
     return (((const BYTE*) pool->occupied)[index / (NUINT) 8] & catrl_pool_mask(index)) != 0 ? TRUE : FALSE;
 }
 
+CATALYST_BOOL catrl_pool_contains(const CATRLLIB_POOL* pool, CATALYST_NUINT index) {
+    return catrl_pool_is_occupied(pool, index);
+}
+
 CATALYST_BOOL catrl_pool_release(CATRLLIB_POOL* pool, CATALYST_NUINT index) {
-    if (!catrl_pool_contains(pool, index)) return FALSE;
+    if (index >= pool->capacity) return FALSE;
     BYTE* occupied = (BYTE*) pool->occupied + index / (NUINT) 8;
-    *occupied = (BYTE) (*occupied & (BYTE) ~catrl_pool_mask(index));
+    BYTE mask = catrl_pool_mask(index);
+    BYTE bits = *occupied;
+    if ((bits & mask) == 0) return FALSE;
+    *occupied = (BYTE) (bits & (BYTE) ~mask);
     --pool->cardinality;
     return TRUE;
 }
 
 CATMMLIB_POINTERW catrl_pool_get(CATRLLIB_POOL* pool, CATALYST_NUINT index) {
-    if (!catrl_pool_contains(pool, index)) return 0;
+    if (!catrl_pool_is_occupied(pool, index)) return 0;
     return (BYTE*) pool->data + (NUINT) (index * pool->size);
 }
 
