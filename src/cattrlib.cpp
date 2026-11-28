@@ -280,7 +280,13 @@ CATALYST_RESULT cattr_dispatcher_submit(DISPATCHER* dispatcher, POINTERX operati
     submission.arguments = arguments;
     submission.awaited = wait;
     submission.invocation = 0;
-    RESULT admission = cattr_platform_monitor_wait(dispatcher->state, timeout, cattr_submission_ready, &submission);
+    /* Ordinary asynchronous admission usually completes immediately.
+     * Keep that path in shared code; use the native wait only if a slot
+     * is unavailable or the caller must await execution. */
+    RESULT admission(STATUS_CODE_SUCCESS, 0, 0, 0);
+    if (wait || !cattr_submission_ready(&submission)) {
+        admission = cattr_platform_monitor_wait(dispatcher->state, timeout, cattr_submission_ready, &submission);
+    }
     CATTRLIB_INVOCATION* invocation = (CATTRLIB_INVOCATION*) submission.invocation;
     if (invocation == 0) {
         cattr_platform_monitor_unlock(dispatcher->state);
