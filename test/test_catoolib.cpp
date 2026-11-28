@@ -274,6 +274,50 @@ static int test_class_extension_boundaries() {
     return 0;
 }
 
+/* Exercise deterministic allocation-extent failure and independent clones.
+ * The allocator rejects an unrepresentable extent before allocating memory. */
+static int test_allocation_extent_and_clone() {
+    MEMBER member;
+    CHECK(matches(member_init(&member, CATALYST_NUINT_MAX), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 1, 2));
+    CHECK(member.data == 0 && member.size == 0);
+    CHECK(matches(member_free(&member), STATUS_CODE_SUCCESS_NOOP, 4, 1));
+
+    OBJECT source;
+    object_init(&source, 2);
+    const BYTE keys[][2] = { { 0, 1 }, { 0, 2 }, { 0, 3 } };
+    BYTE data[] = { 0x12, 0x34, 0x56 };
+    CHECK(status_code_is_success(object_expand(&source, 3).status));
+    for (BYTE i = 0; i < 3; ++i)
+        CHECK(matches(object_add(&source, keys[i], &data[i], 1), STATUS_CODE_SUCCESS, 6, 5));
+    CHECK(matches(object_expand(&source, CATALYST_NUINT_MAX), STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x0A, 1));
+    CHECK(source.members.cardinality == 3 && source.members.capacity == 3);
+
+    STRUCTURE structure;
+    CHECK(matches(structure_init(&structure, &source), STATUS_CODE_SUCCESS, 0x14, 5));
+    CLASS class_;
+    CHECK(matches(class_init(&class_, &source), STATUS_CODE_SUCCESS, 0x17, 5));
+    OBJECT clone;
+    CHECK(matches(class_create(&class_, &clone), STATUS_CODE_SUCCESS, 0x18, 5));
+    CHECK(matches(object_clear(&source), STATUS_CODE_SUCCESS, 0x0C, 3));
+    CHECK(source.members.cardinality == 0 && source.members.capacity == 3);
+    CHECK(matches(object_free(&source), STATUS_CODE_SUCCESS, 0x0D, 2));
+    CHECK(matches(class_free(&class_), STATUS_CODE_SUCCESS, 0x1A, 1));
+
+    for (BYTE i = 0; i < 3; ++i) {
+        MEMBER* a = structure_get(&structure, keys[i]);
+        MEMBER* b = object_get(&clone, keys[i]);
+        BYTE out = 0;
+        CHECK(a != 0 && b != 0 && a->data != b->data);
+        member_get(a, &out);
+        CHECK(out == data[i]);
+        member_get(b, &out);
+        CHECK(out == data[i]);
+    }
+    CHECK(matches(structure_free(&structure), STATUS_CODE_SUCCESS, 0x16, 1));
+    CHECK(matches(object_free(&clone), STATUS_CODE_SUCCESS, 0x0D, 2));
+    return 0;
+}
+
 int main() {
     BYTE value = 17, changed = 42, output = 0;
     MEMBER member;
@@ -387,6 +431,8 @@ int main() {
     std::printf("PASS: callback status and structural validation\n");
     CHECK(test_class_extension_boundaries() == 0);
     std::printf("PASS: class extension boundaries and empty composites\n");
+    CHECK(test_allocation_extent_and_clone() == 0);
+    std::printf("PASS: allocation extent failure and independent clones\n");
     std::printf("PASS: CATOOLIB composites\n");
     return 0;
 }
