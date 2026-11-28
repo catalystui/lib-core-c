@@ -747,15 +747,21 @@ CATALYST_SBYTE catmm_compare(CATMMLIB_POINTER memory1, CATMMLIB_POINTER memory2,
 
 void catmm_fill(CATMMLIB_POINTERW memory, CATMMLIB_WORD value, CATALYST_NUINT size) {
     BYTE* output = (BYTE*) memory;
-#if CATMMLIB_BLOCK_COPY && defined(__OPTIMIZE_SIZE__)
+#if CATMMLIB_BLOCK_COPY
     if (size >= (NUINT) CATMMLIB_BLOCK_SIZE) {
         BYTE chunk[CATMMLIB_BLOCK_SIZE];
         for (BYTE i = 0; i < (BYTE) CATMMLIB_BLOCK_SIZE; ++i) chunk[i] = value;
-        do {
+        while (size >= (NUINT) CATMMLIB_LARGE_BLOCK_SIZE) {
+            __builtin_memcpy(output, chunk, sizeof(chunk));
+            __builtin_memcpy(output + (NUINT) CATMMLIB_BLOCK_SIZE, chunk, sizeof(chunk));
+            output += (NUINT) CATMMLIB_LARGE_BLOCK_SIZE;
+            size = (NUINT) (size - (NUINT) CATMMLIB_LARGE_BLOCK_SIZE);
+        }
+        if (size >= (NUINT) CATMMLIB_BLOCK_SIZE) {
             __builtin_memcpy(output, chunk, sizeof(chunk));
             output += (NUINT) CATMMLIB_BLOCK_SIZE;
             size = (NUINT) (size - (NUINT) CATMMLIB_BLOCK_SIZE);
-        } while (size >= (NUINT) CATMMLIB_BLOCK_SIZE);
+        }
     }
 #endif
     while (size != 0) {
