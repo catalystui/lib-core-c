@@ -735,6 +735,44 @@ static void benchmark_warm_heap(Summary& summary) {
     }
 }
 
+/* Keep the standard C heap baseline and identical warm-cycle verification.
+ * Probe the transition separately so the general workloads remain comparable. */
+static void benchmark_heap_boundary(Summary& summary) {
+#if TARGET_SIZEOF_ADDRESS >= 2
+#if TARGET_SIZEOF_ADDRESS >= 4
+    const NUINT boundary = (NUINT) 65536;
+#else
+    const NUINT boundary = (NUINT) 16384;
+#endif
+    const NUINT extents[] = {
+        (NUINT) (boundary - (NUINT) 16), (NUINT) (boundary - (NUINT) 1), boundary,
+        (NUINT) (boundary + (NUINT) 1), (NUINT) (boundary + (NUINT) 16),
+        (NUINT) (boundary + (NUINT) 1024)
+    };
+    std::printf("\nManaged heap boundary (warm allocation + release)\n");
+    for (catalyst::BYTE i = 0; i < sizeof(extents) / sizeof(extents[0]); ++i) {
+        NUINT size = extents[i];
+        char label[48];
+        std::sprintf(label, "%lu bytes", (unsigned long) size);
+        WarmTrial native = { &nativeAllocator, WARM_LIFETIME, size, size };
+        WarmTrial comparison = { &heapAllocator, WARM_LIFETIME, size, size };
+        benchmark_case(label, native, comparison, measure_warm, 1048576UL, summary);
+    }
+    std::printf("\nManaged heap boundary (grow + shrink across cutoff)\n");
+    for (catalyst::BYTE i = 3; i < sizeof(extents) / sizeof(extents[0]); ++i) {
+        NUINT size = extents[i];
+        char label[48];
+        std::sprintf(label, "%lu -> %lu -> %lu B", (unsigned long) boundary,
+            (unsigned long) size, (unsigned long) boundary);
+        WarmTrial native = { &nativeAllocator, WARM_RESIZE, boundary, size };
+        WarmTrial comparison = { &heapAllocator, WARM_RESIZE, boundary, size };
+        benchmark_case(label, native, comparison, measure_warm, 1048576UL, summary);
+    }
+#else
+    (void) summary;
+#endif
+}
+
 static void benchmark_memory(Summary& summary) {
     const char* previous = 0;
     for (catalyst::BYTE b = 0; b < sizeof(memoryBenchmarks) / sizeof(memoryBenchmarks[0]); ++b) {
@@ -797,6 +835,7 @@ int main() {
     std::printf("\nManaged allocation (warm reuse; one persistent block, standard C heap baseline)\n");
     std::printf("Payloads outside supported size classes bypass pooling; 64 KiB payloads can be pooled on supported wide-address targets.\n");
     benchmark_warm_heap(summary);
+    benchmark_heap_boundary(summary);
     std::printf("\nManaged allocation (burst; up to %u live blocks, standard C heap baseline)\n", (unsigned int) BATCH_CAPACITY);
     benchmark_allocations(nativeAllocator, heapAllocator, TRUE, "calloc", "realloc + zero growth", "free", summary);
     std::printf("\nMemory operations (standard C baseline)\n");
