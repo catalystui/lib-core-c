@@ -147,6 +147,7 @@ CATALYST_RESULT cattr_platform_thread_free(POINTERW* state) {
  * ------------------------------------------------------------------------------------------------- */
 
 struct CATTRLIB_WIN32_MONITOR {
+    CATTRLIB_DISPATCHER_STATE common;
     SRWLOCK lock;
     CONDITION_VARIABLE condition;
 };

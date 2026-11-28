@@ -141,14 +141,6 @@ struct CATTRLIB_INVOCATION {
     BYTE stage;
 };
 
-struct CATTRLIB_DISPATCHER_STATE {
-    POINTERW monitor;
-    POOL pool;
-    QUEUE order;
-    BOOL closed;
-    BOOL polling;
-};
-
 /* Read a stored pointer representation without treating raw bytes as a
  * constructed pointer object. The input identifies one live collection member. */
 static CATTRLIB_INVOCATION* cattr_invocation_at(POINTER member) {
@@ -198,14 +190,15 @@ CATALYST_RESULT cattr_dispatcher_create(DISPATCHER* dispatcher, THREAD* thread, 
     dispatcher->state = 0;
     catrl_set_init(&dispatcher->work, (NUINT) sizeof(POINTERW));
     if (capacity == 0) return RESULT(STATUS_CODE_ERROR_INVALID_ARGUMENT, 0x0A, 0x01, 3);
-    RESULT allocation = catmm_heap_alloc(&dispatcher->state, (NUINT) sizeof(CATTRLIB_DISPATCHER_STATE));
-    if (!status_code_is_success(allocation.status)) return RESULT(allocation.status, 0x0A, 0x02, allocation.detail);
+    RESULT monitor = cattr_platform_monitor_create(&dispatcher->state);
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
-    state->monitor = 0;
-    state->closed = TRUE;
-    state->polling = FALSE;
-    catrl_pool_init(&state->pool, (NUINT) sizeof(CATTRLIB_INVOCATION));
-    catrl_queue_init(&state->order, (NUINT) sizeof(POINTERW));
+    if (state != 0) {
+        state->closed = TRUE;
+        state->polling = FALSE;
+        catrl_pool_init(&state->pool, (NUINT) sizeof(CATTRLIB_INVOCATION));
+        catrl_queue_init(&state->order, (NUINT) sizeof(POINTERW));
+    }
+    if (!status_code_is_success(monitor.status)) return RESULT(monitor.status, 0x0A, 0x06, monitor.detail);
     RESULT pool = catrl_pool_expand(&state->pool, capacity);
     if (!status_code_is_success(pool.status)) return RESULT(pool.status, 0x0A, 0x03, pool.detail);
     RESULT set = catrl_set_expand(&dispatcher->work, capacity);
@@ -214,8 +207,6 @@ CATALYST_RESULT cattr_dispatcher_create(DISPATCHER* dispatcher, THREAD* thread, 
         RESULT order = catrl_queue_expand(&state->order, capacity);
         if (!status_code_is_success(order.status)) return RESULT(order.status, 0x0A, 0x05, order.detail);
     }
-    RESULT monitor = cattr_platform_monitor_create(&state->monitor);
-    if (!status_code_is_success(monitor.status)) return RESULT(monitor.status, 0x0A, 0x06, monitor.detail);
     state->closed = FALSE;
     return RESULT(STATUS_CODE_SUCCESS, 0x0A, 0x07, 0);
 }
@@ -251,7 +242,7 @@ static BOOL cattr_submission_ready(POINTERW arguments) {
         BOOL was_empty = dispatcher->work.cardinality == 0 ? TRUE : FALSE;
         catrl_set_add(&dispatcher->work, &invocation->identity);
         if (dispatcher->rule == 0) catrl_queue_enqueue(&state->order, &invocation->identity);
-        if (was_empty) cattr_platform_monitor_notify(state->monitor);
+        if (was_empty) cattr_platform_monitor_notify(dispatcher->state);
     }
     return !submission->awaited || submission->invocation->stage != INVOCATION_PENDING ? TRUE : FALSE;
 }
@@ -264,16 +255,16 @@ static BOOL cattr_invocation_finished(POINTERW arguments) {
 
 CATALYST_RESULT cattr_dispatcher_submit(DISPATCHER* dispatcher, POINTERX operation, POINTERW arguments, BOOL wait, NUINT timeout) {
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
-    cattr_platform_monitor_lock(state->monitor);
+    cattr_platform_monitor_lock(dispatcher->state);
     if (state->closed) {
-        cattr_platform_monitor_unlock(state->monitor);
+        cattr_platform_monitor_unlock(dispatcher->state);
         return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x0B, 0x01, 0);
     }
     /* The associated thread cannot block awaiting its own dispatch.
      * Asynchronous submissions still enter the Set and obey the rule. */
     if (cattr_thread_is_current(dispatcher->thread)) {
         if (wait) {
-            cattr_platform_monitor_unlock(state->monitor);
+            cattr_platform_monitor_unlock(dispatcher->state);
             return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x0B, 0x02, 0);
         }
         timeout = 0;
@@ -284,43 +275,43 @@ CATALYST_RESULT cattr_dispatcher_submit(DISPATCHER* dispatcher, POINTERX operati
     submission.arguments = arguments;
     submission.awaited = wait;
     submission.invocation = 0;
-    RESULT admission = cattr_platform_monitor_wait(state->monitor, timeout, cattr_submission_ready, &submission);
+    RESULT admission = cattr_platform_monitor_wait(dispatcher->state, timeout, cattr_submission_ready, &submission);
     CATTRLIB_INVOCATION* invocation = submission.invocation;
     if (invocation == 0) {
-        cattr_platform_monitor_unlock(state->monitor);
+        cattr_platform_monitor_unlock(dispatcher->state);
         if (!status_code_is_success(admission.status)) return RESULT(admission.status, 0x0B, 0x03, admission.detail);
         return RESULT(STATUS_CODE_ERROR_INTERRUPTED, 0x0B, 0x04, 0);
     }
     if (!wait) {
-        cattr_platform_monitor_unlock(state->monitor);
+        cattr_platform_monitor_unlock(dispatcher->state);
         return RESULT(STATUS_CODE_SUCCESS, 0x0B, 0x05, 0);
     }
     if (invocation->stage == INVOCATION_PENDING) {
         cattr_remove_pending(dispatcher, invocation, FALSE);
         BOOL was_full = state->pool.cardinality == state->pool.capacity ? TRUE : FALSE;
         catrl_pool_release(&state->pool, invocation->index);
-        if (was_full) cattr_platform_monitor_notify(state->monitor);
-        cattr_platform_monitor_unlock(state->monitor);
+        if (was_full) cattr_platform_monitor_notify(dispatcher->state);
+        cattr_platform_monitor_unlock(dispatcher->state);
         return RESULT(admission.status, 0x0B, 0x06, admission.detail);
     }
     RESULT completion = admission;
     if (completion.status == STATUS_CODE_ERROR_TIMEOUT) completion = RESULT(STATUS_CODE_SUCCESS, 0, 0, 0);
     while (invocation->stage == INVOCATION_RUNNING) {
-        RESULT change = cattr_platform_monitor_wait(state->monitor, CATALYST_NUINT_MAX, cattr_invocation_finished, invocation);
+        RESULT change = cattr_platform_monitor_wait(dispatcher->state, CATALYST_NUINT_MAX, cattr_invocation_finished, invocation);
         if (!status_code_is_success(change.status)) {
             if (status_code_is_success(completion.status) || change.status > completion.status) completion = change;
             if (invocation->stage == INVOCATION_RUNNING) {
-                cattr_platform_monitor_unlock(state->monitor);
+                cattr_platform_monitor_unlock(dispatcher->state);
                 cattr_platform_yield();
-                cattr_platform_monitor_lock(state->monitor);
+                cattr_platform_monitor_lock(dispatcher->state);
             }
         }
     }
     BOOL cancelled = invocation->stage == INVOCATION_CANCELLED ? TRUE : FALSE;
     BOOL was_full = state->pool.cardinality == state->pool.capacity ? TRUE : FALSE;
     catrl_pool_release(&state->pool, invocation->index);
-    if (was_full) cattr_platform_monitor_notify(state->monitor);
-    cattr_platform_monitor_unlock(state->monitor);
+    if (was_full) cattr_platform_monitor_notify(dispatcher->state);
+    cattr_platform_monitor_unlock(dispatcher->state);
     if (!status_code_is_success(completion.status)) return RESULT(completion.status, 0x0B, 0x07, completion.detail);
     if (cancelled) return RESULT(STATUS_CODE_ERROR_INTERRUPTED, 0x0B, 0x08, 0);
     return RESULT(STATUS_CODE_SUCCESS, 0x0B, 0x09, 0);
@@ -334,9 +325,9 @@ void cattr_dispatcher_inspect(POINTER submission, POINTERX* operation, POINTERW*
 
 CATALYST_NUINT cattr_dispatcher_count(const DISPATCHER* dispatcher) {
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
-    cattr_platform_monitor_lock(state->monitor);
+    cattr_platform_monitor_lock(dispatcher->state);
     NUINT count = dispatcher->work.cardinality;
-    cattr_platform_monitor_unlock(state->monitor);
+    cattr_platform_monitor_unlock(dispatcher->state);
     return count;
 }
 
@@ -350,10 +341,10 @@ static BOOL cattr_work_available(POINTERW arguments) {
 CATALYST_RESULT cattr_dispatcher_wait(DISPATCHER* dispatcher, NUINT timeout) {
     if (!cattr_thread_is_current(dispatcher->thread)) return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x0D, 0x01, 0);
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
-    cattr_platform_monitor_lock(state->monitor);
-    RESULT wait = cattr_platform_monitor_wait(state->monitor, timeout, cattr_work_available, dispatcher);
+    cattr_platform_monitor_lock(dispatcher->state);
+    RESULT wait = cattr_platform_monitor_wait(dispatcher->state, timeout, cattr_work_available, dispatcher);
     BOOL closed = state->closed;
-    cattr_platform_monitor_unlock(state->monitor);
+    cattr_platform_monitor_unlock(dispatcher->state);
     if (!status_code_is_success(wait.status)) return RESULT(wait.status, 0x0D, 0x02, wait.detail);
     if (closed) return RESULT(STATUS_CODE_ERROR_INTERRUPTED, 0x0D, 0x03, 0);
     return RESULT(STATUS_CODE_SUCCESS, 0x0D, 0x04, 0);
@@ -362,22 +353,22 @@ CATALYST_RESULT cattr_dispatcher_wait(DISPATCHER* dispatcher, NUINT timeout) {
 CATALYST_RESULT cattr_dispatcher_poll(DISPATCHER* dispatcher) {
     if (!cattr_thread_is_current(dispatcher->thread)) return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x0E, 0x01, 0);
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
-    cattr_platform_monitor_lock(state->monitor);
+    cattr_platform_monitor_lock(dispatcher->state);
     if (state->closed) {
-        cattr_platform_monitor_unlock(state->monitor);
+        cattr_platform_monitor_unlock(dispatcher->state);
         return RESULT(STATUS_CODE_ERROR_INTERRUPTED, 0x0E, 0x02, 0);
     }
     if (state->polling) {
-        cattr_platform_monitor_unlock(state->monitor);
+        cattr_platform_monitor_unlock(dispatcher->state);
         return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x0E, 0x03, 0);
     }
     if (dispatcher->work.cardinality == 0) {
-        cattr_platform_monitor_unlock(state->monitor);
+        cattr_platform_monitor_unlock(dispatcher->state);
         return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x0E, 0x04, 0);
     }
     CATTRLIB_INVOCATION* invocation = cattr_select(dispatcher);
     if (invocation == 0) {
-        cattr_platform_monitor_unlock(state->monitor);
+        cattr_platform_monitor_unlock(dispatcher->state);
         return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x0E, 0x05, 0);
     }
     if (dispatcher->rule == 0) cattr_remove_pending(dispatcher, invocation, TRUE);
@@ -385,9 +376,9 @@ CATALYST_RESULT cattr_dispatcher_poll(DISPATCHER* dispatcher) {
     state->polling = TRUE;
     /* Completion or the original deadline will wake the awaited caller.
      * Starting work does not release a pool slot. */
-    cattr_platform_monitor_unlock(state->monitor);
+    cattr_platform_monitor_unlock(dispatcher->state);
     ((void (*)(POINTERW)) invocation->operation)(invocation->arguments);
-    cattr_platform_monitor_lock(state->monitor);
+    cattr_platform_monitor_lock(dispatcher->state);
     invocation->stage = INVOCATION_FINISHED;
     BOOL notify = invocation->awaited;
     if (!invocation->awaited) {
@@ -395,16 +386,16 @@ CATALYST_RESULT cattr_dispatcher_poll(DISPATCHER* dispatcher) {
         catrl_pool_release(&state->pool, invocation->index);
     }
     state->polling = FALSE;
-    if (notify) cattr_platform_monitor_notify(state->monitor);
-    cattr_platform_monitor_unlock(state->monitor);
+    if (notify) cattr_platform_monitor_notify(dispatcher->state);
+    cattr_platform_monitor_unlock(dispatcher->state);
     return RESULT(STATUS_CODE_SUCCESS, 0x0E, 0x06, 0);
 }
 
 CATALYST_RESULT cattr_dispatcher_close(DISPATCHER* dispatcher) {
     CATTRLIB_DISPATCHER_STATE* state = (CATTRLIB_DISPATCHER_STATE*) dispatcher->state;
-    cattr_platform_monitor_lock(state->monitor);
+    cattr_platform_monitor_lock(dispatcher->state);
     if (state->closed) {
-        cattr_platform_monitor_unlock(state->monitor);
+        cattr_platform_monitor_unlock(dispatcher->state);
         return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x0F, 0x01, 0);
     }
     state->closed = TRUE;
@@ -416,8 +407,8 @@ CATALYST_RESULT cattr_dispatcher_close(DISPATCHER* dispatcher) {
     }
     catrl_set_clear(&dispatcher->work);
     catrl_queue_clear(&state->order);
-    cattr_platform_monitor_notify(state->monitor);
-    cattr_platform_monitor_unlock(state->monitor);
+    cattr_platform_monitor_notify(dispatcher->state);
+    cattr_platform_monitor_unlock(dispatcher->state);
     return RESULT(STATUS_CODE_SUCCESS, 0x0F, 0x02, 0);
 }
 
@@ -427,18 +418,14 @@ CATALYST_RESULT cattr_dispatcher_free(DISPATCHER* dispatcher) {
     /* Close and external quiescence precede free; partial creation/release
      * remains retryable, and no further dispatcher access is permitted. */
     if (!state->closed) return RESULT(STATUS_CODE_ERROR_INVALID_STATE, 0x10, 0x02, 0);
-    if (state->monitor != 0) {
-        RESULT monitor = cattr_platform_monitor_free(&state->monitor);
-        if (!status_code_is_success(monitor.status)) return RESULT(monitor.status, 0x10, 0x03, monitor.detail);
-    }
     RESULT set = catrl_set_free(&dispatcher->work);
     if (!status_code_is_success(set.status)) return RESULT(set.status, 0x10, 0x04, set.detail);
     RESULT order = catrl_queue_free(&state->order);
     if (!status_code_is_success(order.status)) return RESULT(order.status, 0x10, 0x05, order.detail);
     RESULT pool = catrl_pool_free(&state->pool);
     if (!status_code_is_success(pool.status)) return RESULT(pool.status, 0x10, 0x06, pool.detail);
-    RESULT release = catmm_heap_free(state);
-    if (!status_code_is_success(release.status)) return RESULT(release.status, 0x10, 0x07, release.detail);
+    RESULT release = cattr_platform_monitor_free(&dispatcher->state);
+    if (!status_code_is_success(release.status)) return RESULT(release.status, 0x10, 0x03, release.detail);
     dispatcher->thread = 0;
     dispatcher->rule = 0;
     dispatcher->state = 0;

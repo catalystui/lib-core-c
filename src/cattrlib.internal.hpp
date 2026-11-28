@@ -45,6 +45,15 @@ CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_thread_free(CATMMLIB_POINTERW* s
  * timeout. Notify wakes all waiters, which may have different predicates.
  * Free requires external quiescence; partial creation remains freeable.
  */
+/* A native monitor allocation begins with the portable dispatcher state.
+ * Creation may leave partially initialized native storage on failure. */
+struct CATTRLIB_DISPATCHER_STATE {
+    CATRLLIB_POOL pool;
+    CATRLLIB_QUEUE order;
+    CATALYST_BOOL closed;
+    CATALYST_BOOL polling;
+};
+
 CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_monitor_create(CATMMLIB_POINTERW* state);
 CATTRLIB_PRIVATE void cattr_platform_monitor_lock(CATMMLIB_POINTERW state);
 CATTRLIB_PRIVATE void cattr_platform_monitor_unlock(CATMMLIB_POINTERW state);

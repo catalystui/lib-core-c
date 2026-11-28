@@ -140,6 +140,7 @@ CATALYST_RESULT cattr_platform_thread_free(POINTERW* state) {
  * ------------------------------------------------------------------------------------------------- */
 
 struct CATTRLIB_POSIX_MONITOR {
+    CATTRLIB_DISPATCHER_STATE common;
     pthread_mutex_t mutex;
     pthread_cond_t condition;
 #if TARGET_PLATFORM_LINUX
