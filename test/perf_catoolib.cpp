@@ -117,8 +117,20 @@ static BOOL native_clone(NativeObject* out, const NativeObject* source) {
     return TRUE;
 }
 static BOOL native_extend(NativeObject* out, const NativeObject* base) {
-    for (size_t i = 0; i < base->count; ++i)
-        if (native_find(out, base->keys[i]) != out->count) return FALSE;
+    if (out->count >= 32 && base->count >= 8) {
+        unsigned char occupied[32] = { 0 };
+        for (size_t i = 0; i < out->count; ++i) {
+            unsigned char key = out->keys[i];
+            occupied[key >> 3] |= (unsigned char) (1u << (key & 7u));
+        }
+        for (size_t i = 0; i < base->count; ++i) {
+            unsigned char key = base->keys[i];
+            if (occupied[key >> 3] & (unsigned char) (1u << (key & 7u))) return FALSE;
+        }
+    } else {
+        for (size_t i = 0; i < base->count; ++i)
+            if (native_find(out, base->keys[i]) != out->count) return FALSE;
+    }
     size_t original = out->count;
     if (base->count > (size_t) -1 - original || !native_expand(out, original + base->count)) return FALSE;
     for (size_t i = 0; i < base->count; ++i) {
@@ -134,7 +146,7 @@ static BOOL native_validate_member(const NativeMember* m, const NativeMember* r)
 }
 static BOOL native_validate(NativeInterface* r, NativeObject* o, BOOL* valid) {
     for (size_t i = 0; i < r->object.count; ++i) {
-        NativeMember* m = native_get(o, r->object.keys[i]);
+        NativeMember* m = i < o->count && o->keys[i] == r->object.keys[i] ? &o->members[i] : native_get(o, r->object.keys[i]);
         if (!m || !r->validate(m, &r->object.members[i])) { *valid = FALSE; return TRUE; }
     }
     *valid = TRUE; return TRUE;
@@ -144,6 +156,10 @@ static BOOL native_method(NativeObject* o, const void* arguments, void* output) 
     NativeMember* m = native_get(o, 0);
     if (!m) return FALSE;
     *(unsigned char*) output = (unsigned char) (m->data[0] ^ *(const unsigned char*) arguments);
+    return TRUE;
+}
+static BOOL native_dispatch(NativeObject*, const void* arguments, void* output) {
+    *(unsigned char*) output = (unsigned char) (*(const unsigned char*) arguments ^ 0x5A);
     return TRUE;
 }
 static BOOL native_getter(NativeObject* o, void* output) {
@@ -164,6 +180,10 @@ static CATALYST_RESULT catalyst_method(OBJECT* o, POINTER arguments, POINTERW ou
     if (!m) return RESULT(STATUS_CODE_ERROR_NOT_FOUND, 0xA1, 1, 0);
     *(BYTE*) output = (BYTE) (((const BYTE*) m->data)[0] ^ *(const BYTE*) arguments);
     return RESULT(STATUS_CODE_SUCCESS, 0xA1, 2, 0);
+}
+static CATALYST_RESULT catalyst_dispatch(OBJECT*, POINTER arguments, POINTERW output) {
+    *(BYTE*) output = (BYTE) (*(const BYTE*) arguments ^ (BYTE) 0x5A);
+    return RESULT(STATUS_CODE_SUCCESS, 0xA5, 1, 0);
 }
 static CATALYST_RESULT catalyst_getter(OBJECT* o, POINTERW output) {
     const BYTE key = 0;
@@ -219,8 +239,8 @@ struct NativeAPI {
     }
     static void field_get(Field* f, BYTE* out) { member_get(f->member, out); }
     static void field_set(Field* f, const BYTE* in) { member_set(f->member, in); }
-    static BOOL add_method(Object* o, BYTE key) {
-        NativeMethod m = native_method; return add(o, key, &m, (NUINT) sizeof(m));
+    static BOOL add_method(Object* o, BYTE key, BOOL dispatch) {
+        NativeMethod m = dispatch ? native_dispatch : native_method; return add(o, key, &m, (NUINT) sizeof(m));
     }
     static BOOL add_property(Object* o, BYTE key) {
         NativeProperty p = { native_getter, native_setter }; return add(o, key, &p, (NUINT) sizeof(p));
@@ -274,8 +294,8 @@ struct CatalystAPI {
     static BOOL resolve(Field* f, Object* o, const BYTE* key) { return catalyst::field_init(f, o, key); }
     static void field_get(Field* f, BYTE* out) { catalyst::field_get(f, out); }
     static void field_set(Field* f, const BYTE* in) { catalyst::field_set(f, in); }
-    static BOOL add_method(Object* o, BYTE key) {
-        METHOD m = catalyst_method; return add(o, key, &m, (NUINT) sizeof(m));
+    static BOOL add_method(Object* o, BYTE key, BOOL dispatch) {
+        METHOD m = dispatch ? catalyst_dispatch : catalyst_method; return add(o, key, &m, (NUINT) sizeof(m));
     }
     static BOOL add_property(Object* o, BYTE key) {
         PROPERTY p = { catalyst_getter, catalyst_setter }; return add(o, key, &p, (NUINT) sizeof(p));
@@ -400,7 +420,16 @@ enum Kind {
     OBJECT_DUPLICATE_MISS, OBJECT_LOOKUP_FIRST, OBJECT_LOOKUP_LAST, OBJECT_LOOKUP_MISS,
     OBJECT_CLEAR_REFILL, FIELD_RESOLVE, FIELD_COPY, METHOD_CALL, PROPERTY_ACCESS,
     STRUCTURE_LIFECYCLE, CLASS_LIFECYCLE, CLASS_INSTANCE, CLASS_EXTENSION,
-    INTERFACE_LIFECYCLE, INTERFACE_HIT, INTERFACE_MISS
+    INTERFACE_LIFECYCLE, INTERFACE_HIT, INTERFACE_MISS,
+    INTERFACE_REORDERED, INTERFACE_PARTIAL_MISS, METHOD_DISPATCH, CLASS_MIXED
+};
+
+enum {
+#if TARGET_SIZEOF_VOID_P >= 2
+    PAYLOAD_LIMIT = 128
+#else
+    PAYLOAD_LIMIT = 32
+#endif
 };
 
 template<typename API>
@@ -413,7 +442,8 @@ struct Trial {
     typename API::Class class_, base;
     typename API::Interface interface_;
     BYTE key, miss, methodKey, propertyKey;
-    BYTE data[32], alternate[32], output[32];
+    BYTE data[PAYLOAD_LIMIT], alternate[PAYLOAD_LIMIT], output[PAYLOAD_LIMIT];
+    BOOL copyAlternate;
     BOOL memberLive, classLive, baseLive, interfaceLive;
 };
 
@@ -434,7 +464,7 @@ static BOOL observe_member(typename API::Member* m, NUINT size, BYTE first, BYTE
 
 template<typename API>
 static BOOL fill(typename API::Object* o, NUINT n, NUINT width) {
-    BYTE data[32];
+    BYTE data[PAYLOAD_LIMIT];
     for (NUINT i = 0; i < n; ++i) {
         payload(data, width, (BYTE) i);
         if (!API::add(o, (BYTE) i, data, width)) return FALSE;
@@ -455,6 +485,7 @@ template<typename API>
 static BOOL setup(Trial<API>* t) {
     API::init(&t->object); API::init(&t->extra);
     t->memberLive = t->classLive = t->baseLive = t->interfaceLive = FALSE;
+    t->copyAlternate = TRUE;
     t->key = (BYTE) (t->n - (NUINT) 1);
     t->miss = (BYTE) t->n;
     t->methodKey = (BYTE) (t->n + (NUINT) 1);
@@ -469,29 +500,51 @@ static BOOL setup(Trial<API>* t) {
         return TRUE;
     }
     NUINT cap = t->n;
-    if (t->kind == OBJECT_ADD_REMOVE || t->kind == METHOD_CALL || t->kind == PROPERTY_ACCESS)
+    if (t->kind == OBJECT_ADD_REMOVE || t->kind == METHOD_CALL || t->kind == METHOD_DISPATCH || t->kind == PROPERTY_ACCESS)
         cap = (NUINT) (cap + (NUINT) 1);
-    if (!API::expand(&t->object, cap) || !fill<API>(&t->object, t->n, t->width)) return FALSE;
+    if (!API::expand(&t->object, cap)) return FALSE;
+    if (t->kind == CLASS_MIXED) {
+        BYTE data[PAYLOAD_LIMIT];
+        for (NUINT i = 0; i < t->n; ++i) {
+            NUINT size = (i & (NUINT) 1) ? t->width : (NUINT) 1;
+            payload(data, size, (BYTE) i);
+            if (!API::add(&t->object, (BYTE) i, data, size)) return FALSE;
+        }
+    } else if (!fill<API>(&t->object, t->n, t->width)) return FALSE;
     if (t->kind == FIELD_COPY && !API::resolve(&t->field, &t->object, &t->key)) return FALSE;
-    if (t->kind == METHOD_CALL) {
-        if (!API::add_method(&t->object, t->methodKey) || !API::resolve(&t->field, &t->object, &t->methodKey)) return FALSE;
+    if (t->kind == METHOD_CALL || t->kind == METHOD_DISPATCH) {
+        if (!API::add_method(&t->object, t->methodKey, t->kind == METHOD_DISPATCH ? TRUE : FALSE) ||
+            !API::resolve(&t->field, &t->object, &t->methodKey)) return FALSE;
     }
     if (t->kind == PROPERTY_ACCESS) {
         if (!API::add_property(&t->object, t->propertyKey) || !API::resolve(&t->field, &t->object, &t->propertyKey)) return FALSE;
     }
-    if (t->kind == CLASS_INSTANCE || t->kind == CLASS_EXTENSION) {
+    if (t->kind == CLASS_INSTANCE || t->kind == CLASS_MIXED) {
         t->classLive = TRUE;
         if (!API::class_init(&t->class_, &t->object)) return FALSE;
     }
-    if (t->kind == CLASS_EXTENSION || t->kind == INTERFACE_MISS) {
-        BYTE data[32]; payload(data, t->width, t->miss);
-        if (!API::expand(&t->extra, 1) || !API::add(&t->extra, t->miss, data, t->width)) return FALSE;
+    if (t->kind == CLASS_EXTENSION || t->kind == INTERFACE_MISS ||
+        t->kind == INTERFACE_REORDERED || t->kind == INTERFACE_PARTIAL_MISS) {
+        NUINT count = t->kind == CLASS_EXTENSION ? (NUINT) (t->n / (NUINT) 2) :
+            (t->kind == INTERFACE_MISS ? (NUINT) 1 : t->n);
+        BYTE data[PAYLOAD_LIMIT];
+        if (!API::expand(&t->extra, count)) return FALSE;
+        for (NUINT i = 0; i < count; ++i) {
+            BYTE key;
+            if (t->kind == CLASS_EXTENSION) key = (BYTE) (t->n + i);
+            else if (t->kind == INTERFACE_REORDERED) key = (BYTE) (t->n - (NUINT) 1 - i);
+            else if (t->kind == INTERFACE_MISS || i == (NUINT) (count - (NUINT) 1)) key = t->miss;
+            else key = (BYTE) i;
+            payload(data, t->width, key);
+            if (!API::add(&t->extra, key, data, t->width)) return FALSE;
+        }
     }
     if (t->kind == CLASS_EXTENSION) {
         t->baseLive = TRUE;
         if (!API::class_init(&t->base, &t->extra)) return FALSE;
     }
-    if (t->kind == INTERFACE_HIT || t->kind == INTERFACE_MISS) {
+    if (t->kind == INTERFACE_HIT || t->kind == INTERFACE_MISS ||
+        t->kind == INTERFACE_REORDERED || t->kind == INTERFACE_PARTIAL_MISS) {
         t->interfaceLive = TRUE;
         if (!API::interface_init(&t->interface_, t->kind == INTERFACE_HIT ? &t->object : &t->extra)) return FALSE;
     }
@@ -524,11 +577,14 @@ static BOOL cycle(Trial<API>* t) {
             if (!API::member_free(&m)) ok = FALSE;
             return ok;
         }
-        case MEMBER_COPY:
-            API::member_set(&t->member, t->alternate);
+        case MEMBER_COPY: {
+            const BYTE* input = t->copyAlternate ? t->alternate : t->data;
+            API::member_set(&t->member, input);
             API::member_get(&t->member, t->output);
+            t->copyAlternate = t->copyAlternate ? FALSE : TRUE;
             observed = (BYTE) (t->output[0] ^ t->output[end]);
-            return t->output[0] == t->alternate[0] && t->output[end] == t->alternate[end] ? TRUE : FALSE;
+            return t->output[0] == input[0] && t->output[end] == input[end] ? TRUE : FALSE;
+        }
         case OBJECT_EMPTY: {
             typename API::Object o;
             API::init(&o);
@@ -574,7 +630,8 @@ static BOOL cycle(Trial<API>* t) {
             ok = t->output[0] == t->alternate[0] && t->output[end] == t->alternate[end] ? TRUE : FALSE;
             API::field_set(&t->field, t->data);
             return ok;
-        case METHOD_CALL: {
+        case METHOD_CALL:
+        case METHOD_DISPATCH: {
             const BYTE args[] = { 0xA5 };
             BYTE out = 0;
             ok = API::invoke(&t->field, args, &out);
@@ -610,11 +667,25 @@ static BOOL cycle(Trial<API>* t) {
             if (!API::release(&o)) ok = FALSE;
             return ok;
         }
+        case CLASS_MIXED: {
+            typename API::Object o;
+            ok = API::class_create(&t->class_, &o);
+            if (ok) {
+                BYTE last = (BYTE) (t->n - (NUINT) 1);
+                NUINT size = (last & (BYTE) 1) ? t->width : (NUINT) 1;
+                ok = API::count(&o) == t->n &&
+                    observe_member<API>(API::get(&o, 0), 1, 0x5A, 0x5A) &&
+                    observe_member<API>(API::get(&o, last), size, (BYTE) (last ^ 0x5A),
+                        (BYTE) (last ^ 0x5A ^ (BYTE) (size - (NUINT) 1))) ? TRUE : FALSE;
+            }
+            if (!API::release(&o)) ok = FALSE;
+            return ok;
+        }
         case CLASS_EXTENSION: {
             typename API::Class c;
             ok = API::class_init(&c, &t->object);
             if (ok) ok = API::class_extend(&c, &t->base);
-            if (ok) ok = observe_object<API>(API::class_object(&c), (NUINT) (t->n + (NUINT) 1), t->width);
+            if (ok) ok = observe_object<API>(API::class_object(&c), (NUINT) (t->n + t->n / (NUINT) 2), t->width);
             if (!API::class_free(&c)) ok = FALSE;
             return ok;
         }
@@ -627,9 +698,11 @@ static BOOL cycle(Trial<API>* t) {
         }
         case INTERFACE_HIT:
         case INTERFACE_MISS:
+        case INTERFACE_REORDERED:
+        case INTERFACE_PARTIAL_MISS:
             ok = API::interface_validate(&t->interface_, &t->object, &valid);
             observed = valid;
-            return ok && valid == (t->kind == INTERFACE_HIT ? TRUE : FALSE) ? TRUE : FALSE;
+            return ok && valid == ((t->kind == INTERFACE_HIT || t->kind == INTERFACE_REORDERED) ? TRUE : FALSE) ? TRUE : FALSE;
     }
     return FALSE;
 }
@@ -640,18 +713,19 @@ static BOOL verify_fixture(Trial<API>* t) {
     if (t->kind == MEMBER_COPY) {
         API::member_get(&t->member, t->output);
         for (NUINT i = 0; i < t->width; ++i)
-            if (t->output[i] != t->alternate[i]) return FALSE;
+            if (t->output[i] != (t->copyAlternate ? t->data[i] : t->alternate[i])) return FALSE;
         return TRUE;
     }
-    const NUINT count = (NUINT) (t->n + ((t->kind == METHOD_CALL || t->kind == PROPERTY_ACCESS) ? (NUINT) 1 : (NUINT) 0));
+    const NUINT count = (NUINT) (t->n + ((t->kind == METHOD_CALL || t->kind == METHOD_DISPATCH || t->kind == PROPERTY_ACCESS) ? (NUINT) 1 : (NUINT) 0));
     if (API::count(&t->object) != count || API::get(&t->object, t->miss) != 0) return FALSE;
-    BYTE expected[32], actual[32];
+    BYTE expected[PAYLOAD_LIMIT], actual[PAYLOAD_LIMIT];
     for (NUINT i = 0; i < t->n; ++i) {
         typename API::Member* m = API::get(&t->object, (BYTE) i);
-        if (!m || m->size != t->width) return FALSE;
-        payload(expected, t->width, (BYTE) i);
+        NUINT size = t->kind == CLASS_MIXED && !(i & (NUINT) 1) ? (NUINT) 1 : t->width;
+        if (!m || m->size != size) return FALSE;
+        payload(expected, size, (BYTE) i);
         API::member_get(m, actual);
-        for (NUINT j = 0; j < t->width; ++j)
+        for (NUINT j = 0; j < size; ++j)
             if (actual[j] != expected[j]) return FALSE;
     }
     return TRUE;
@@ -924,7 +998,7 @@ static Measurement measure_class_create(Trial<API>& t, unsigned long calls, unsi
             if (ok) {
                 if (!observe_object<API>(&instances[i], t.n, t.width)) ok = FALSE;
                 if (verify && ok) {
-                    BYTE expected[32], actual[32];
+                    BYTE expected[PAYLOAD_LIMIT], actual[PAYLOAD_LIMIT];
                     for (NUINT j = 0; j < t.n; ++j) {
                         typename API::Member* member = API::get(&instances[i], (BYTE) j);
                         if (!member || member->size != t.width) { ok = FALSE; break; }
@@ -987,7 +1061,9 @@ static void benchmark_all(Summary& summary) {
         "Method: invoke (resolved)", "Property: set + get + restore",
         "Structure: init + get + free", "Class: init + inspect + free",
         "Class: create + inspect + free", "Class: init + extend + inspect + free",
-        "Interface: init + validate + free", "Interface: validate (hit)", "Interface: validate (miss)"
+        "Interface: init + validate + free", "Interface: validate (matching order)", "Interface: validate (miss)",
+        "Interface: validate (reordered)", "Interface: validate (late miss)",
+        "Method: dispatch without lookup", "Class: create + free (mixed payload sizes)"
     };
     const NUINT counts[] = {
         2,
@@ -998,7 +1074,7 @@ static void benchmark_all(Summary& summary) {
     const NUINT widths[] = {
         1,
 #if TARGET_SIZEOF_VOID_P >= 2
-        8, 32
+        8, 32, 128
 #endif
     };
     for (BYTE k = 0; k < (BYTE) (sizeof(names) / sizeof(names[0])); ++k) {
@@ -1007,7 +1083,11 @@ static void benchmark_all(Summary& summary) {
             for (BYTE w = 0; w < (BYTE) (sizeof(widths) / sizeof(widths[0])); ++w) {
                 if ((k == MEMBER_LIFECYCLE || k == MEMBER_COPY) && i != 0) continue;
                 if (k == OBJECT_EMPTY && (i != 0 || w != 0)) continue;
-                if ((k == METHOD_CALL || k == PROPERTY_ACCESS || k == INTERFACE_HIT || k == INTERFACE_MISS) && w != 0) continue;
+                if ((k == METHOD_CALL || k == METHOD_DISPATCH || k == PROPERTY_ACCESS || k == INTERFACE_HIT ||
+                     k == INTERFACE_MISS || k == INTERFACE_REORDERED || k == INTERFACE_PARTIAL_MISS) && w != 0) continue;
+                if (k == CLASS_MIXED && w == 0) continue;
+                if (widths[w] > (NUINT) 32 && k != MEMBER_LIFECYCLE && k != MEMBER_COPY &&
+                    k != OBJECT_ADD_REMOVE && k != CLASS_INSTANCE && k != CLASS_MIXED) continue;
                 NUINT n = counts[i], width = widths[w];
                 // Capacity, member descriptors, and payload sizes fit the
                 // configured pointer-width representation even on narrow targets.
@@ -1023,6 +1103,10 @@ static void benchmark_all(Summary& summary) {
                     std::sprintf(label, "%lu B payload", (unsigned long) width);
                 else if (k == OBJECT_EMPTY)
                     std::sprintf(label, "empty object");
+                else if (k == CLASS_EXTENSION)
+                    std::sprintf(label, "%lu + %lu members x %lu B", (unsigned long) n, (unsigned long) (n / (NUINT) 2), (unsigned long) width);
+                else if (k == CLASS_MIXED)
+                    std::sprintf(label, "%lu members x 1/%lu B", (unsigned long) n, (unsigned long) width);
                 else
                     std::sprintf(label, "%lu members x %lu B", (unsigned long) n, (unsigned long) width);
                 benchmark_case(label, native, comparison, measure<NativeAPI>, measure<CatalystAPI>, 67108864UL, summary);
