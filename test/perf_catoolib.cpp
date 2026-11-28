@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <ctime>
 #include <climits>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include "catoolib.hpp"
@@ -17,7 +18,7 @@ struct NativeObject {
     NativeMember* members;
     size_t count, capacity;
 };
-struct NativeField { NativeObject* object; NativeMember* member; };
+struct NativeField { NativeObject* object; const unsigned char* key; NativeMember* member; };
 typedef BOOL (*NativeMethod)(NativeObject*, const void*, void*);
 struct NativeProperty {
     BOOL (*get)(NativeObject*, void*);
@@ -72,8 +73,7 @@ static BOOL native_resize(NativeObject* o, size_t capacity) {
 static BOOL native_expand(NativeObject* o, size_t capacity) {
     return capacity <= o->capacity ? TRUE : native_resize(o, capacity);
 }
-static BOOL native_add(NativeObject* o, unsigned char key, const void* data, size_t size) {
-    if (native_find(o, key) != o->count) return TRUE;
+static BOOL native_append_known(NativeObject* o, unsigned char key, const void* data, size_t size) {
     if (o->count == o->capacity || size == 0) return FALSE;
     NativeMember m;
     if (!native_member_init(&m, size)) return FALSE;
@@ -81,6 +81,10 @@ static BOOL native_add(NativeObject* o, unsigned char key, const void* data, siz
     o->keys[o->count] = key;
     o->members[o->count++] = m;
     return TRUE;
+}
+static BOOL native_add(NativeObject* o, unsigned char key, const void* data, size_t size) {
+    if (native_find(o, key) != o->count) return TRUE;
+    return native_append_known(o, key, data, size);
 }
 static BOOL native_remove(NativeObject* o, unsigned char key) {
     size_t i = native_find(o, key);
@@ -94,7 +98,7 @@ static BOOL native_remove(NativeObject* o, unsigned char key) {
     return TRUE;
 }
 static BOOL native_clear(NativeObject* o) {
-    while (o->count != 0) native_remove(o, o->keys[0]);
+    while (o->count != 0) native_member_free(&o->members[--o->count]);
     return TRUE;
 }
 static BOOL native_free(NativeObject* o) {
@@ -106,7 +110,7 @@ static BOOL native_clone(NativeObject* out, const NativeObject* source) {
     native_init(out);
     if (!native_expand(out, source->count)) { native_free(out); return FALSE; }
     for (size_t i = 0; i < source->count; ++i) {
-        if (!native_add(out, source->keys[i], source->members[i].data, source->members[i].size)) {
+        if (!native_append_known(out, source->keys[i], source->members[i].data, source->members[i].size)) {
             native_free(out); return FALSE;
         }
     }
@@ -118,8 +122,8 @@ static BOOL native_extend(NativeObject* out, const NativeObject* base) {
     size_t original = out->count;
     if (base->count > (size_t) -1 - original || !native_expand(out, original + base->count)) return FALSE;
     for (size_t i = 0; i < base->count; ++i) {
-        if (!native_add(out, base->keys[i], base->members[i].data, base->members[i].size)) {
-            while (out->count > original) native_remove(out, out->keys[out->count - 1]);
+        if (!native_append_known(out, base->keys[i], base->members[i].data, base->members[i].size)) {
+            while (out->count > original) native_member_free(&out->members[--out->count]);
             return FALSE;
         }
     }
@@ -206,8 +210,12 @@ struct NativeAPI {
     static NUINT count(const Object* o) { return (NUINT) o->count; }
     static NUINT capacity(const Object* o) { return (NUINT) o->capacity; }
     static BOOL resolve(Field* f, Object* o, const BYTE* key) {
-        f->member = native_get(o, *key); f->object = f->member ? o : 0;
-        return f->member ? TRUE : FALSE;
+        size_t index = native_find(o, *key);
+        if (index == o->count) {
+            f->object = 0; f->key = 0; f->member = 0; return FALSE;
+        }
+        f->object = o; f->key = o->keys + index; f->member = &o->members[index];
+        return TRUE;
     }
     static void field_get(Field* f, BYTE* out) { member_get(f->member, out); }
     static void field_set(Field* f, const BYTE* in) { member_set(f->member, in); }
@@ -221,10 +229,10 @@ struct NativeAPI {
         NativeMethod m; ::memcpy(&m, f->member->data, sizeof(m)); return m(f->object, in, out);
     }
     static BOOL property_get(Field* f, BYTE* out) {
-        NativeProperty p; ::memcpy(&p, f->member->data, sizeof(p)); return p.get(f->object, out);
+        BOOL (*get)(NativeObject*, void*); ::memcpy(&get, f->member->data + offsetof(NativeProperty, get), sizeof(get)); return get(f->object, out);
     }
     static BOOL property_set(Field* f, const BYTE* in) {
-        NativeProperty p; ::memcpy(&p, f->member->data, sizeof(p)); return p.set(f->object, in);
+        BOOL (*set)(NativeObject*, const void*); ::memcpy(&set, f->member->data + offsetof(NativeProperty, set), sizeof(set)); return set(f->object, in);
     }
     static BOOL structure_init(Structure* s, Object* o) { return native_clone(s, o); }
     static Member* structure_get(Structure* s, BYTE k) { return native_get(s, k); }
@@ -553,6 +561,8 @@ static BOOL cycle(Trial<API>* t) {
         case FIELD_RESOLVE: {
             typename API::Field field;
             if (!API::resolve(&field, &t->object, &t->key)) return FALSE;
+            if (field.object != &t->object || field.key == 0 ||
+                *(const BYTE*) field.key != t->key) return FALSE;
             API::field_get(&field, t->output);
             observed = (BYTE) (t->output[0] ^ t->output[end]);
             return t->output[0] == a && t->output[end] == b ? TRUE : FALSE;
@@ -832,6 +842,7 @@ int main() {
     std::printf("Median of 3 paired samples; %lu clock ticks/second.\n", (unsigned long) CLOCKS_PER_SEC);
     std::printf("Times are per named operation or cycle, including listed observation and restoration.\n");
     std::printf("Fixtures and full final verification are untimed; both paths consume outcomes.\n");
+    std::printf("Both paths use established distinctness for cloning and release from the end.\n");
     std::printf("Baseline uses native C allocation and Boolean outcomes; CATOOLIB uses its managed heap and Results.\n");
     std::printf("Comparable = within 5%%; Review = at least 20%% slower. Decimal places are estimates.\n");
     std::printf("\n  %-28s %14s %14s %12s  %s\n", "Workload", "Baseline", "Catalyst", "Difference", "Assessment");
