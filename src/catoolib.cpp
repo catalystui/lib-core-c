@@ -272,13 +272,13 @@ CATALYST_RESULT catoo_interface_validate(const INTERFACE* interface_, const OBJE
     const BYTE* key = (const BYTE*) requirements->keys;
     const MEMBER* requirement = (const MEMBER*) requirements->values;
     for (NUINT i = 0; i < requirements->cardinality; ++i) {
-        /* Map lookup is read-only; its existing API returns a writable
-         * borrowed value. Keep the reference const for validation. */
-        const MEMBER* member = (const MEMBER*) catrl_map_get(const_cast<MAP*>(&object->members), key);
-        if (member == 0) {
+        const MAP* candidate = &object->members;
+        NUINT index = catrl_find(candidate->keys, candidate->cardinality, candidate->ksize, key);
+        if (index == candidate->cardinality) {
             *valid = FALSE;
             return RESULT(STATUS_CODE_SUCCESS, 0x1C, 0x02, 0);
         }
+        const MEMBER* member = (const MEMBER*) candidate->values + index;
         BOOL satisfied = FALSE;
         RESULT result = interface_->validate(member, requirement, &satisfied);
         if (result.status != STATUS_CODE_SUCCESS) {
