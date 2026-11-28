@@ -41,7 +41,8 @@ jobs:
             throw "Tag $tag already exists. Bump Core before publishing again."
           }
           "tag=$tag" >> $env:GITHUB_OUTPUT
-          "prerelease=$([string](![string]::IsNullOrEmpty($prerelease)).ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          $isPrerelease = if ($prerelease) { 'true' } else { 'false' }
+          "prerelease=$isPrerelease" >> $env:GITHUB_OUTPUT
 
   build:
     needs: prepare

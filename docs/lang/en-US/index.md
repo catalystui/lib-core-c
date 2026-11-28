@@ -152,6 +152,8 @@ A parent project can declare the revision first or set `FETCHCONTENT_SOURCE_DIR_
 
 #### Installed dependency
 
+[GitHub Releases](https://github.com/catalystui/lib-core-c/releases) provides published target-specific packages. Maintainers can run the [Publish Release workflow](https://github.com/catalystui/lib-core-c/actions/workflows/release.yml) manually from `main` after updating Core's version metadata. It builds all configured release targets before publishing a version tag at the built commit; each archive contains the installed libraries, headers, CMake package, and verification executables. Published static archives use native machine code rather than IPO. Windows ARM64 is cross-compiled and is not executed by the release workflow.
+
 After building Core, install into a dedicated prefix for the chosen target and configuration. For the Apple Silicon preset above:
 
 ```powershell
