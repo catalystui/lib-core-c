@@ -604,29 +604,68 @@ CATALYST_RESULT catrl_stream_free(CATRLLIB_STREAM* stream) {
  * Pool free: 01 no-op, 02 data release, 03 bitmap release, 04 success.
  */
 
-/* Reverse a valid byte extent in place. */
-static void catrl_reverse(BYTE* data, NUINT size) {
-    for (NUINT i = 0; i < (NUINT) (size / (NUINT) 2); ++i) {
-        NUINT j = (NUINT) (size - (NUINT) 1 - i);
-        BYTE value = data[i];
-        data[i] = data[j];
-        data[j] = value;
+/* Rotate two adjacent nonempty byte ranges using a bounded temporary.
+ * Each swap reduces the unsorted extent. Once one range fits in the
+ * temporary, move the other range in bulk instead of swapping tiny blocks. */
+static void catrl_rotate(BYTE* data, NUINT left, NUINT right) {
+    BYTE scratch[32];
+    while (left > (NUINT) sizeof(scratch) && right > (NUINT) sizeof(scratch)) {
+        NUINT count = left < right ? left : right;
+        BYTE* other = data + (left < right ? right : left);
+        for (NUINT offset = 0; offset < count;) {
+            NUINT size = (NUINT) (count - offset);
+            if (size > (NUINT) sizeof(scratch)) size = (NUINT) sizeof(scratch);
+            catmm_copy(scratch, data + offset, size);
+            catmm_copy(data + offset, other + offset, size);
+            catmm_copy(other + offset, scratch, size);
+            offset = (NUINT) (offset + size);
+        }
+        if (left == right) return;
+        if (left < right) {
+            right = (NUINT) (right - left);
+        } else {
+            data += right;
+            left = (NUINT) (left - right);
+        }
+    }
+    if (left <= right) {
+        catmm_copy(scratch, data, left);
+        catmm_move(data, data + left, right);
+        catmm_copy(data + right, scratch, left);
+    } else {
+        catmm_copy(scratch, data + left, right);
+        catmm_move(data + right, data, left);
+        catmm_copy(data, scratch, right);
     }
 }
 
-/* Normalize an initialized ring using its current logical capacity. No allocation;
- * a wrapped ring rotates the old extent, while an unwrapped ring moves only live bytes. */
-static void catrl_queue_normalize(CATRLLIB_QUEUE* queue) {
+/* Normalize an initialized ring. Extra bytes are available immediately
+ * after the old extent on successful expansion, or zero before shrinking.
+ * Never move unused slots; preserve logical order without another allocation. */
+static void catrl_queue_normalize(CATRLLIB_QUEUE* queue, NUINT extra) {
     if (queue->head == 0) return;
     BYTE* data = (BYTE*) queue->data;
     NUINT offset = (NUINT) (queue->head * queue->size);
-    if (queue->length <= (NUINT) (queue->capacity - queue->head)) {
-        catmm_move(data, data + offset, (NUINT) (queue->length * queue->size));
+    NUINT extent = (NUINT) (queue->capacity * queue->size);
+    NUINT live = (NUINT) (queue->length * queue->size);
+    NUINT tail = (NUINT) (extent - offset);
+    if (live <= tail) {
+        catmm_move(data, data + offset, live);
     } else {
-        NUINT extent = (NUINT) (queue->capacity * queue->size);
-        catrl_reverse(data, offset);
-        catrl_reverse(data + offset, (NUINT) (extent - offset));
-        catrl_reverse(data, extent);
+        NUINT prefix = (NUINT) (live - tail);
+        if (prefix <= extra && (prefix <= tail || tail > extra)) {
+            catmm_copy(data + extent, data, prefix);
+            catmm_move(data, data + offset, tail);
+            catmm_copy(data + tail, data + extent, prefix);
+        } else if (tail <= extra) {
+            catmm_copy(data + extent, data + offset, tail);
+            catmm_move(data + tail, data, prefix);
+            catmm_copy(data, data + extent, tail);
+        } else {
+            /* Compact the gap, then rotate only the two live ranges. */
+            if (prefix != offset) catmm_move(data + prefix, data + offset, tail);
+            catrl_rotate(data, prefix, tail);
+        }
     }
     queue->head = 0;
 }
@@ -678,7 +717,7 @@ CATALYST_RESULT catrl_queue_expand(CATRLLIB_QUEUE* queue, CATALYST_NUINT capacit
     if (!status_code_is_success(resize.status)) {
         return RESULT(resize.status, 0x29, 0x03, resize.detail);
     }
-    catrl_queue_normalize(queue);
+    catrl_queue_normalize(queue, (NUINT) ((capacity - queue->capacity) * queue->size));
     queue->capacity = capacity;
     return RESULT(STATUS_CODE_SUCCESS, 0x29, 0x04, 0);
 }
@@ -690,7 +729,7 @@ CATALYST_RESULT catrl_queue_shrink(CATRLLIB_QUEUE* queue) {
         return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x2A, 0x01, 0);
     }
     /* Normalize before truncation; failure preserves logical order, not physical placement. */
-    catrl_queue_normalize(queue);
+    catrl_queue_normalize(queue, 0);
     RESULT resize = catmm_heap_realloc(&queue->data, (NUINT) (capacity * queue->size));
     if (!status_code_is_success(resize.status)) {
         return RESULT(resize.status, 0x2A, 0x02, resize.detail);
