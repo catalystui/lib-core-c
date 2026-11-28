@@ -22,11 +22,13 @@ CATALYST_RESULT catoo_member_init(MEMBER* member, NUINT size) {
 }
 
 void catoo_member_get(const MEMBER* member, POINTERW output) {
-    catmm_move(output, member->data, member->size);
+    if (member->size == (NUINT) 1) *(BYTE*) output = *(const BYTE*) member->data;
+    else catmm_move(output, member->data, member->size);
 }
 
 void catoo_member_set(MEMBER* member, POINTER data) {
-    catmm_move(member->data, data, member->size);
+    if (member->size == (NUINT) 1) *(BYTE*) member->data = *(const BYTE*) data;
+    else catmm_move(member->data, data, member->size);
 }
 
 CATALYST_RESULT catoo_member_resize(MEMBER* member, NUINT size) {
