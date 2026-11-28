@@ -1046,3 +1046,433 @@ CATALYST_RESULT catrl_pool_free(CATRLLIB_POOL* pool) {
     }
     return RESULT(STATUS_CODE_SUCCESS, 0x3C, 0x04, 0);
 }
+
+/* -------------------------------------------------------------------------------------------------
+ * C API :: HASHED COLLECTIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+/* Buckets store dense indices plus one; zero denotes empty. A maximum
+ * load of one half guarantees an empty bucket on every probe. Keys and
+ * set members remain immutable while present. The private bucket words
+ * are transferred through actual NUINT objects, not raw typed aliases.
+ *
+ * HashSet expand/shrink/free: 42/43/44; HashMap: 4C/4D/4E.
+ * Expand sites: 01 no-op, 02 element/key overflow, Map 03 value overflow;
+ * remaining sites: bucket overflow, element/key resize, optional value
+ * resize, bucket resize, success.
+ * Shrink: 01 no-op, 02 element/key resize, optional value resize,
+ * bucket resize, success.
+ * Free: 01 no-op, 02 element/key release, optional value release,
+ * bucket release, success.
+ */
+
+/* Nonzero size and readable key bytes. FNV-1a at native Catalyst
+ * pointer width, with smaller constants on narrow representations.
+ * The narrow products fit signed promotions where applicable. */
+static NUINT catrl_hash(POINTER key, NUINT size) {
+#if TARGET_SIZEOF_VOID_P == 8 && CATALYST_SUPPORTS_64BIT
+    NUINT hash = (NUINT) (((NUINT) 0xCBF29CE4 << 32) | (NUINT) 0x84222325);
+    const NUINT prime = (NUINT) (((NUINT) 0x100 << 32) | (NUINT) 0x1B3);
+#elif TARGET_SIZEOF_VOID_P == 4 && CATALYST_SUPPORTS_32BIT
+    NUINT hash = (NUINT) 0x811C9DC5;
+    const NUINT prime = (NUINT) 0x01000193;
+#elif TARGET_SIZEOF_VOID_P == 2 && CATALYST_SUPPORTS_16BIT
+    NUINT hash = (NUINT) 0x9DC5;
+    const NUINT prime = (NUINT) 0x0193;
+#else
+    NUINT hash = (NUINT) 0xC5;
+    const NUINT prime = (NUINT) 0x13;
+#endif
+    const BYTE* bytes = (const BYTE*) key;
+    for (NUINT i = 0; i < size; ++i) {
+        hash = (NUINT) (hash ^ (NUINT) bytes[i]);
+        hash = (NUINT) (hash * prime);
+    }
+    return hash;
+}
+
+/* Valid bucket storage and index. */
+static inline NUINT catrl_hash_bucket(POINTER buckets, NUINT index) {
+    NUINT entry;
+    catrl_store(&entry, (const BYTE*) buckets + (NUINT) (index * (NUINT) sizeof(NUINT)), (NUINT) sizeof(NUINT));
+    return entry;
+}
+
+/* Valid writable bucket storage and index; entry is zero or a live
+ * dense index plus one. */
+static inline void catrl_hash_write(POINTERW buckets, NUINT index, NUINT entry) {
+    catrl_store((BYTE*) buckets + (NUINT) (index * (NUINT) sizeof(NUINT)), &entry, (NUINT) sizeof(NUINT));
+}
+
+/* Valid bucket index in a nonempty ring. */
+static inline NUINT catrl_hash_next(NUINT index, NUINT capacity) {
+    ++index;
+    return index == capacity ? (NUINT) 0 : index;
+}
+
+/* Valid indices in the same nonempty ring. */
+static inline NUINT catrl_hash_distance(NUINT from, NUINT to, NUINT capacity) {
+    return to >= from ? (NUINT) (to - from) : (NUINT) (capacity - from + to);
+}
+
+/* Valid nonempty bucket ring with an empty bucket, dense key storage for
+ * each occupied entry, and readable key bytes. Return the matching
+ * bucket or first empty bucket. Equality is always byte equality. */
+static NUINT catrl_hash_probe(POINTER buckets, NUINT bcapacity, POINTER data, NUINT size, POINTER key) {
+    NUINT bucket = (NUINT) (catrl_hash(key, size) % bcapacity);
+    for (;;) {
+        NUINT entry = catrl_hash_bucket(buckets, bucket);
+        if (entry == 0) return bucket;
+        const BYTE* candidate = (const BYTE*) data + (NUINT) ((entry - (NUINT) 1) * size);
+        if (candidate[0] == ((const BYTE*) key)[0] &&
+            (size == (NUINT) 1 || catmm_compare(candidate + 1, (const BYTE*) key + 1, (NUINT) (size - (NUINT) 1)) == 0)) {
+            return bucket;
+        }
+        bucket = catrl_hash_next(bucket, bcapacity);
+    }
+}
+
+/* Initialized index and readable key. Return count for absence; an
+ * empty collection need not own dense storage or buckets. */
+static NUINT catrl_hash_find(POINTER buckets, NUINT bcapacity, POINTER data, NUINT size, NUINT count, POINTER key) {
+    if (count == 0) return count;
+    NUINT bucket = catrl_hash_probe(buckets, bcapacity, data, size, key);
+    NUINT entry = catrl_hash_bucket(buckets, bucket);
+    return entry == 0 ? count : (NUINT) (entry - (NUINT) 1);
+}
+
+/* Valid bucket ring, occupied hole and readable live keys. Shift only
+ * entries whose probe path crosses the hole. The final empty bucket
+ * terminates future unsuccessful searches without tombstones. */
+static void catrl_hash_erase(POINTERW buckets, NUINT bcapacity, POINTER data, NUINT size, NUINT hole) {
+    NUINT current = catrl_hash_next(hole, bcapacity);
+    NUINT entry = catrl_hash_bucket(buckets, current);
+    while (entry != 0) {
+        const BYTE* key = (const BYTE*) data + (NUINT) ((entry - (NUINT) 1) * size);
+        NUINT home = (NUINT) (catrl_hash(key, size) % bcapacity);
+        if (catrl_hash_distance(home, hole, bcapacity) < catrl_hash_distance(home, current, bcapacity)) {
+            catrl_hash_write(buckets, hole, entry);
+            hole = current;
+        }
+        current = catrl_hash_next(current, bcapacity);
+        entry = catrl_hash_bucket(buckets, current);
+    }
+    catrl_hash_write(buckets, hole, 0);
+}
+
+/* Initialized index and writable dense storage. Return the removed
+ * dense index or count if absent. Lookup precedes mutation, permitting
+ * a search key that identifies a live member. Move the last key into
+ * the removed slot and correct its bucket; caller updates the count
+ * and any associated values. */
+static NUINT catrl_hash_remove(POINTERW buckets, NUINT bcapacity, POINTERW data, NUINT size, NUINT count, POINTER key) {
+    if (count == 0) return count;
+    NUINT bucket = catrl_hash_probe(buckets, bcapacity, data, size, key);
+    NUINT entry = catrl_hash_bucket(buckets, bucket);
+    if (entry == 0) return count;
+    NUINT index = (NUINT) (entry - (NUINT) 1);
+    NUINT last = (NUINT) (count - (NUINT) 1);
+    catrl_hash_erase(buckets, bcapacity, data, size, bucket);
+    if (index != last) {
+        BYTE* source = (BYTE*) data + (NUINT) (last * size);
+        NUINT moved = catrl_hash_probe(buckets, bcapacity, data, size, source);
+        catrl_hash_write(buckets, moved, entry);
+        catrl_store((BYTE*) data + (NUINT) (index * size), source, size);
+    }
+    return index;
+}
+
+/* Initialized index; nonzero count requires live bucket storage. */
+static void catrl_hash_clear(POINTERW buckets, NUINT bcapacity, NUINT* count) {
+    if (*count != 0) {
+        catmm_fill(buckets, 0, (NUINT) (bcapacity * (NUINT) sizeof(NUINT)));
+        *count = 0;
+    }
+}
+
+/* Check the byte extent for exactly two buckets per element without
+ * multiplying until the result is representable. */
+static inline BOOL catrl_hash_capacity_fits(NUINT capacity) {
+    return capacity <= (NUINT) (CATALYST_NUINT_MAX / (NUINT) sizeof(NUINT) / (NUINT) 2) ? TRUE : FALSE;
+}
+
+/* Valid new bucket extent and count distinct dense keys. A zero bucket
+ * count requires zero live keys. No allocation or reporting here. */
+static void catrl_hash_rebuild(POINTERW buckets, NUINT bcapacity, POINTER data, NUINT size, NUINT count) {
+    if (bcapacity == 0) return;
+    catmm_fill(buckets, 0, (NUINT) (bcapacity * (NUINT) sizeof(NUINT)));
+    for (NUINT index = 0; index < count; ++index) {
+        const BYTE* key = (const BYTE*) data + (NUINT) (index * size);
+        NUINT bucket = (NUINT) (catrl_hash(key, size) % bcapacity);
+        while (catrl_hash_bucket(buckets, bucket) != 0) {
+            bucket = catrl_hash_next(bucket, bcapacity);
+        }
+        catrl_hash_write(buckets, bucket, (NUINT) (index + (NUINT) 1));
+    }
+}
+
+/* -------------------------------------------------------------------------------------------------
+ * C API :: HASHSET OPERATIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+void catrl_hashset_init(CATRLLIB_HASHSET* set, CATALYST_NUINT size) {
+    set->data = 0;
+    set->buckets = 0;
+    set->size = size;
+    set->cardinality = 0;
+    set->capacity = 0;
+    set->bcapacity = 0;
+}
+
+CATALYST_BOOL catrl_hashset_add(CATRLLIB_HASHSET* set, CATMMLIB_POINTER element) {
+    NUINT bucket = catrl_hash_probe(set->buckets, set->bcapacity, set->data, set->size, element);
+    if (catrl_hash_bucket(set->buckets, bucket) != 0) return FALSE;
+    catrl_store((BYTE*) set->data + (NUINT) (set->cardinality * set->size), element, set->size);
+    ++set->cardinality;
+    catrl_hash_write(set->buckets, bucket, set->cardinality);
+    return TRUE;
+}
+
+CATALYST_BOOL catrl_hashset_remove(CATRLLIB_HASHSET* set, CATMMLIB_POINTER element) {
+    NUINT index = catrl_hash_remove(set->buckets, set->bcapacity, set->data, set->size, set->cardinality, element);
+    if (index == set->cardinality) return FALSE;
+    --set->cardinality;
+    return TRUE;
+}
+
+CATALYST_BOOL catrl_hashset_contains(const CATRLLIB_HASHSET* set, CATMMLIB_POINTER element) {
+    return catrl_hash_find(set->buckets, set->bcapacity, set->data, set->size, set->cardinality, element) != set->cardinality ? TRUE : FALSE;
+}
+
+void catrl_hashset_clear(CATRLLIB_HASHSET* set) {
+    catrl_hash_clear(set->buckets, set->bcapacity, &set->cardinality);
+}
+
+CATALYST_RESULT catrl_hashset_expand(CATRLLIB_HASHSET* set, CATALYST_NUINT capacity) {
+    if (capacity <= set->capacity) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x42, 0x01, 0);
+    }
+    if (capacity > (NUINT) (CATALYST_NUINT_MAX / set->size)) {
+        return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x42, 0x02, 0);
+    }
+    if (!catrl_hash_capacity_fits(capacity)) {
+        return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x42, 0x03, 0);
+    }
+    RESULT data = catrl_grow_storage(&set->data, (NUINT) (capacity * set->size));
+    if (!status_code_is_success(data.status)) {
+        return RESULT(data.status, 0x42, 0x04, data.detail);
+    }
+    /* A failed later resize retains the old logical capacity and index.
+     * Earlier successful resizes may have grown or moved dense storage. */
+    NUINT target = (NUINT) (capacity * (NUINT) 2);
+    if (target != set->bcapacity) {
+        RESULT buckets = catmm_heap_realloc(&set->buckets, (NUINT) (target * (NUINT) sizeof(NUINT)));
+        if (!status_code_is_success(buckets.status)) {
+            return RESULT(buckets.status, 0x42, 0x05, buckets.detail);
+        }
+        set->bcapacity = target;
+        catrl_hash_rebuild(set->buckets, target, set->data, set->size, set->cardinality);
+    }
+    set->capacity = capacity;
+    return RESULT(STATUS_CODE_SUCCESS, 0x42, 0x06, 0);
+}
+
+CATALYST_RESULT catrl_hashset_shrink(CATRLLIB_HASHSET* set) {
+    NUINT capacity = catrl_shrink_capacity(set->capacity, set->cardinality);
+    if (capacity == set->capacity) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x43, 0x01, 0);
+    }
+    RESULT data = catmm_heap_realloc(&set->data, (NUINT) (capacity * set->size));
+    if (!status_code_is_success(data.status)) {
+        return RESULT(data.status, 0x43, 0x02, data.detail);
+    }
+    /* Commit the smaller safe capacity before later fallible operations.
+     * The old index remains valid if its resize fails. */
+    set->capacity = capacity;
+    NUINT target = (NUINT) (capacity * (NUINT) 2);
+    if (target != set->bcapacity) {
+        RESULT buckets = catmm_heap_realloc(&set->buckets, (NUINT) (target * (NUINT) sizeof(NUINT)));
+        if (!status_code_is_success(buckets.status)) {
+            return RESULT(buckets.status, 0x43, 0x03, buckets.detail);
+        }
+        set->bcapacity = target;
+        catrl_hash_rebuild(set->buckets, target, set->data, set->size, set->cardinality);
+    }
+    return RESULT(STATUS_CODE_SUCCESS, 0x43, 0x04, 0);
+}
+
+CATALYST_RESULT catrl_hashset_free(CATRLLIB_HASHSET* set) {
+    if (set->data == 0 && set->buckets == 0) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x44, 0x01, 0);
+    }
+    if (set->data != 0) {
+        RESULT data = catmm_heap_free(set->data);
+        if (!status_code_is_success(data.status)) {
+            return RESULT(data.status, 0x44, 0x02, data.detail);
+        }
+        set->data = 0;
+        catrl_hash_clear(set->buckets, set->bcapacity, &set->cardinality);
+        set->capacity = 0;
+    }
+    if (set->buckets != 0) {
+        RESULT buckets = catmm_heap_free(set->buckets);
+        if (!status_code_is_success(buckets.status)) {
+            return RESULT(buckets.status, 0x44, 0x03, buckets.detail);
+        }
+        set->buckets = 0;
+        set->bcapacity = 0;
+    }
+    return RESULT(STATUS_CODE_SUCCESS, 0x44, 0x04, 0);
+}
+
+/* -------------------------------------------------------------------------------------------------
+ * C API :: HASHMAP OPERATIONS
+ * ------------------------------------------------------------------------------------------------- */
+
+void catrl_hashmap_init(CATRLLIB_HASHMAP* map, CATALYST_NUINT ksize, CATALYST_NUINT vsize) {
+    map->keys = 0;
+    map->values = 0;
+    map->buckets = 0;
+    map->ksize = ksize;
+    map->vsize = vsize;
+    map->cardinality = 0;
+    map->capacity = 0;
+    map->bcapacity = 0;
+}
+
+CATALYST_BOOL catrl_hashmap_add(CATRLLIB_HASHMAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTER value) {
+    NUINT bucket = catrl_hash_probe(map->buckets, map->bcapacity, map->keys, map->ksize, key);
+    if (catrl_hash_bucket(map->buckets, bucket) != 0) return FALSE;
+    catrl_store((BYTE*) map->keys + (NUINT) (map->cardinality * map->ksize), key, map->ksize);
+    catrl_store((BYTE*) map->values + (NUINT) (map->cardinality * map->vsize), value, map->vsize);
+    ++map->cardinality;
+    catrl_hash_write(map->buckets, bucket, map->cardinality);
+    return TRUE;
+}
+
+CATALYST_BOOL catrl_hashmap_remove(CATRLLIB_HASHMAP* map, CATMMLIB_POINTER key) {
+    NUINT index = catrl_hash_remove(map->buckets, map->bcapacity, map->keys, map->ksize, map->cardinality, key);
+    if (index == map->cardinality) return FALSE;
+    --map->cardinality;
+    if (index != map->cardinality) {
+        catrl_store((BYTE*) map->values + (NUINT) (index * map->vsize),
+            (const BYTE*) map->values + (NUINT) (map->cardinality * map->vsize), map->vsize);
+    }
+    return TRUE;
+}
+
+CATALYST_BOOL catrl_hashmap_contains(const CATRLLIB_HASHMAP* map, CATMMLIB_POINTER key) {
+    return catrl_hash_find(map->buckets, map->bcapacity, map->keys, map->ksize, map->cardinality, key) != map->cardinality ? TRUE : FALSE;
+}
+
+CATMMLIB_POINTERW catrl_hashmap_get(CATRLLIB_HASHMAP* map, CATMMLIB_POINTER key) {
+    NUINT index = catrl_hash_find(map->buckets, map->bcapacity, map->keys, map->ksize, map->cardinality, key);
+    if (index == map->cardinality) return 0;
+    return (BYTE*) map->values + (NUINT) (index * map->vsize);
+}
+
+CATALYST_BOOL catrl_hashmap_set(CATRLLIB_HASHMAP* map, CATMMLIB_POINTER key, CATMMLIB_POINTER value) {
+    NUINT index = catrl_hash_find(map->buckets, map->bcapacity, map->keys, map->ksize, map->cardinality, key);
+    if (index == map->cardinality) return FALSE;
+    catrl_store((BYTE*) map->values + (NUINT) (index * map->vsize), value, map->vsize);
+    return TRUE;
+}
+
+void catrl_hashmap_clear(CATRLLIB_HASHMAP* map) {
+    catrl_hash_clear(map->buckets, map->bcapacity, &map->cardinality);
+}
+
+CATALYST_RESULT catrl_hashmap_expand(CATRLLIB_HASHMAP* map, CATALYST_NUINT capacity) {
+    if (capacity <= map->capacity) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x4C, 0x01, 0);
+    }
+    if (capacity > (NUINT) (CATALYST_NUINT_MAX / map->ksize)) {
+        return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x4C, 0x02, 0);
+    }
+    if (capacity > (NUINT) (CATALYST_NUINT_MAX / map->vsize)) {
+        return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x4C, 0x03, 0);
+    }
+    if (!catrl_hash_capacity_fits(capacity)) {
+        return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x4C, 0x04, 0);
+    }
+    RESULT keys = catrl_grow_storage(&map->keys, (NUINT) (capacity * map->ksize));
+    if (!status_code_is_success(keys.status)) {
+        return RESULT(keys.status, 0x4C, 0x05, keys.detail);
+    }
+    RESULT values = catrl_grow_storage(&map->values, (NUINT) (capacity * map->vsize));
+    if (!status_code_is_success(values.status)) {
+        return RESULT(values.status, 0x4C, 0x06, values.detail);
+    }
+    /* A failed later resize retains the old logical capacity and index.
+     * Earlier successful resizes may have grown or moved dense storage. */
+    NUINT target = (NUINT) (capacity * (NUINT) 2);
+    if (target != map->bcapacity) {
+        RESULT buckets = catmm_heap_realloc(&map->buckets, (NUINT) (target * (NUINT) sizeof(NUINT)));
+        if (!status_code_is_success(buckets.status)) {
+            return RESULT(buckets.status, 0x4C, 0x07, buckets.detail);
+        }
+        map->bcapacity = target;
+        catrl_hash_rebuild(map->buckets, target, map->keys, map->ksize, map->cardinality);
+    }
+    map->capacity = capacity;
+    return RESULT(STATUS_CODE_SUCCESS, 0x4C, 0x08, 0);
+}
+
+CATALYST_RESULT catrl_hashmap_shrink(CATRLLIB_HASHMAP* map) {
+    NUINT capacity = catrl_shrink_capacity(map->capacity, map->cardinality);
+    if (capacity == map->capacity) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x4D, 0x01, 0);
+    }
+    RESULT keys = catmm_heap_realloc(&map->keys, (NUINT) (capacity * map->ksize));
+    if (!status_code_is_success(keys.status)) {
+        return RESULT(keys.status, 0x4D, 0x02, keys.detail);
+    }
+    /* Commit the smaller safe capacity before later fallible operations.
+     * The old index remains valid if its resize fails. */
+    map->capacity = capacity;
+    RESULT values = catmm_heap_realloc(&map->values, (NUINT) (capacity * map->vsize));
+    if (!status_code_is_success(values.status)) {
+        return RESULT(values.status, 0x4D, 0x03, values.detail);
+    }
+    NUINT target = (NUINT) (capacity * (NUINT) 2);
+    if (target != map->bcapacity) {
+        RESULT buckets = catmm_heap_realloc(&map->buckets, (NUINT) (target * (NUINT) sizeof(NUINT)));
+        if (!status_code_is_success(buckets.status)) {
+            return RESULT(buckets.status, 0x4D, 0x04, buckets.detail);
+        }
+        map->bcapacity = target;
+        catrl_hash_rebuild(map->buckets, target, map->keys, map->ksize, map->cardinality);
+    }
+    return RESULT(STATUS_CODE_SUCCESS, 0x4D, 0x05, 0);
+}
+
+CATALYST_RESULT catrl_hashmap_free(CATRLLIB_HASHMAP* map) {
+    if (map->keys == 0 && map->values == 0 && map->buckets == 0) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x4E, 0x01, 0);
+    }
+    if (map->keys != 0) {
+        RESULT keys = catmm_heap_free(map->keys);
+        if (!status_code_is_success(keys.status)) {
+            return RESULT(keys.status, 0x4E, 0x02, keys.detail);
+        }
+        map->keys = 0;
+        catrl_hash_clear(map->buckets, map->bcapacity, &map->cardinality);
+        map->capacity = 0;
+    }
+    if (map->values != 0) {
+        RESULT values = catmm_heap_free(map->values);
+        if (!status_code_is_success(values.status)) {
+            return RESULT(values.status, 0x4E, 0x03, values.detail);
+        }
+        map->values = 0;
+    }
+    if (map->buckets != 0) {
+        RESULT buckets = catmm_heap_free(map->buckets);
+        if (!status_code_is_success(buckets.status)) {
+            return RESULT(buckets.status, 0x4E, 0x04, buckets.detail);
+        }
+        map->buckets = 0;
+        map->bcapacity = 0;
+    }
+    return RESULT(STATUS_CODE_SUCCESS, 0x4E, 0x05, 0);
+}
