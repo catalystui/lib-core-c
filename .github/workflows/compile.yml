@@ -109,7 +109,7 @@ jobs:
       - name: Compile and test CATTRLIB
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          cmake --build target/ci --parallel --target cattrlib_shared test_cattrlib
+          cmake --build target/ci --parallel --target cattrlib_shared test_cattrlib perf_cattrlib
           $output = 'build/linux/linux/${{ matrix.arch }}/release'
           & "$output/test_cattrlib"
 
