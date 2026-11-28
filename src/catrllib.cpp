@@ -110,6 +110,60 @@ static inline void catrl_store(POINTERW destination, POINTER source, NUINT size)
     }
 }
 
+/* Single-buffer collections share identical lifecycle contracts. Callers
+ * supply valid initialized fields, nonzero element size, and their fixed
+ * public method context. No structure casts or changes to public layouts. */
+static inline RESULT catrl_grow_storage(POINTERW* data, NUINT extent) {
+    return *data == 0 ? catmm_heap_alloc(data, extent) : catmm_heap_realloc(data, extent);
+}
+
+static inline NUINT catrl_shrink_capacity(NUINT capacity, NUINT count) {
+    NUINT target = (NUINT) (capacity / (NUINT) 2);
+    return target < count ? count : target;
+}
+
+static inline RESULT catrl_buffer_expand(POINTERW* data, NUINT size, NUINT* current, NUINT capacity, CONTEXT_CODE context) {
+    if (capacity <= *current) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, context, 0x01, 0);
+    }
+    if (capacity > (NUINT) (CATALYST_NUINT_MAX / size)) {
+        return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, context, 0x02, 0);
+    }
+    RESULT resize = catrl_grow_storage(data, (NUINT) (capacity * size));
+    if (!status_code_is_success(resize.status)) {
+        return RESULT(resize.status, context, 0x03, resize.detail);
+    }
+    *current = capacity;
+    return RESULT(STATUS_CODE_SUCCESS, context, 0x04, 0);
+}
+
+static inline RESULT catrl_buffer_shrink(POINTERW* data, NUINT size, NUINT* current, NUINT count, CONTEXT_CODE context) {
+    NUINT capacity = catrl_shrink_capacity(*current, count);
+    if (capacity == *current) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, context, 0x01, 0);
+    }
+    RESULT resize = catmm_heap_realloc(data, (NUINT) (capacity * size));
+    if (!status_code_is_success(resize.status)) {
+        return RESULT(resize.status, context, 0x02, resize.detail);
+    }
+    *current = capacity;
+    return RESULT(STATUS_CODE_SUCCESS, context, 0x03, 0);
+}
+
+static inline RESULT catrl_buffer_free(POINTERW* data, NUINT* count, NUINT* capacity, CONTEXT_CODE context) {
+    if (*data == 0) {
+        return RESULT(STATUS_CODE_SUCCESS_NOOP, context, 0x01, 0);
+    }
+    RESULT release = catmm_heap_free(*data);
+    if (!status_code_is_success(release.status)) {
+        return RESULT(release.status, context, 0x02, release.detail);
+    }
+    *data = 0;
+    *count = 0;
+    *capacity = 0;
+    return RESULT(STATUS_CODE_SUCCESS, context, 0x03, 0);
+}
+
 /* -------------------------------------------------------------------------------------------------
  * C API :: SET OPERATIONS
  * ------------------------------------------------------------------------------------------------- */
@@ -147,48 +201,15 @@ void catrl_set_clear(CATRLLIB_SET* set) {
 }
 
 CATALYST_RESULT catrl_set_expand(CATRLLIB_SET* set, CATALYST_NUINT capacity) {
-    if (capacity <= set->capacity) {
-        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x06, 0x01, 0);
-    }
-    if (capacity > (NUINT) (CATALYST_NUINT_MAX / set->size)) {
-        return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x06, 0x02, 0);
-    }
-    RESULT resize = set->data == 0
-        ? catmm_heap_alloc(&set->data, (NUINT) (capacity * set->size))
-        : catmm_heap_realloc(&set->data, (NUINT) (capacity * set->size));
-    if (!status_code_is_success(resize.status)) {
-        return RESULT(resize.status, 0x06, 0x03, resize.detail);
-    }
-    set->capacity = capacity;
-    return RESULT(STATUS_CODE_SUCCESS, 0x06, 0x04, 0);
+    return catrl_buffer_expand(&set->data, set->size, &set->capacity, capacity, 0x06);
 }
 
 CATALYST_RESULT catrl_set_shrink(CATRLLIB_SET* set) {
-    NUINT capacity = (NUINT) (set->capacity / (NUINT) 2);
-    if (capacity < set->cardinality) capacity = set->cardinality;
-    if (capacity == set->capacity) {
-        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x07, 0x01, 0);
-    }
-    RESULT resize = catmm_heap_realloc(&set->data, (NUINT) (capacity * set->size));
-    if (!status_code_is_success(resize.status)) {
-        return RESULT(resize.status, 0x07, 0x02, resize.detail);
-    }
-    set->capacity = capacity;
-    return RESULT(STATUS_CODE_SUCCESS, 0x07, 0x03, 0);
+    return catrl_buffer_shrink(&set->data, set->size, &set->capacity, set->cardinality, 0x07);
 }
 
 CATALYST_RESULT catrl_set_free(CATRLLIB_SET* set) {
-    if (set->data == 0) {
-        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x08, 0x01, 0);
-    }
-    RESULT release = catmm_heap_free(set->data);
-    if (!status_code_is_success(release.status)) {
-        return RESULT(release.status, 0x08, 0x02, release.detail);
-    }
-    set->data = 0;
-    set->cardinality = 0;
-    set->capacity = 0;
-    return RESULT(STATUS_CODE_SUCCESS, 0x08, 0x03, 0);
+    return catrl_buffer_free(&set->data, &set->cardinality, &set->capacity, 0x08);
 }
 
 /* -------------------------------------------------------------------------------------------------
@@ -254,18 +275,14 @@ CATALYST_RESULT catrl_map_expand(CATRLLIB_MAP* map, CATALYST_NUINT capacity) {
     if (capacity > (NUINT) (CATALYST_NUINT_MAX / map->vsize)) {
         return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x10, 0x03, 0);
     }
-    RESULT keys = map->keys == 0
-        ? catmm_heap_alloc(&map->keys, (NUINT) (capacity * map->ksize))
-        : catmm_heap_realloc(&map->keys, (NUINT) (capacity * map->ksize));
+    RESULT keys = catrl_grow_storage(&map->keys, (NUINT) (capacity * map->ksize));
     if (!status_code_is_success(keys.status)) {
         return RESULT(keys.status, 0x10, 0x04, keys.detail);
     }
     /* Commit the logical capacity only when both buffers can hold it. If the
      * second resize fails, the larger key buffer is still owned by the map.
      */
-    RESULT values = map->values == 0
-        ? catmm_heap_alloc(&map->values, (NUINT) (capacity * map->vsize))
-        : catmm_heap_realloc(&map->values, (NUINT) (capacity * map->vsize));
+    RESULT values = catrl_grow_storage(&map->values, (NUINT) (capacity * map->vsize));
     if (!status_code_is_success(values.status)) {
         return RESULT(values.status, 0x10, 0x05, values.detail);
     }
@@ -274,8 +291,7 @@ CATALYST_RESULT catrl_map_expand(CATRLLIB_MAP* map, CATALYST_NUINT capacity) {
 }
 
 CATALYST_RESULT catrl_map_shrink(CATRLLIB_MAP* map) {
-    NUINT capacity = (NUINT) (map->capacity / (NUINT) 2);
-    if (capacity < map->cardinality) capacity = map->cardinality;
+    NUINT capacity = catrl_shrink_capacity(map->capacity, map->cardinality);
     if (capacity == map->capacity) {
         return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x11, 0x01, 0);
     }
@@ -368,48 +384,15 @@ void catrl_array_clear(CATRLLIB_ARRAY* array) {
 }
 
 CATALYST_RESULT catrl_array_expand(CATRLLIB_ARRAY* array, CATALYST_NUINT capacity) {
-    if (capacity <= array->capacity) {
-        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x1B, 0x01, 0);
-    }
-    if (capacity > (NUINT) (CATALYST_NUINT_MAX / array->size)) {
-        return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x1B, 0x02, 0);
-    }
-    RESULT resize = array->data == 0
-        ? catmm_heap_alloc(&array->data, (NUINT) (capacity * array->size))
-        : catmm_heap_realloc(&array->data, (NUINT) (capacity * array->size));
-    if (!status_code_is_success(resize.status)) {
-        return RESULT(resize.status, 0x1B, 0x03, resize.detail);
-    }
-    array->capacity = capacity;
-    return RESULT(STATUS_CODE_SUCCESS, 0x1B, 0x04, 0);
+    return catrl_buffer_expand(&array->data, array->size, &array->capacity, capacity, 0x1B);
 }
 
 CATALYST_RESULT catrl_array_shrink(CATRLLIB_ARRAY* array) {
-    NUINT capacity = (NUINT) (array->capacity / (NUINT) 2);
-    if (capacity < array->length) capacity = array->length;
-    if (capacity == array->capacity) {
-        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x1C, 0x01, 0);
-    }
-    RESULT resize = catmm_heap_realloc(&array->data, (NUINT) (capacity * array->size));
-    if (!status_code_is_success(resize.status)) {
-        return RESULT(resize.status, 0x1C, 0x02, resize.detail);
-    }
-    array->capacity = capacity;
-    return RESULT(STATUS_CODE_SUCCESS, 0x1C, 0x03, 0);
+    return catrl_buffer_shrink(&array->data, array->size, &array->capacity, array->length, 0x1C);
 }
 
 CATALYST_RESULT catrl_array_free(CATRLLIB_ARRAY* array) {
-    if (array->data == 0) {
-        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x1D, 0x01, 0);
-    }
-    RESULT release = catmm_heap_free(array->data);
-    if (!status_code_is_success(release.status)) {
-        return RESULT(release.status, 0x1D, 0x02, release.detail);
-    }
-    array->data = 0;
-    array->length = 0;
-    array->capacity = 0;
-    return RESULT(STATUS_CODE_SUCCESS, 0x1D, 0x03, 0);
+    return catrl_buffer_free(&array->data, &array->length, &array->capacity, 0x1D);
 }
 
 /* -------------------------------------------------------------------------------------------------
@@ -740,7 +723,7 @@ CATALYST_RESULT catrl_queue_expand(CATRLLIB_QUEUE* queue, CATALYST_NUINT capacit
     if (capacity > (NUINT) (CATALYST_NUINT_MAX / queue->size)) {
         return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x29, 0x02, 0);
     }
-    RESULT resize = catmm_heap_realloc(&queue->data, (NUINT) (capacity * queue->size));
+    RESULT resize = catrl_grow_storage(&queue->data, (NUINT) (capacity * queue->size));
     if (!status_code_is_success(resize.status)) {
         return RESULT(resize.status, 0x29, 0x03, resize.detail);
     }
@@ -750,8 +733,7 @@ CATALYST_RESULT catrl_queue_expand(CATRLLIB_QUEUE* queue, CATALYST_NUINT capacit
 }
 
 CATALYST_RESULT catrl_queue_shrink(CATRLLIB_QUEUE* queue) {
-    NUINT capacity = (NUINT) (queue->capacity / (NUINT) 2);
-    if (capacity < queue->length) capacity = queue->length;
+    NUINT capacity = catrl_shrink_capacity(queue->capacity, queue->length);
     if (capacity == queue->capacity) {
         return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x2A, 0x01, 0);
     }
@@ -812,46 +794,15 @@ void catrl_stack_clear(CATRLLIB_STACK* stack) {
 }
 
 CATALYST_RESULT catrl_stack_expand(CATRLLIB_STACK* stack, CATALYST_NUINT capacity) {
-    if (capacity <= stack->capacity) {
-        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x31, 0x01, 0);
-    }
-    if (capacity > (NUINT) (CATALYST_NUINT_MAX / stack->size)) {
-        return RESULT(STATUS_CODE_ERROR_BUFFER_OVERFLOW, 0x31, 0x02, 0);
-    }
-    RESULT resize = catmm_heap_realloc(&stack->data, (NUINT) (capacity * stack->size));
-    if (!status_code_is_success(resize.status)) {
-        return RESULT(resize.status, 0x31, 0x03, resize.detail);
-    }
-    stack->capacity = capacity;
-    return RESULT(STATUS_CODE_SUCCESS, 0x31, 0x04, 0);
+    return catrl_buffer_expand(&stack->data, stack->size, &stack->capacity, capacity, 0x31);
 }
 
 CATALYST_RESULT catrl_stack_shrink(CATRLLIB_STACK* stack) {
-    NUINT capacity = (NUINT) (stack->capacity / (NUINT) 2);
-    if (capacity < stack->length) capacity = stack->length;
-    if (capacity == stack->capacity) {
-        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x32, 0x01, 0);
-    }
-    RESULT resize = catmm_heap_realloc(&stack->data, (NUINT) (capacity * stack->size));
-    if (!status_code_is_success(resize.status)) {
-        return RESULT(resize.status, 0x32, 0x02, resize.detail);
-    }
-    stack->capacity = capacity;
-    return RESULT(STATUS_CODE_SUCCESS, 0x32, 0x03, 0);
+    return catrl_buffer_shrink(&stack->data, stack->size, &stack->capacity, stack->length, 0x32);
 }
 
 CATALYST_RESULT catrl_stack_free(CATRLLIB_STACK* stack) {
-    if (stack->data == 0) {
-        return RESULT(STATUS_CODE_SUCCESS_NOOP, 0x33, 0x01, 0);
-    }
-    RESULT release = catmm_heap_free(stack->data);
-    if (!status_code_is_success(release.status)) {
-        return RESULT(release.status, 0x33, 0x02, release.detail);
-    }
-    stack->data = 0;
-    stack->length = 0;
-    stack->capacity = 0;
-    return RESULT(STATUS_CODE_SUCCESS, 0x33, 0x03, 0);
+    return catrl_buffer_free(&stack->data, &stack->length, &stack->capacity, 0x33);
 }
 
 /* -------------------------------------------------------------------------------------------------
@@ -954,13 +905,13 @@ CATALYST_RESULT catrl_pool_expand(CATRLLIB_POOL* pool, CATALYST_NUINT capacity) 
     }
     NUINT bytes = catrl_pool_bitmap_size(capacity);
     if (bytes != catrl_pool_bitmap_size(pool->capacity)) {
-        RESULT bitmap = catmm_heap_realloc(&pool->occupied, bytes);
+        RESULT bitmap = catrl_grow_storage(&pool->occupied, bytes);
         if (!status_code_is_success(bitmap.status)) {
             return RESULT(bitmap.status, 0x3A, 0x03, bitmap.detail);
         }
     }
     /* The bitmap may retain extra zero bits on data resize failure. */
-    RESULT data = catmm_heap_realloc(&pool->data, (NUINT) (capacity * pool->size));
+    RESULT data = catrl_grow_storage(&pool->data, (NUINT) (capacity * pool->size));
     if (!status_code_is_success(data.status)) {
         return RESULT(data.status, 0x3A, 0x04, data.detail);
     }
@@ -969,8 +920,7 @@ CATALYST_RESULT catrl_pool_expand(CATRLLIB_POOL* pool, CATALYST_NUINT capacity) 
 }
 
 CATALYST_RESULT catrl_pool_shrink(CATRLLIB_POOL* pool) {
-    NUINT capacity = (NUINT) (pool->capacity / (NUINT) 2);
-    if (capacity < pool->cardinality) capacity = pool->cardinality;
+    NUINT capacity = catrl_shrink_capacity(pool->capacity, pool->cardinality);
     /* Never truncate a live index. Skip empty bitmap bytes when seeking the last live slot. */
     NUINT end = pool->capacity;
     if (pool->cardinality != 0) {
