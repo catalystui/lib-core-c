@@ -280,12 +280,14 @@ CATALYST_RESULT cattr_dispatcher_submit(DISPATCHER* dispatcher, POINTERX operati
     submission.arguments = arguments;
     submission.awaited = wait;
     submission.invocation = 0;
-    /* Ordinary asynchronous admission usually completes immediately.
-     * Keep that path in shared code; use the native wait only if a slot
-     * is unavailable or the caller must await execution. */
+    /* Under the monitor, a full pool cannot become available until a
+     * native wait releases the lock. Attempt admission only once on the
+     * immediate path; let the backend own all blocking attempts. */
     RESULT admission(STATUS_CODE_SUCCESS, 0, 0, 0);
-    if (wait || !cattr_submission_ready(&submission)) {
+    if (wait || (timeout != 0 && state->pool.cardinality == state->pool.capacity)) {
         admission = cattr_platform_monitor_wait(dispatcher->state, timeout, cattr_submission_ready, &submission);
+    } else if (!cattr_submission_ready(&submission)) {
+        admission = RESULT(STATUS_CODE_ERROR_TIMEOUT, 0, 0, 0);
     }
     CATTRLIB_INVOCATION* invocation = (CATTRLIB_INVOCATION*) submission.invocation;
     if (invocation == 0) {
