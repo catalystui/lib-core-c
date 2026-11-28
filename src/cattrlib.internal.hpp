@@ -28,7 +28,9 @@ CATTRLIB_PRIVATE CATALYST_BOOL cattr_platform_thread_is_current(CATMMLIB_POINTER
 CATTRLIB_PRIVATE CATALYST_RESULT cattr_platform_thread_free(CATMMLIB_POINTERW* state);
 
 /* A monitor serializes access and provides change notification. Lock acquires
- * exclusive ownership; unlock/notify require ownership. Wait is entered and
+ * exclusive ownership of a valid initialized monitor; unlock/notify require
+ * ownership. Nonreporting lock operations require native invariants to hold.
+ * Wait is entered and
  * returns locked, including on failure. Evaluate ready before blocking and
  * after every wake; true completes successfully. The predicate may advance
  * shared state under the lock, but must not block or release the lock.

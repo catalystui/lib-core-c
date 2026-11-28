@@ -95,7 +95,8 @@ CATALYST_RESULT cattr_platform_thread_start(POINTERW* state, void (*entry)(POINT
     int error = pthread_mutex_init(&thread->gate, 0);
     if (error != 0) return RESULT(cattr_posix_status(error), 0x04, 0x02, 0);
     thread->gate_initialized = TRUE;
-    pthread_mutex_lock(&thread->gate);
+    error = pthread_mutex_lock(&thread->gate);
+    if (error != 0) return RESULT(cattr_posix_status(error), 0x04, 0x05, 0);
     error = pthread_create(&thread->identity, 0, cattr_posix_entry, thread);
     pthread_mutex_unlock(&thread->gate);
     if (error != 0) return RESULT(cattr_posix_status(error), 0x04, 0x03, 0);
