@@ -29,7 +29,7 @@ Core provides portable building blocks based on the [Foundational Definitions Sp
 Core is designed to be implementable even on 8-bit systems while taking advantage of wider numeric representations where beneficial. It is independent of every layer and sensory domain of the CatalystUI model, and exists to support them all.
 
 > [!NOTE]
-> Core is in early development (1.0.0-alpha.2). Core types, text encoding, memory, collections, process and thread operations (on supported platforms), and object-oriented composite relationships are implemented. API and ABI stability are not yet guaranteed.
+> Core is in beta development (1.0.0-beta.1). Core types, text encoding, memory, collections, process and thread operations (on supported platforms), and object-oriented composite relationships are implemented. API and ABI stability are not yet guaranteed.
 
 ## Libraries
 
@@ -166,7 +166,7 @@ find_package(CatalystCore CONFIG REQUIRED)
 target_link_libraries(my_application PRIVATE Catalyst::catte_static)
 ```
 
-Installed packages require a compatible target ABI and toolchain. The package checks the operating system, pointer width when available, and explicitly declared Catalyst target identifiers; these checks do not establish every aspect of binary compatibility. Release static archives use IPO by default; configure Core with `CATALYST_RELEASE_STATIC_IPO=OFF` for native machine-code archives intended for distribution. Alpha versions do not guarantee compatibility; pin the intended source revision or select the corresponding binary package rather than relying on the numeric version alone. Shared-library consumers must deploy the corresponding runtime libraries and ABI aliases where the native loader can find them.
+Installed packages require a compatible target ABI and toolchain. The package checks the operating system, pointer width when available, and explicitly declared Catalyst target identifiers; these checks do not establish every aspect of binary compatibility. Release static archives use IPO by default; configure Core with `CATALYST_RELEASE_STATIC_IPO=OFF` for native machine-code archives intended for distribution. Prerelease versions do not guarantee compatibility; pin the intended source revision or select the corresponding binary package rather than relying on the numeric version alone. Shared-library consumers must deploy the corresponding runtime libraries and ABI aliases where the native loader can find them.
 
 ## AI-Assisted Development
 

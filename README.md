@@ -25,7 +25,7 @@ Core is independent of any particular layer or sensory domain of the CatalystUI 
 ## Development Status
 
 > [!NOTE]
-> Core is in early development (1.0.0-alpha.2). Core types and text encoding are implemented. API and ABI stability are not yet guaranteed.
+> Core is in beta development (1.0.0-beta.1). Core types, text encoding, memory, collections, process and thread operations (on supported platforms), and object-oriented composite relationships are implemented. API and ABI stability are not yet guaranteed.
 
 The compile workflow checks C90 and C++98 on x86, and C99 and C++11 on x64, using GCC on Linux.
 

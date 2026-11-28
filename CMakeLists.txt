@@ -4,7 +4,7 @@ if(PROJECT_IS_TOP_LEVEL)
     set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 endif()
 include("${PROJECT_SOURCE_DIR}/cmake/CMakeInit.cmake" REQUIRED)
-metadata("catalyst" 1 0 0 "alpha.2" "Foundational C ABI libraries for CatalystUI core types and text encoding.")
+metadata("catalyst" 1 0 0 "beta.1" "Foundational C ABI libraries for CatalystUI.")
 configure("${TARGET_VENDOR}" "${TARGET_SYSTEM}" "${TARGET_ARCHITECTURE}")
 define("cmake/CMakeConfig.h" "cmakecfg.h")
 
@@ -258,7 +258,7 @@ if(CATALYST_CORE_INSTALL)
         "${CMAKE_CURRENT_BINARY_DIR}/CatalystCoreConfig.cmake"
         INSTALL_DESTINATION "${CATALYST_CORE_PACKAGE_DIR}"
     )
-    # Alpha releases do not promise compatibility with other numeric versions.
+    # Prerelease versions do not promise compatibility with other numeric versions.
     write_basic_package_version_file(
         "${CMAKE_CURRENT_BINARY_DIR}/CatalystCoreConfigVersion.cmake"
         VERSION "${METADATA_VERSION_MAJOR}.${METADATA_VERSION_MINOR}.${METADATA_VERSION_PATCH}"
