@@ -114,6 +114,15 @@ jobs:
           & "$output/test_catoolib"
           & "$output/test_catrllib"
 
+      - name: Compile and test CATTRLIB
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          cmake --build target/ci --parallel --target cattrlib_shared test_cattrlib perf_cattrlib
+          $output = 'build/linux/linux/${{ matrix.arch }}/release'
+          & "$output/test_cattrlib"
+          # Bound benchmark execution so a synchronization regression cannot hang CI.
+          timeout 120s "$output/perf_cattrlib"
+
       - name: Verify relocatable shared-library runtime
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
@@ -131,6 +140,7 @@ jobs:
           #include "catalyst.h"
           #include "cattelib.h"
           #include "catoolib.h"
+          #include "cattrlib.h"
           '@ | gcc ${{ matrix.flags }} -std=c${{ matrix.c }} -pedantic-errors -Iinclude -Itarget/ci/generated -x c -c -o target/ci/headers-c.o -
 
       - name: Compile public C++ headers
@@ -139,6 +149,7 @@ jobs:
           #include "catalyst.hpp"
           #include "cattelib.hpp"
           #include "catoolib.hpp"
+          #include "cattrlib.hpp"
           '@ | g++ ${{ matrix.flags }} -std=c++${{ matrix.cpp }} -pedantic-errors -Iinclude -Itarget/ci/generated -x c++ -c -o target/ci/headers-cpp.o -
 
       - name: Verify optional-width fallback and 8-bit target compilation
