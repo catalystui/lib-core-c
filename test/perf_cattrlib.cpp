@@ -168,7 +168,7 @@ static void* native_entry(void* arguments) {
     return 0;
 }
 
-static const Octet native_max_capacity = 32;
+static const NUINT native_max_capacity = (NUINT) 128;
 static const Octet completion_pending = 0;
 static const Octet completion_done = 1;
 static const Octet completion_cancelled = 2;
@@ -307,9 +307,10 @@ struct Native {
         d->entries[index].entry = entry;
         d->entries[index].arguments = args;
         d->entries[index].completion = wait ? &completion : 0;
+        Flag was_empty = d->length == 0 ? TRUE : FALSE;
         ++d->length;
         ++d->occupied;
-        monitor_notify(&d->monitor);
+        if (was_empty) monitor_notify(&d->monitor);
         if (!wait) {
             monitor_unlock(&d->monitor);
             return STATUS_CODE_SUCCESS;
@@ -318,14 +319,16 @@ struct Native {
         // lock is held. Remove the tail and return without borrowing args.
         if (timeout == 0) {
             --d->length;
+            Flag was_full = d->occupied == d->capacity ? TRUE : FALSE;
             --d->occupied;
-            monitor_notify(&d->monitor);
+            if (was_full) monitor_notify(&d->monitor);
             monitor_unlock(&d->monitor);
             return STATUS_CODE_ERROR_TIMEOUT;
         }
         while (completion == completion_pending) monitor_wait(&d->monitor);
+        Flag was_full = d->occupied == d->capacity ? TRUE : FALSE;
         --d->occupied;
-        monitor_notify(&d->monitor);
+        if (was_full) monitor_notify(&d->monitor);
         monitor_unlock(&d->monitor);
         return completion == completion_done ? STATUS_CODE_SUCCESS : STATUS_CODE_ERROR_INTERRUPTED;
     }
@@ -360,13 +363,16 @@ struct Native {
         NativeInvocation work = d->entries[d->head];
         d->head = (NUINT) ((d->head + (NUINT) 1) % d->capacity);
         --d->length;
-        monitor_notify(&d->monitor);
         monitor_unlock(&d->monitor);
         work.entry(work.arguments);
         monitor_lock(&d->monitor);
+        Flag notify = work.completion != 0 ? TRUE : FALSE;
         if (work.completion != 0) *work.completion = completion_done;
-        else --d->occupied;
-        monitor_notify(&d->monitor);
+        else {
+            notify = d->occupied == d->capacity ? TRUE : FALSE;
+            --d->occupied;
+        }
+        if (notify) monitor_notify(&d->monitor);
         monitor_unlock(&d->monitor);
         return STATUS_CODE_SUCCESS;
     }
@@ -496,6 +502,7 @@ static const Benchmark benchmarks[] = {
     { "thread create/start/wait/free", THREAD_LIFECYCLE, 1, 1, 1024UL },
     { "dispatcher create/close/free (1)", DISPATCHER_LIFECYCLE, 1, 1, 32768UL },
     { "dispatcher create/close/free (32)", DISPATCHER_LIFECYCLE, 32, 1, 32768UL },
+    { "dispatcher create/close/free (128)", DISPATCHER_LIFECYCLE, 128, 1, 8192UL },
     { "dispatcher count (empty)", COUNT_EMPTY, 1, 1, 262144UL },
     { "dispatcher wait (zero timeout)", WAIT_EMPTY, 1, 1, 262144UL },
     { "dispatcher poll (empty)", POLL_EMPTY, 1, 1, 262144UL },
@@ -505,6 +512,7 @@ static const Benchmark benchmarks[] = {
     { "dispatcher synchronous round trip", SYNC_ROUNDTRIP, 1, 1, 4096UL },
     { "dispatcher FIFO batch (8)", BATCH_FIFO, 8, 8, 4096UL },
     { "dispatcher FIFO batch (32)", BATCH_FIFO, 32, 32, 4096UL },
+    { "dispatcher FIFO batch (128)", BATCH_FIFO, 128, 128, 1024UL },
     { "dispatcher close / worker join", CLOSE_JOIN, 1, 1, 1024UL }
 };
 
